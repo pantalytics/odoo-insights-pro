@@ -9,8 +9,9 @@ data off the browser.
 
 ## Highlights
 
-- **Dormant by default.** The module does nothing until you set a PostHog
-  project key. No key → no script, no requests, no-op.
+- **Key-gated.** Tracking only runs when a PostHog project key is set. Remove
+  the key (or flip the switch off) and it goes fully dormant — no script, no
+  requests. This build ships with the Pantalytics EU key pre-filled.
 - **Pseudonymous identity.** Users are identified as `db#uid` (database name +
   user id). Never a name, never an email.
 - **Per-customer workspace.** Every database reports under its own PostHog group,
@@ -20,12 +21,18 @@ data off the browser.
 
 ## Installation
 
+The module ships **pre-connected** to the Pantalytics PostHog project on
+EU Cloud (`https://eu.i.posthog.com`), so a plain install starts sending data
+right away.
+
 1. Copy the `insights_pro` folder into your Odoo addons path.
 2. Update the apps list and install **Insights Pro**.
-3. Go to **Settings → Insights Pro** (or the Insights Pro app), paste your
-   PostHog **project key** (`phc_…`) and confirm the **host**
-   (`https://eu.i.posthog.com` for EU Cloud, `https://us.i.posthog.com` for US).
-4. Reload the backend. That's it.
+3. Reload the backend. That's it.
+
+To point at a **different** PostHog project, go to **Settings → Insights Pro**
+(or the Insights Pro app) and change the **project key** (`phc_…`) and **host**
+(`https://eu.i.posthog.com` for EU Cloud, `https://us.i.posthog.com` for US).
+You can also flip the master switch off there to make the module dormant again.
 
 ## Configuration
 
@@ -35,7 +42,7 @@ Everything is stored as system parameters, so it can also be managed via
 | Parameter | Default | Meaning |
 |---|---|---|
 | `insights_pro.enabled` | `True` | Master switch. |
-| `insights_pro.posthog_project_key` | *(empty)* | PostHog public project key. Empty = dormant. |
+| `insights_pro.posthog_project_key` | `phc_gHeP…DzQhS` | PostHog public project key. Empty = dormant. |
 | `insights_pro.posthog_host` | `https://eu.i.posthog.com` | PostHog instance URL. |
 | `insights_pro.mask_all_text` | `True` | Mask all captured input text. |
 | `insights_pro.disable_session_recording` | `True` | Keep session replay off. |

@@ -6,9 +6,12 @@
         <field name="key">insights_pro.enabled</field>
         <field name="value">True</field>
     </record>
+    <!-- Public PostHog project key (Pantalytics, EU Cloud, project 129354).
+         phc_ keys are client-side/public by design; safe to ship. Swap this
+         under Settings > Insights Pro to point at a different project. -->
     <record id="param_project_key" model="ir.config_parameter">
         <field name="key">insights_pro.posthog_project_key</field>
-        <field name="value"></field>
+        <field name="value">phc_gHePvC99ct0f8mynI1tmWyalpXLHUDkB6xdk92DzQhS</field>
     </record>
     <record id="param_host" model="ir.config_parameter">
         <field name="key">insights_pro.posthog_host</field>
