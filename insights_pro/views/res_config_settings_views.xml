@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.insights.pro</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Insights Pro" string="Insights Pro"
+                     name="insights_pro" logo="/insights_pro/static/description/icon.png">
+                    <block title="PostHog Product Analytics"
+                           name="insights_pro_settings_block">
+                        <setting id="insights_pro_enabled_setting"
+                                 string="Insights Pro"
+                                 help="Inject PostHog into the backend. Stays dormant until a project key is set.">
+                            <field name="insights_pro_enabled"/>
+                        </setting>
+                        <setting id="insights_pro_credentials_setting"
+                                 string="PostHog project"
+                                 help="Public project key and host. Find these in PostHog under Project Settings."
+                                 invisible="not insights_pro_enabled">
+                            <div class="content-group mt16">
+                                <div class="row">
+                                    <label for="insights_pro_project_key" class="col-lg-4 o_light_label"/>
+                                    <field name="insights_pro_project_key"
+                                           placeholder="phc_xxxxxxxxxxxxxxxxxxxxxxxx"/>
+                                </div>
+                                <div class="row">
+                                    <label for="insights_pro_host" class="col-lg-4 o_light_label"/>
+                                    <field name="insights_pro_host"
+                                           placeholder="https://eu.i.posthog.com"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting id="insights_pro_privacy_setting"
+                                 string="Privacy"
+                                 help="Recommended: keep both on. Text stays masked and session replay stays off."
+                                 invisible="not insights_pro_enabled">
+                            <field name="insights_pro_mask_all_text"/>
+                            <span class="ms-2">Mask all input text</span>
+                            <br/>
+                            <field name="insights_pro_disable_session_recording"/>
+                            <span class="ms-2">Disable session replay</span>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_insights_pro_settings" model="ir.actions.act_window">
+        <field name="name">Insights Pro</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'insights_pro'}</field>
+    </record>
+
+    <menuitem id="menu_insights_pro_root"
+              name="Insights Pro"
+              sequence="95"
+              web_icon="insights_pro,static/description/icon.png"/>
+    <menuitem id="menu_insights_pro_settings"
+              name="Settings"
+              parent="menu_insights_pro_root"
+              action="action_insights_pro_settings"
+              sequence="10"
+              groups="base.group_system"/>
+</odoo>

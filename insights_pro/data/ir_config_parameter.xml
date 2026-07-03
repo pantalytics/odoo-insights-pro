@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Sensible, privacy-first defaults. The module stays dormant because no
+         project key is set out of the box. -->
+    <record id="param_enabled" model="ir.config_parameter">
+        <field name="key">insights_pro.enabled</field>
+        <field name="value">True</field>
+    </record>
+    <record id="param_project_key" model="ir.config_parameter">
+        <field name="key">insights_pro.posthog_project_key</field>
+        <field name="value"></field>
+    </record>
+    <record id="param_host" model="ir.config_parameter">
+        <field name="key">insights_pro.posthog_host</field>
+        <field name="value">https://eu.i.posthog.com</field>
+    </record>
+    <record id="param_mask_all_text" model="ir.config_parameter">
+        <field name="key">insights_pro.mask_all_text</field>
+        <field name="value">True</field>
+    </record>
+    <record id="param_disable_session_recording" model="ir.config_parameter">
+        <field name="key">insights_pro.disable_session_recording</field>
+        <field name="value">True</field>
+    </record>
+</odoo>
