@@ -113,8 +113,15 @@ export const insightsProService = {
             person_profiles: "identified_only",
             autocapture: { element_attribute_ignorelist: ["value"] },
             mask_all_text: !!cfg.mask_all_text,
-            mask_all_element_attributes: !!cfg.mask_all_text,
+            mask_all_element_attributes: true,
+            // Session replay is ON by default (most valuable signal). Inputs are
+            // ALWAYS masked so typed-in business data never leaves the browser;
+            // mask_all_text additionally hides all visible text (labels/values).
             disable_session_recording: !!cfg.disable_session_recording,
+            session_recording: {
+                maskAllInputs: true,
+                maskTextSelector: cfg.mask_all_text ? "*" : undefined,
+            },
             capture_pageview: true,
             loaded: (ph) => {
                 ph.identify(cfg.distinct_id);

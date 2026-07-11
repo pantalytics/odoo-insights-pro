@@ -19,12 +19,17 @@
         <field name="key">insights_pro.posthog_host</field>
         <field name="value">https://eu.i.posthog.com</field>
     </record>
+    <!-- Off: only INPUT fields are masked in recordings (always, in JS), so
+         recordings stay useful. Flip on under Settings to also hide all visible
+         text for a customer that requires maximum privacy. -->
     <record id="param_mask_all_text" model="ir.config_parameter">
         <field name="key">insights_pro.mask_all_text</field>
-        <field name="value">True</field>
+        <field name="value">False</field>
     </record>
+    <!-- Session replay ON by default — the most valuable signal. Inputs are
+         always masked. Flip on (disable) per instance if a customer opts out. -->
     <record id="param_disable_session_recording" model="ir.config_parameter">
         <field name="key">insights_pro.disable_session_recording</field>
-        <field name="value">True</field>
+        <field name="value">False</field>
     </record>
 </odoo>

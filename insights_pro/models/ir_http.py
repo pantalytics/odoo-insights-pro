@@ -37,10 +37,10 @@ class IrHttp(models.AbstractModel):
             "company": env.company.name if env.company else None,
             "odoo_version": release.version,
             # Privacy defaults — overridable via system parameters if ever needed.
-            "mask_all_text": icp.get_param("insights_pro.mask_all_text", "True")
-            not in ("False", "0", ""),
+            "mask_all_text": icp.get_param("insights_pro.mask_all_text", "False")
+            in ("True", "1"),
             "disable_session_recording": icp.get_param(
-                "insights_pro.disable_session_recording", "True"
+                "insights_pro.disable_session_recording", "False"
             )
-            not in ("False", "0", ""),
+            in ("True", "1"),
         }

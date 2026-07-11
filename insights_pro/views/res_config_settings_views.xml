@@ -32,15 +32,17 @@
                                 </div>
                             </div>
                         </setting>
-                        <setting id="insights_pro_privacy_setting"
-                                 string="Privacy"
-                                 help="Recommended: keep both on. Text stays masked and session replay stays off."
+                        <setting id="insights_pro_replay_setting"
+                                 string="Disable session replay"
+                                 help="Session replay is ON by default — the most valuable signal for seeing where users get stuck. Input fields are always masked, so typed-in data never leaves the browser. Tick to turn replay off for this instance (e.g. a customer that opts out). Requires the customer's consent (GDPR)."
+                                 invisible="not insights_pro_enabled">
+                            <field name="insights_pro_disable_session_recording"/>
+                        </setting>
+                        <setting id="insights_pro_masktext_setting"
+                                 string="Mask all visible text"
+                                 help="Inputs are always masked regardless. Tick this to also hide all visible text (labels, values) in recordings — maximum privacy, but you mainly see layout and flow. Leave off for useful recordings."
                                  invisible="not insights_pro_enabled">
                             <field name="insights_pro_mask_all_text"/>
-                            <span class="ms-2">Mask all input text</span>
-                            <br/>
-                            <field name="insights_pro_disable_session_recording"/>
-                            <span class="ms-2">Disable session replay</span>
                         </setting>
                     </block>
                 </app>
