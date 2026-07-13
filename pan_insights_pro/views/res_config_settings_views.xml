@@ -7,42 +7,42 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app data-string="Insights Pro" string="Insights Pro"
-                     name="insights_pro" logo="/insights_pro/static/description/icon.png">
+                     name="pan_insights_pro" logo="/pan_insights_pro/static/description/icon.png">
                     <block title="PostHog Product Analytics"
-                           name="insights_pro_settings_block">
-                        <setting id="insights_pro_enabled_setting"
+                           name="pan_insights_pro_settings_block">
+                        <setting id="pan_insights_pro_enabled_setting"
                                  string="Insights Pro"
                                  help="Inject PostHog into the backend. Stays dormant until a project key is set.">
-                            <field name="insights_pro_enabled"/>
+                            <field name="pan_insights_pro_enabled"/>
                         </setting>
-                        <setting id="insights_pro_credentials_setting"
+                        <setting id="pan_insights_pro_credentials_setting"
                                  string="PostHog project"
                                  help="Public project key and host. Find these in PostHog under Project Settings."
-                                 invisible="not insights_pro_enabled">
+                                 invisible="not pan_insights_pro_enabled">
                             <div class="content-group mt16">
                                 <div class="row">
-                                    <label for="insights_pro_project_key" class="col-lg-4 o_light_label"/>
-                                    <field name="insights_pro_project_key"
+                                    <label for="pan_insights_pro_project_key" class="col-lg-4 o_light_label"/>
+                                    <field name="pan_insights_pro_project_key"
                                            placeholder="phc_xxxxxxxxxxxxxxxxxxxxxxxx"/>
                                 </div>
                                 <div class="row">
-                                    <label for="insights_pro_host" class="col-lg-4 o_light_label"/>
-                                    <field name="insights_pro_host"
+                                    <label for="pan_insights_pro_host" class="col-lg-4 o_light_label"/>
+                                    <field name="pan_insights_pro_host"
                                            placeholder="https://eu.i.posthog.com"/>
                                 </div>
                             </div>
                         </setting>
-                        <setting id="insights_pro_replay_setting"
+                        <setting id="pan_insights_pro_replay_setting"
                                  string="Disable session replay"
                                  help="Session replay is ON by default — the most valuable signal for seeing where users get stuck. Input fields are always masked, so typed-in data never leaves the browser. Tick to turn replay off for this instance (e.g. a customer that opts out). Requires the customer's consent (GDPR)."
-                                 invisible="not insights_pro_enabled">
-                            <field name="insights_pro_disable_session_recording"/>
+                                 invisible="not pan_insights_pro_enabled">
+                            <field name="pan_insights_pro_disable_session_recording"/>
                         </setting>
-                        <setting id="insights_pro_masktext_setting"
+                        <setting id="pan_insights_pro_masktext_setting"
                                  string="Mask all visible text"
                                  help="Inputs are always masked regardless. Tick this to also hide all visible text (labels, values) in recordings — maximum privacy, but you mainly see layout and flow. Leave off for useful recordings."
-                                 invisible="not insights_pro_enabled">
-                            <field name="insights_pro_mask_all_text"/>
+                                 invisible="not pan_insights_pro_enabled">
+                            <field name="pan_insights_pro_mask_all_text"/>
                         </setting>
                     </block>
                 </app>
@@ -50,22 +50,22 @@
         </field>
     </record>
 
-    <record id="action_insights_pro_settings" model="ir.actions.act_window">
+    <record id="action_pan_insights_pro_settings" model="ir.actions.act_window">
         <field name="name">Insights Pro</field>
         <field name="res_model">res.config.settings</field>
         <field name="view_mode">form</field>
         <field name="target">current</field>
-        <field name="context">{'module': 'insights_pro'}</field>
+        <field name="context">{'module': 'pan_insights_pro'}</field>
     </record>
 
-    <menuitem id="menu_insights_pro_root"
+    <menuitem id="menu_pan_insights_pro_root"
               name="Insights Pro"
               sequence="95"
-              web_icon="insights_pro,static/description/icon.png"/>
-    <menuitem id="menu_insights_pro_settings"
+              web_icon="pan_insights_pro,static/description/icon.png"/>
+    <menuitem id="menu_pan_insights_pro_settings"
               name="Settings"
-              parent="menu_insights_pro_root"
-              action="action_insights_pro_settings"
+              parent="menu_pan_insights_pro_root"
+              action="action_pan_insights_pro_settings"
               sequence="10"
               groups="base.group_system"/>
 </odoo>

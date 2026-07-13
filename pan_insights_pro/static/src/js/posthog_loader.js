@@ -98,7 +98,7 @@ function loadArrayJs(apiHost) {
 export const insightsProService = {
     dependencies: [],
     start() {
-        const cfg = session.insights_pro;
+        const cfg = session.pan_insights_pro;
         if (!cfg || !cfg.enabled || !cfg.api_key) {
             return; // dormant — nothing set up yet
         }
@@ -139,4 +139,4 @@ export const insightsProService = {
     },
 };
 
-registry.category("services").add("insights_pro.posthog", insightsProService);
+registry.category("services").add("pan_insights_pro.posthog", insightsProService);

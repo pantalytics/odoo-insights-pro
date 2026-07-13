@@ -32,7 +32,7 @@ Key characteristics
     ],
     "assets": {
         "web.assets_backend": [
-            "insights_pro/static/src/js/posthog_loader.js",
+            "pan_insights_pro/static/src/js/posthog_loader.js",
         ],
     },
     "images": ["static/description/icon.png"],

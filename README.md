@@ -25,7 +25,7 @@ The module ships **pre-connected** to the Pantalytics PostHog project on
 EU Cloud (`https://eu.i.posthog.com`), so a plain install starts sending data
 right away.
 
-1. Copy the `insights_pro` folder into your Odoo addons path.
+1. Copy the `pan_insights_pro` folder into your Odoo addons path.
 2. Update the apps list and install **Insights Pro**.
 3. Reload the backend. That's it.
 
@@ -41,15 +41,15 @@ Everything is stored as system parameters, so it can also be managed via
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `insights_pro.enabled` | `True` | Master switch. |
-| `insights_pro.posthog_project_key` | `phc_gHeP…DzQhS` | PostHog public project key. Empty = dormant. |
-| `insights_pro.posthog_host` | `https://eu.i.posthog.com` | PostHog instance URL. |
-| `insights_pro.mask_all_text` | `True` | Mask all captured input text. |
-| `insights_pro.disable_session_recording` | `True` | Keep session replay off. |
+| `pan_insights_pro.enabled` | `True` | Master switch. |
+| `pan_insights_pro.posthog_project_key` | `phc_gHeP…DzQhS` | PostHog public project key. Empty = dormant. |
+| `pan_insights_pro.posthog_host` | `https://eu.i.posthog.com` | PostHog instance URL. |
+| `pan_insights_pro.mask_all_text` | `True` | Mask all captured input text. |
+| `pan_insights_pro.disable_session_recording` | `True` | Keep session replay off. |
 
 ## How it works
 
-On every backend page load, `ir.http.session_info` adds an `insights_pro` block
+On every backend page load, `ir.http.session_info` adds an `pan_insights_pro` block
 to the session (key, host, pseudonymous `distinct_id`, workspace, privacy
 flags). The backend asset `posthog_loader.js` reads it and — only when a key is
 present — bootstraps PostHog, identifies the pseudonymous user, and assigns the

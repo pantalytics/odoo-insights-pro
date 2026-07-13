@@ -3,7 +3,7 @@
     <!-- Sensible, privacy-first defaults. The module stays dormant because no
          project key is set out of the box. -->
     <record id="param_enabled" model="ir.config_parameter">
-        <field name="key">insights_pro.enabled</field>
+        <field name="key">pan_insights_pro.enabled</field>
         <field name="value">True</field>
     </record>
     <!-- Public PostHog project key — dedicated "Odoo Customer Telemetry"
@@ -12,24 +12,24 @@
          ship. Swap under Settings > Insights Pro to point at a different
          project (e.g. a customer that requires an isolated project). -->
     <record id="param_project_key" model="ir.config_parameter">
-        <field name="key">insights_pro.posthog_project_key</field>
+        <field name="key">pan_insights_pro.posthog_project_key</field>
         <field name="value">phc_sfCTYr4N4pB48RcDWQ6gnPrWFopSakgZJaypk6SSQrtu</field>
     </record>
     <record id="param_host" model="ir.config_parameter">
-        <field name="key">insights_pro.posthog_host</field>
+        <field name="key">pan_insights_pro.posthog_host</field>
         <field name="value">https://eu.i.posthog.com</field>
     </record>
     <!-- Off: only INPUT fields are masked in recordings (always, in JS), so
          recordings stay useful. Flip on under Settings to also hide all visible
          text for a customer that requires maximum privacy. -->
     <record id="param_mask_all_text" model="ir.config_parameter">
-        <field name="key">insights_pro.mask_all_text</field>
+        <field name="key">pan_insights_pro.mask_all_text</field>
         <field name="value">False</field>
     </record>
     <!-- Session replay ON by default — the most valuable signal. Inputs are
          always masked. Flip on (disable) per instance if a customer opts out. -->
     <record id="param_disable_session_recording" model="ir.config_parameter">
-        <field name="key">insights_pro.disable_session_recording</field>
+        <field name="key">pan_insights_pro.disable_session_recording</field>
         <field name="value">False</field>
     </record>
 </odoo>
