@@ -12,7 +12,7 @@
                            name="pan_insights_pro_settings_block">
                         <setting id="pan_insights_pro_enabled_setting"
                                  string="Insights Pro"
-                                 help="Inject PostHog into the backend. Stays dormant until a project key is set.">
+                                 help="Inject PostHog into the backend. A project key ships pre-filled, so tracking is active unless you untick this or clear the key below.">
                             <field name="pan_insights_pro_enabled"/>
                         </setting>
                         <setting id="pan_insights_pro_credentials_setting"

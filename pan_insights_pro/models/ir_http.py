@@ -6,9 +6,9 @@ class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
     def session_info(self):
-        """Expose the (dormant-by-default) Insights Pro configuration to the
-        backend JS bundle through the session, so no extra RPC round-trip is
-        needed to bootstrap PostHog.
+        """Expose the Insights Pro configuration to the backend JS bundle
+        through the session, so no extra RPC round-trip is needed to bootstrap
+        PostHog. Ships active: the switch is on and a key is pre-filled.
         """
         result = super().session_info()
         result["pan_insights_pro"] = self._pan_insights_pro_config()

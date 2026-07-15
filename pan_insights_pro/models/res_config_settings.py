@@ -8,14 +8,14 @@ class ResConfigSettings(models.TransientModel):
     pan_insights_pro_enabled = fields.Boolean(
         string="Enable Insights Pro",
         config_parameter="pan_insights_pro.enabled",
-        help="Master switch. Even when enabled, tracking stays off until a "
-        "PostHog project key is provided.",
+        help="Master switch. Tracking needs both this and a project key; both "
+        "ship set, so a plain install tracks until you change one.",
     )
     pan_insights_pro_project_key = fields.Char(
         string="PostHog Project Key",
         config_parameter="pan_insights_pro.posthog_project_key",
-        help="Public project API key (starts with 'phc_'). Leave empty to keep "
-        "the module dormant.",
+        help="Public project API key (starts with 'phc_'). Ships pre-filled "
+        "with the Pantalytics EU project; clear it to make the module dormant.",
     )
     pan_insights_pro_host = fields.Char(
         string="PostHog Host",
