@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
-    <!-- Sensible, privacy-first defaults. The module stays dormant because no
-         project key is set out of the box. -->
+    <!-- These defaults ship the module ACTIVE: the switch is on and a project
+         key is set below, so a plain install starts sending immediately. Clear
+         the key to make it dormant. -->
     <record id="param_enabled" model="ir.config_parameter">
         <field name="key">pan_insights_pro.enabled</field>
         <field name="value">True</field>
     </record>
-    <!-- Public PostHog project key — dedicated "Odoo Customer Telemetry"
-         project (Pantalytics, EU Cloud), separate from the product-analytics
-         project 129354. phc_ keys are client-side/public by design; safe to
-         ship. Swap under Settings > Insights Pro to point at a different
-         project (e.g. a customer that requires an isolated project). -->
+    <!-- Public PostHog project key — the "insights-pro" project (id 221690,
+         Pantalytics, EU Cloud). Deliberately NOT the product-analytics project
+         129354, which holds the MCP Pro funnel; telemetry must not mix into it.
+         phc_ keys are client-side/public by design; safe to ship. Swap under
+         Settings > Insights Pro to point at a different project (e.g. a
+         customer that requires an isolated project). -->
     <record id="param_project_key" model="ir.config_parameter">
         <field name="key">pan_insights_pro.posthog_project_key</field>
         <field name="value">phc_sfCTYr4N4pB48RcDWQ6gnPrWFopSakgZJaypk6SSQrtu</field>
@@ -20,8 +22,10 @@
         <field name="value">https://eu.i.posthog.com</field>
     </record>
     <!-- Off: only INPUT fields are masked in recordings (always, in JS), so
-         recordings stay useful. Flip on under Settings to also hide all visible
-         text for a customer that requires maximum privacy. -->
+         recordings stay useful. The trade-off is that visible text is captured
+         as rendered — including personal data shown in list and form views.
+         Flip on under Settings to also hide all visible text for a customer
+         that requires maximum privacy. -->
     <record id="param_mask_all_text" model="ir.config_parameter">
         <field name="key">pan_insights_pro.mask_all_text</field>
         <field name="value">False</field>

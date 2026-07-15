@@ -6,24 +6,27 @@
 Insights Pro
 ============
 
-A lightweight, privacy-conscious asset module that injects PostHog into the
-Odoo backend so you can see where users get stuck.
+A lightweight asset module that injects PostHog into the Odoo backend so you
+can see where users get stuck.
 
 Key characteristics
 --------------------
-* **Dormant by default** — does nothing until a real PostHog project key is set
-  under *Settings > Insights Pro*.
+* **Active on install** — ships enabled, with the Pantalytics EU project key
+  pre-filled, so a plain install starts sending data immediately. Clear the key
+  (or flip the switch off) under *Settings > Insights Pro* to make it dormant.
 * **Pseudonymous identity** — users are identified as ``db#uid`` (database name
   plus user id), never by name or email.
 * **Per-customer workspace** — each database reports under its own group so data
   never mixes between customers.
-* **Privacy first** — all input text is masked, autocapture keeps element text
-  out of events, and session replay is disabled.
+* **Session replay is on by default.** Typed input is always masked, so what
+  users type never leaves the browser. Visible text is *not* masked unless you
+  enable *Mask all text* — meaning recordings capture whatever is on screen,
+  including customer data rendered in list and form views.
     """,
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Productivity/Analytics",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.2.0",
     "license": "LGPL-3",
     "depends": ["web"],
     "data": [

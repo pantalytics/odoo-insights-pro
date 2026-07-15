@@ -4,20 +4,29 @@ Product analytics for the **Odoo 19** backend, powered by [PostHog](https://post
 
 Insights Pro is a lightweight asset module that injects PostHog into
 `web.assets_backend` so you can see where users get stuck — which screens they
-open, where they drop off, which flows are slow — without shipping any personal
-data off the browser.
+open, where they drop off, which flows are slow.
 
 ## Highlights
 
-- **Key-gated.** Tracking only runs when a PostHog project key is set. Remove
-  the key (or flip the switch off) and it goes fully dormant — no script, no
-  requests. This build ships with the Pantalytics EU key pre-filled.
+- **Active on install.** This build ships with the Pantalytics EU key pre-filled
+  and the master switch on, so a plain install starts sending data immediately.
+  It is key-gated, not off-by-default: remove the key (or flip the switch off)
+  and it goes fully dormant — no script, no requests.
 - **Pseudonymous identity.** Users are identified as `db#uid` (database name +
   user id). Never a name, never an email.
 - **Per-customer workspace.** Every database reports under its own PostHog group,
   so data never mixes between customers.
-- **Privacy first.** All input text is masked, autocapture ignores element
-  values, and session replay is disabled — all toggleable, all on by default.
+- **Session replay is on by default.** Typed input is always masked (`maskAllInputs`
+  is hard-coded on), so what users type never leaves the browser. Autocapture also
+  ignores element values.
+
+> **Read this before installing for a customer.** With the shipped defaults,
+> session replay records the rendered backend — and `mask_all_text` is `False`,
+> so *visible* text is not masked. Recordings will contain whatever is on screen,
+> including personal data in list and form views. If that is not what you want,
+> set `pan_insights_pro.disable_session_recording` to `True` (no replay) or
+> `pan_insights_pro.mask_all_text` to `True` (replay with all text hidden) before
+> or at install time.
 
 ## Installation
 
@@ -42,10 +51,10 @@ Everything is stored as system parameters, so it can also be managed via
 | Parameter | Default | Meaning |
 |---|---|---|
 | `pan_insights_pro.enabled` | `True` | Master switch. |
-| `pan_insights_pro.posthog_project_key` | `phc_gHeP…DzQhS` | PostHog public project key. Empty = dormant. |
+| `pan_insights_pro.posthog_project_key` | `phc_sfCT…SQrtu` | PostHog public project key. Empty = dormant. |
 | `pan_insights_pro.posthog_host` | `https://eu.i.posthog.com` | PostHog instance URL. |
-| `pan_insights_pro.mask_all_text` | `True` | Mask all captured input text. |
-| `pan_insights_pro.disable_session_recording` | `True` | Keep session replay off. |
+| `pan_insights_pro.mask_all_text` | `False` | `True` also masks all *visible* text in recordings. Typed input is masked either way. |
+| `pan_insights_pro.disable_session_recording` | `False` | `True` turns session replay off. |
 
 ## How it works
 
