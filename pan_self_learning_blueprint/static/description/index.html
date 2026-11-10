@@ -4,9 +4,8 @@
         <h3 class="oe_slogan">Map the business, put Odoo over it, and see where the implementation stands</h3>
         <div class="oe_span12">
             <p class="oe_mt32">
-                Blueprint describes a company as one model: value chains, processes, activities and click paths.
-                Every activity is the shared key between three pillars: the business (what we do), the system
-                (what Odoo must do) and the people (can they do it). One role does one thing to one Odoo document.
+                Blueprint describes a company as one model: chains, processes, activities and click paths.
+                In every activity one role does one thing to one Odoo document.
             </p>
         </div>
     </div>
@@ -17,15 +16,11 @@
         <h3 class="oe_slogan">One company map</h3>
         <div class="oe_span12">
             <ul>
-                <li>Phases from left to right, following Odoo's document chain.</li>
-                <li>Roles from top to bottom, with external roles (customer, supplier) at the edges.</li>
-                <li>A progress band on top and the Odoo apps per phase at the bottom.</li>
-                <li>Filter by scenario to draw a numbered test route across processes.</li>
-                <li>Colour by choices (proposal, provisional, fixed, revised), by progress or by ADKAR readiness.</li>
+                <li>Phases from left to right, roles from top to bottom, the Odoo apps per phase at the bottom.</li>
+                <li>Pick a scenario to draw its numbered test route.</li>
+                <li>Colour by choices (settled or not), by progress or by the ADKAR band of each role.</li>
                 <li>Zoom in for more detail; click an activity to open its side panel.</li>
-                <li>Click a phase name to see who still needs training in that phase.</li>
-                <li>Clashes (a choice that was revised, or fixed with an open point) are outlined and can be shown on their own.</li>
-                <li>Works with the keyboard, and every colour also has a shape.</li>
+                <li>Works with the keyboard, and colour is never the only signal.</li>
             </ul>
         </div>
     </div>
@@ -33,25 +28,16 @@
 
 <section class="oe_container">
     <div class="oe_row oe_spaced">
-        <h3 class="oe_slogan">Readiness per activity</h3>
+        <h3 class="oe_slogan">Progress per activity</h3>
         <div class="oe_span12">
             <p>
-                Project tasks get three fields: a scenario, the activities they move forward and a rung:
-                0 Open, 1 Decided, 2 Built, 3 Tested, 4 Trained, 5 Live. An activity is as far as its least
-                advanced task, counted over all its tasks so every user sees the same progress; cancelled tasks
-                are left out. Tasks from any project can point at activities, so the map keeps working after
-                go-live.
+                Project tasks point at activities and carry a progress step: Open, Decided, Built, Tested,
+                Trained, Live. An activity is as far as its least advanced task; each scenario shows the share of
+                its activities that are tested. Planned and spent hours are summed from the tasks.
             </p>
             <p>
-                Planned and spent hours per activity and scenario are summed from the linked tasks. A task on
-                several activities counts for each of them, and once per scenario. Estimates and timesheets
-                stay on the tasks (the module depends on Timesheets, which also installs Employees).
-            </p>
-            <p>
-                ADKAR scores (awareness, desire, knowledge, ability, reinforcement) per user show whether the
-                people in each role are ready for the change. Scores are personal: users see only their own,
-                administrators see all. The map shows a role's average once at least three of its users have
-                a score, and lists per activity who still needs training.
+                Role members are contacts, so people without a login count too. ADKAR scores are personal; the
+                map shows only a band per role, once at least three people have a score.
             </p>
         </div>
     </div>
@@ -62,10 +48,9 @@
         <h3 class="oe_slogan">An open blueprint format</h3>
         <div class="oe_span12">
             <p>
-                Import and export the whole model as one JSON file. Records match on their code, so a file can be
-                imported again and again and kept in git. A blueprint holds no personal data. Start from the
-                bundled template and adapt it to the company: loading the template again only fills what is
-                missing and keeps the company's own choices, click paths, open points and scenario steps.
+                Import and export the whole model as one JSON file, kept in git if you like. Records match on their
+                code, so importing again updates and never deletes. Loading the bundled template again only adds
+                what is missing.
             </p>
         </div>
     </div>
@@ -76,9 +61,8 @@
         <h3 class="oe_slogan">Getting started</h3>
         <div class="oe_span12">
             <ol>
-                <li>Install the app and give users the Blueprint user or manager access right.</li>
-                <li>Open Blueprint, Import / export, Load a template, import or export, and load the template or
-                    import your own file.</li>
+                <li>Install the app and give people the Blueprint user or administrator access right.</li>
+                <li>Open Blueprint, Import / export, Load template.</li>
                 <li>Open Blueprint, Company map.</li>
             </ol>
             <p>License: LGPL-3. Made by Pantalytics.</p>

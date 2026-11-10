@@ -1,11 +1,13 @@
 import base64
 import json
+from urllib.parse import parse_qs, urlparse
 
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import tagged
 from odoo.tools.misc import file_open
 
+from ..models.blueprint import MAX_FILE_BYTES, MAX_RECORDS
 from .common import BlueprintCase
 
 SECTIONS = ("chains", "phases", "roles", "processes", "activities", "scenarios")
@@ -30,7 +32,7 @@ class TestBlueprint(BlueprintCase):
         cls.Blueprint = cls.env["pan.sl.blueprint"]
         cls.Wizard = cls.env["pan.sl.blueprint.wizard"]
         partner_model = cls.env["ir.model"]._get("res.partner")
-        cls.phase_a.write({"model_ids": [Command.set(partner_model.ids)], "app_labels": "Contacts, Sales"})
+        cls.phase_a.app_labels = "Contacts, Sales"
         cls.act_a.write(
             {
                 "model_id": partner_model.id,
@@ -75,7 +77,7 @@ class TestBlueprint(BlueprintCase):
             "version": 1,
             "name": "Minimal test blueprint",
             "chains": [{"code": "t_bp_chain", "name": "Chain"}],
-            "phases": [{"code": "t_bp_phase", "name": "Phase", "models": ["res.partner"], "apps": ["Contacts"]}],
+            "phases": [{"code": "t_bp_phase", "name": "Phase", "apps": ["Contacts"]}],
             "roles": [{"code": "t_bp_role", "name": "Role", "external": False}],
             "processes": [{"code": "t_bp_process", "name": "Process", "chain": "t_bp_chain", "owner_role": "t_bp_role"}],
             "activities": [
@@ -94,11 +96,17 @@ class TestBlueprint(BlueprintCase):
         data.update(overrides)
         return data
 
-    def _template_key(self):
-        values = self.Wizard._fields["template"].get_values(self.env)
-        keys = [value for value in values if value.startswith("generic_manufacturing")]
-        self.assertEqual(len(keys), 1, f"Template generic_manufacturing not offered; choices: {values}")
-        return keys[0]
+    def _import_file(self, content, filename="blueprint.json"):
+        """Import through the "Import file" dialog; return the notification message."""
+        wizard = self.Wizard.create({"file": base64.b64encode(content), "filename": filename})
+        action = wizard.action_import()
+        return action["params"]["message"]
+
+    def _load_template(self):
+        """Run "Load template"; return the notification action."""
+        action = self.Blueprint.action_load_template()
+        self.assertEqual(action["tag"], "display_notification")
+        return action
 
     # ------------------------------------------------------------------
     # export / import round trip
@@ -117,7 +125,7 @@ class TestBlueprint(BlueprintCase):
         self.assertEqual(activity["model"], "res.partner")
         self.assertEqual(activity["choice_state"], "fixed")
         phase = next(item for item in data["phases"] if item["code"] == "t_phase_a")
-        self.assertEqual(phase["models"], ["res.partner"])
+        self.assertNotIn("models", phase, "D6: phases no longer export Odoo models.")
         self.assertEqual(phase["apps"], ["Contacts", "Sales"])
         role = next(item for item in data["roles"] if item["code"] == "t_customer")
         self.assertTrue(role["external"])
@@ -126,9 +134,11 @@ class TestBlueprint(BlueprintCase):
         self.assertEqual(step_codes, ["t_act_b", "t_act_a", "t_act_c"])
 
     def test_export_has_no_personal_data(self):
-        self.role_sales.user_ids = self.env.user
+        person = self.env["res.partner"].create({"name": "T export person"})
+        self.role_sales.partner_ids = person | self.env.user.partner_id
         text = json.dumps(self.Blueprint.export_blueprint())
         self.assertNotIn(self.env.user.login, text)
+        self.assertNotIn("T export person", text)
         self.assertNotIn('"users"', text)
         self.assertNotIn("adkar", text.lower())
 
@@ -255,12 +265,31 @@ class TestBlueprint(BlueprintCase):
         self.assertIn("x_pan_sl_no_such.model", str(caught.exception))
         self.assertFalse(self.Activity.search_count([("code", "=", "t_bp_act")]))
 
-    def test_unknown_phase_model_refused_in_strict_import(self):
+    def test_phase_models_key_is_ignored(self):
+        """D6: older files list phase "models"; a strict import accepts and ignores them."""
         data = self._minimal()
         data["phases"][0]["models"] = ["res.partner", "x_pan_sl_missing.model"]
+        self.Blueprint.import_blueprint(data)
+        phase = self.Phase.search([("code", "=", "t_bp_phase")])
+        self.assertEqual(phase.app_labels, "Contacts")
+        self.assertNotIn("model_ids", self.Phase._fields)
+
+    def test_record_limit(self):
+        """D8: more than MAX_RECORDS records in total (steps included) are refused before anything is written."""
+        self.assertEqual(MAX_RECORDS, 5000)
+        filler = [{"code": f"t_bp_many_{index}", "name": "Chain"} for index in range(MAX_RECORDS - 7)]
+        at_limit = self._minimal(chains=self._minimal()["chains"] + filler)
+        # 1 + 4993 chains, 1 phase, 1 role, 1 process, 1 activity, 1 scenario with 1 step: 5000.
+        self.Blueprint._check_record_count({section: at_limit[section] for section in SECTIONS})
+
+        over = self._minimal(
+            chains=[{"code": "t_bp_over_chain", "name": "Chain"}],
+            scenarios=[{"code": "t_bp_scen", "name": "Scenario", "steps": ["t_bp_act"] * MAX_RECORDS}],
+        )
         with self.assertRaises(UserError) as caught:
-            self.Blueprint.import_blueprint(data)
-        self.assertIn("x_pan_sl_missing.model", str(caught.exception))
+            self.Blueprint.import_blueprint(over)
+        self.assertIn(str(MAX_RECORDS), str(caught.exception))
+        self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_over_chain")]))
 
     def test_wrong_format_or_version_refused(self):
         minimal = self._minimal()
@@ -287,15 +316,30 @@ class TestBlueprint(BlueprintCase):
             self.Blueprint.import_blueprint([])
 
     # ------------------------------------------------------------------
-    # wizard
+    # Load template (server action, managers)
     # ------------------------------------------------------------------
 
-    def test_template_generic_manufacturing_loads_via_wizard(self):
+    def test_load_template_action(self):
+        """D7/D8: one menu item for managers loads the bundled template and opens the map."""
+        action = self.env.ref("pan_self_learning_blueprint.action_blueprint_load_template")
+        self.assertEqual(action.model_id.model, "pan.sl.blueprint")
+        self.assertEqual(
+            action.group_ids, self.env.ref("pan_self_learning_blueprint.group_blueprint_manager")
+        )
+        result = action.run()
+        self.assertEqual(result["tag"], "display_notification")
+        self.assertTrue(result["params"]["message"])
+        self.assertEqual(
+            result["params"]["next"]["id"],
+            self.env.ref("pan_self_learning_blueprint.action_blueprint_map").id,
+            "After loading, the company map opens.",
+        )
+
+    def test_template_generic_manufacturing_loads(self):
         with file_open(TEMPLATE_PATH, "rb") as handle:
             template = json.loads(handle.read())
-        wizard = self.Wizard.create({"mode": "template", "template": self._template_key()})
-        wizard.action_load_template()
-        self.assertTrue(wizard.result, "The wizard must report what it loaded.")
+        action = self._load_template()
+        self.assertIn("Created", action["params"]["message"])
 
         for section in SECTIONS:
             codes = [item["code"] for item in template[section]]
@@ -310,43 +354,23 @@ class TestBlueprint(BlueprintCase):
                 self.assertEqual(scenario.activity_ids.mapped("code"), list(dict.fromkeys(step_codes)))
 
         counts = self._counts()
-        again = self.Wizard.create({"mode": "template", "template": self._template_key()})
-        again.action_load_template()
+        again = self._load_template()
         self.assertEqual(self._counts(), counts, "Loading the template twice must create nothing.")
+        self.assertTrue(
+            again["params"]["message"].startswith("Nothing to change."),
+            f"A second load writes nothing, so it reports nothing: {again['params']['message']!r}",
+        )
 
-    def test_template_codes_match_default_structure(self):
-        """The template's chains and phases update the default records, they do not duplicate them."""
-        chain = self.env.ref("pan_self_learning_blueprint.chain_lead_to_cash")
-        phase = self.env.ref("pan_self_learning_blueprint.phase_quotation")
-        chains_before = self.Chain.search_count([])
-        phases_before = self.Phase.search_count([])
-        self.Wizard.create({"mode": "template", "template": self._template_key()}).action_load_template()
-        self.assertEqual(self.Chain.search_count([("code", "=", chain.code)]), 1)
-        self.assertEqual(self.Phase.search_count([("code", "=", phase.code)]), 1)
-        self.assertEqual(self.Chain.search_count([]), chains_before)
-        self.assertEqual(self.Phase.search_count([]), phases_before)
-
-    def test_wizard_template_required(self):
-        wizard = self.Wizard.create({"mode": "template", "template": False})
-        with self.assertRaises(UserError):
-            wizard.action_load_template()
-
-    def test_wizard_preselects_the_only_template(self):
-        templates = self.Wizard._fields["template"].get_values(self.env)
-        wizard = self.Wizard.create({"mode": "template"})
-        if len(templates) == 1:
-            self.assertEqual(wizard.template, templates[0])
-        else:
-            self.assertFalse(wizard.template)
+    def test_no_default_structure_xml_ids(self):
+        """D7: chains and phases come only from the template, not from module data."""
+        data = self.env["ir.model.data"].search(
+            [("module", "=", "pan_self_learning_blueprint"), ("model", "in", ("pan.sl.chain", "pan.sl.phase"))]
+        )
+        self.assertFalse(data, f"Module data still defines chains or phases: {data.mapped('name')}")
 
     # ------------------------------------------------------------------
     # loading a template again never overwrites company decisions
     # ------------------------------------------------------------------
-
-    def _load_template(self):
-        wizard = self.Wizard.create({"mode": "template", "template": self._template_key()})
-        wizard.action_load_template()
-        return wizard
 
     def test_template_reload_keeps_company_edits(self):
         self._load_template()
@@ -381,17 +405,12 @@ class TestBlueprint(BlueprintCase):
         activity = self.Activity.search([("code", "=", "customer_create")])
         self.assertEqual(activity.model_id.model, "res.partner")
         activity.write({"model_id": False, "click_path": False})
-        phase = self.Phase.search([("code", "=", "master_data")])
-        own_model = self.env["ir.model"]._get("res.users")
-        phase.model_ids = [Command.set(own_model.ids)]
         scenario = self.Scenario.search([("code", "=", "S01")])
         scenario.step_ids.unlink()
 
         self._load_template()
         self.assertEqual(activity.model_id.model, "res.partner", "An empty model link is filled in again.")
         self.assertIn("Contacts, New", activity.click_path)
-        self.assertIn(own_model, phase.model_ids, "Phase models the company added are kept.")
-        self.assertIn("res.partner", phase.model_ids.mapped("model"), "Installed template models are added.")
         self.assertEqual(scenario.activity_ids, activity, "A scenario without steps gets the template route.")
 
     def test_template_lists_missing_apps(self):
@@ -400,11 +419,13 @@ class TestBlueprint(BlueprintCase):
         installed = Module.search([("state", "=", "installed")]).mapped("name")
         if "sale_management" in installed:
             self.skipTest("Sales is installed in this database, so nothing is missing.")
-        wizard = self._load_template()
-        self.assertTrue(wizard.warning, "Missing apps must be listed in the warning.")
+        params = self._load_template()["params"]
+        self.assertEqual(params["type"], "warning")
+        self.assertTrue(params["sticky"], "Missing apps must stay on screen until read.")
+        self.assertIn("Not installed:", params["message"])
         sales = Module.search([("name", "=", "sale_management")])
         if sales:
-            self.assertIn(sales.shortdesc, wizard.warning)
+            self.assertIn(sales.shortdesc, params["message"])
         unlinked = self.Activity.search(
             [("model_id", "=", False), ("code", "in", self._template_codes("activities"))]
         )
@@ -455,29 +476,54 @@ class TestBlueprint(BlueprintCase):
         self.assertIn("xx_XX", str(caught.exception))
         self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]))
 
-    def test_wizard_export_then_import(self):
-        wizard = self.Wizard.create({"mode": "export"})
-        wizard.action_export()
-        self.assertTrue(wizard.file)
-        data = json.loads(base64.b64decode(wizard.file))
+    # ------------------------------------------------------------------
+    # Export and "Import file"
+    # ------------------------------------------------------------------
+
+    def test_export_then_import_file(self):
+        action = self.Blueprint.action_export()
+        self.assertEqual(action["type"], "ir.actions.act_url")
+        query = parse_qs(urlparse(action["url"]).query)
+        self.assertEqual(query["model"], ["pan.sl.blueprint.wizard"])
+        holder = self.Wizard.browse(int(query["id"][0]))
+        self.assertEqual(holder.filename, "blueprint.json")
+        content = base64.b64decode(holder.file)
+        data = json.loads(content)
         self.assertEqual(data["format"], "pantalytics-blueprint")
         self.assertIn("t_act_a", [item["code"] for item in data["activities"]])
 
         counts = self._counts()
-        importer = self.Wizard.create({"mode": "import", "file": wizard.file, "filename": "blueprint.json"})
-        importer.action_import()
-        self.assertTrue(importer.result)
+        self.assertTrue(self._import_file(content))
         self.assertEqual(self._counts(), counts, "Re-importing an export must create nothing.")
 
-    def test_wizard_import_requires_file(self):
-        wizard = self.Wizard.create({"mode": "import"})
-        with self.assertRaises(UserError):
-            wizard.action_import()
-
-    def test_wizard_import_invalid_json(self):
+    def test_import_file_reports_and_opens_the_map(self):
         wizard = self.Wizard.create(
-            {"mode": "import", "file": base64.b64encode(b"{not json"), "filename": "broken.json"}
+            {"file": base64.b64encode(json.dumps(self._minimal()).encode()), "filename": "minimal.json"}
         )
+        action = wizard.action_import()
+        self.assertEqual(action["tag"], "display_notification")
+        self.assertEqual(action["params"]["type"], "success")
+        self.assertIn("Created", action["params"]["message"])
+        self.assertEqual(
+            action["params"]["next"]["id"], self.env.ref("pan_self_learning_blueprint.action_blueprint_map").id
+        )
+        self.assertEqual(self.Activity.search_count([("code", "=", "t_bp_act")]), 1)
+
+    def test_import_file_requires_file(self):
+        with self.assertRaises(UserError):
+            self.Wizard.create({}).action_import()
+
+    def test_import_file_invalid_json(self):
         with self.assertRaises(UserError) as caught:
-            wizard.action_import()
+            self._import_file(b"{not json", filename="broken.json")
         self.assertIn("broken.json", str(caught.exception))
+
+    def test_import_file_size_limit(self):
+        """D8: a file above MAX_FILE_BYTES is refused before it is parsed."""
+        self.assertEqual(MAX_FILE_BYTES, 5 * 1024 * 1024)
+        data = self._minimal()
+        data["padding"] = "x" * MAX_FILE_BYTES
+        with self.assertRaises(UserError) as caught:
+            self._import_file(json.dumps(data).encode(), filename="big.json")
+        self.assertIn("5 MB", str(caught.exception))
+        self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]))

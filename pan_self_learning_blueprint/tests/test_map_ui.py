@@ -3,7 +3,7 @@
 The detailed UI checks (zoom stops, scenario route, side panel, mobile) live in
 ``tools/ui_check.mjs``; this test only proves, inside the module suite, that the
 map loads for a plain Blueprint user without a JS or template error, and that
-the empty state offers "Load a template".
+the empty state offers "Load template" to managers and only a line to users.
 """
 
 from odoo.tests import HttpCase, new_test_user, tagged
@@ -68,7 +68,7 @@ class TestMapUi(HttpCase):
         "block with count 3"
     );
     await waitFor(() => document.body.textContent.includes("UI lane role"), "role lane label");
-    if (document.querySelector(".o_pan_sl_map .o_view_nocontent")) {
+    if (document.querySelector(".o_pan_sl_map .o_pan_sl_empty")) {
         throw new Error("Company map: empty state shown although there are activities");
     }
     console.log("test successful");
@@ -76,17 +76,34 @@ class TestMapUi(HttpCase):
 """
         self.browser_js(MAP_URL, code, login=self.user.login)
 
-    def test_map_empty_state_offers_template(self):
-        if self.env["pan.sl.activity"].search_count([]):
-            self.skipTest("This database already has activities, so the map has no empty state.")
-        code = WAIT_JS + """
+    def _empty_state_js(self, expect_button):
+        return WAIT_JS + """
 (async () => {
-    const empty = await waitFor(() => document.querySelector(".o_pan_sl_map .o_view_nocontent"), "empty state");
-    const button = [...empty.querySelectorAll("button")].find((el) => el.textContent.includes("Load a template"));
-    if (!button) {
-        throw new Error("Company map: empty state has no 'Load a template' button");
+    const empty = await waitFor(() => document.querySelector(".o_pan_sl_map .o_pan_sl_empty"), "empty state");
+    const button = [...empty.querySelectorAll("button")].find((el) => el.textContent.trim() === "Load template");
+    const expectButton = %s;
+    if (expectButton && !button) {
+        throw new Error("Company map: a manager's empty state has no 'Load template' button");
+    }
+    if (!expectButton && empty.querySelector("button")) {
+        throw new Error("Company map: a user's empty state shows a button");
+    }
+    if (!expectButton && !empty.textContent.includes("Ask a Blueprint administrator.")) {
+        throw new Error("Company map: a user's empty state does not say who to ask");
     }
     console.log("test successful");
 })().catch((error) => console.error(error.message));
-"""
-        self.browser_js(MAP_URL, code, login=self.user.login)
+""" % ("true" if expect_button else "false")
+
+    def test_map_empty_state(self):
+        """D7: managers get one "Load template" button, users one muted line without a button."""
+        if self.env["pan.sl.activity"].search_count([]):
+            self.skipTest("This database already has activities, so the map has no empty state.")
+        manager = new_test_user(
+            self.env,
+            login="pan_sl_map_ui_manager",
+            name="Map UI manager",
+            groups="pan_self_learning_blueprint.group_blueprint_manager",
+        )
+        self.browser_js(MAP_URL, self._empty_state_js(expect_button=False), login=self.user.login)
+        self.browser_js(MAP_URL, self._empty_state_js(expect_button=True), login=manager.login)

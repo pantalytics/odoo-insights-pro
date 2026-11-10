@@ -4,6 +4,15 @@ Module `pan_self_learning_blueprint` (Odoo 19), part of Odoo Self Learning.
 Design background: issue #18. This file is the contract every part of the
 module is built against. Change it first, then the code.
 
+## Goal (Rutger, 10-11-2026)
+
+A simple app that gives insight into an Odoo implementation and its
+continuous improvement, built on the Projects app and the Google Maps idea:
+one map, zoom out to the whole company, zoom in to one activity. It goes
+beyond the technical implementation: the company on a map, the people,
+training and progress. Ready for AI-assisted implementation and improvement.
+Every change is judged against this goal; simpler wins.
+
 ## Idea
 
 - **Three pillars, one atom.** Business (what we do), system (what Odoo must
@@ -12,265 +21,222 @@ module is built against. Change it first, then the code.
 - **Hierarchy:** chain (L1) → process (L2) → activity (L3) → click path (L4).
   A **scenario** is a test route across processes (not a level).
 - **Map orientation is fixed:** left → right = phases (Odoo's document chain);
-  top → bottom = from why to with-what: progress band, then role lanes with
-  activities (external roles at the edges: first and last), then an Odoo band.
-- **Gates per activity, as a rung on tasks:** 0 Open, 1 Decided, 2 Built,
+  top → bottom = progress band, role lanes with activities (external roles
+  first and last), Odoo band.
+- **Progress per activity, as a rung on tasks:** 0 Open, 1 Decided, 2 Built,
   3 Tested, 4 Trained, 5 Live. Choices iterate: proposal → provisional →
   fixed → revised.
 
 ## Two use cases, one module
 
 1. **A company on its own Odoo**: maps itself, configures Odoo and keeps
-   improving after go-live (new tasks keep pointing at activities).
-2. **An implementation partner working on a client's Odoo**: same module,
-   installed in the client's database; the partner's people are users there.
+   improving after go-live.
+2. **An implementation partner on a client's Odoo**: same module, installed
+   in the client's database.
 
-Design rules that follow: no partner or customer concept in the model, one
-blueprint per company (`company_id` where multi-company matters later), tasks
-from any project can link to activities, and nothing ends at go-live (rung
-"Live" is a state, not the end of the record).
+So: no partner or customer concept in the model, one blueprint per company,
+tasks from any project can link to activities, and "Live" is a state, not
+the end of the record.
 
 ## Models (technical names are binding)
 
 ### `pan.sl.structure.mixin` — `models/structure.py`
-AbstractModel inherited by chain, phase, role, process, activity and
-scenario: every record the blueprint matches on `code`. Constraint
-`_check_code`: the code is present and has no spaces. Helpers
-`_compute_count_by()` (counts for smart buttons, one `_read_group`) and
-`_action_open_activities()`. Also holds the shared constants
-`RUNG_SELECTION` (`"0"`..`"5"`: Open, Decided, Built, Tested, Trained, Live)
-and `CANCELLED_STATE` (`"1_canceled"`, the project task state that never
-counts for progress or hours).
+AbstractModel for chain, phase, role, process, activity and scenario: every
+record matches on `code` (`_check_code`: present, no spaces). Helpers
+`_compute_count_by()` and `_action_open_activities()`. Constants
+`RUNG_SELECTION` (`"0"`..`"5"`), `TESTED_RUNG` (3) and `CANCELLED_STATE`
+(`"1_canceled"`).
+
+### `pan.sl.progress.mixin` — `models/structure.py`
+AbstractModel for activity and scenario: `rung` (Integer, technical, never
+shown), `rung_state` (Selection from `rung`, the field views show),
+`planned_hours`, `spent_hours`, and the shared computes. Each model supplies
+`_progress_tasks()` and `_progress_rungs()`; `_counted(tasks)` leaves out
+cancelled tasks. All four fields are stored and computed with sudo over all
+linked tasks, so progress is the same for everyone. When every linked task is
+cancelled the rung is 0.
 
 ### `pan.sl.chain` (L1) — `models/structure.py`
-`name` (Char, required, translate), `code` (Char, required, unique),
-`sequence` (Integer, default 10), `description` (Text),
-`process_ids` (One2many `pan.sl.process`, `chain_id`). `_order = "sequence, id"`.
+`name` (translate), `code` (unique), `sequence`, `description`,
+`process_ids`.
 
 ### `pan.sl.phase` (map column) — `models/structure.py`
-`name` (Char, required, translate), `code` (Char, required, unique),
-`sequence` (Integer), `model_ids` (Many2many `ir.model`),
-`app_labels` (Char, comma separated, shown as chips in the Odoo band),
-`activity_ids` (One2many `pan.sl.activity`, `phase_id`). `_order = "sequence, id"`.
+`name` (translate), `code` (unique), `sequence`, `app_labels` (Char, comma
+separated: the app chips in the Odoo band), `activity_ids`.
 
-### `pan.sl.role` (map lane) — `models/structure.py`
-`name` (Char, required, translate), `code` (Char, required, unique),
-`sequence` (Integer), `is_external` (Boolean: customer, supplier),
-`group_ids` (Many2many `res.groups`, the Odoo access this role needs),
-`user_ids` (Many2many `res.users`, relation `pan_sl_role_res_users_rel`),
-`description` (Text), `activity_ids` (One2many `pan.sl.activity`, `role_id`).
-`_order = "sequence, id"`.
-Method `_get_adkar_profile()` is added by `models/adkar.py` (see below).
+### `pan.sl.role` (map lane) — `models/structure.py`, `models/adkar.py`
+`name` (translate), `code` (unique), `sequence`, `is_external` (customer,
+supplier), `description`, `activity_ids`. `partner_ids` (Many2many
+`res.partner`, relation `pan_sl_role_res_partner_rel`, string "People"): the
+people who hold the role. Contacts, so people without a login can be listed
+and scored. The other side is `res.partner.pan_role_ids`.
+`_get_adkar_bands()` → `{role_id: "low" | "medium" | "high" | False}` (see
+ADKAR).
 
 ### `pan.sl.process` (L2) — `models/process_activity.py`
-`name` (Char, required, translate), `code` (Char, required, unique),
-`chain_id` (Many2one `pan.sl.chain`, required, ondelete restrict),
-`owner_role_id` (Many2one `pan.sl.role`), `sequence`,
-`activity_ids` (One2many `pan.sl.activity`, `process_id`), `activity_count`,
-`action_view_activities()` (smart button on the form).
+`name`, `code` (unique), `chain_id` (required, ondelete restrict),
+`owner_role_id`, `sequence`, `activity_ids`, `activity_count`.
 
 ### `pan.sl.activity` (L3, the atom) — `models/process_activity.py`
-Inherits `mail.thread` and `pan.sl.structure.mixin` (the chatter keeps the history of choice iterations).
-`name` (Char, required, translate), `code` (Char, required, unique),
-`process_id` (Many2one, required, ondelete restrict),
-`chain_id` (related `process_id.chain_id`, stored),
-`role_id` (Many2one `pan.sl.role`, required),
-`phase_id` (Many2one `pan.sl.phase`, required),
-`model_id` (Many2one `ir.model`, ondelete set null),
-`click_path` (Html: the L4 steps, becomes manual and exercise),
-`choice_state` (Selection `proposal|provisional|fixed|revised`, default
-`proposal`, tracking=True), `open_point` (Text: "to check"), `sequence`.
-Added by other files: `scenario_ids` (`models/scenario.py`), `task_ids`,
-`rung`, `rung_state`, `planned_hours`, `spent_hours`
-(`models/project_task.py`).
+Inherits `mail.thread`, the structure mixin and (in `models/project_task.py`)
+the progress mixin. `name`, `code` (unique), `process_id` (required),
+`chain_id` (related, stored), `role_id` (required), `phase_id` (required),
+`model_id` (Many2one `ir.model`, managers only in views), `model_name`
+(related `model_id.model`, stored: what the map, export and users read),
+`click_path` (Html, L4), `choice_state` (`proposal|provisional|fixed|revised`,
+tracking), `open_point`, `sequence`. Added elsewhere: `scenario_ids`,
+`task_ids` and the progress fields.
 
 ### `pan.sl.scenario` + `pan.sl.scenario.step` — `models/scenario.py`
-Scenario (inherits `pan.sl.structure.mixin`): `name`, `code` (unique),
-`description` (Text, goal), `open_point` (Text), `sequence`, `step_ids`
-(One2many step), `activity_ids` (Many2many computed from steps, ordered by
-step sequence), `rung` (Integer, stored, computed = min stored `rung` of its
-activities, 0 if none), `rung_state` (stored Selection from `rung`, see
-below), `planned_hours` / `spent_hours` (see below), `task_ids` (One2many
-`project.task`, `pan_scenario_id`), `task_count`. The scenario list sorts
-least ready first (`rung, sequence, id`).
-Step: `scenario_id` (required, cascade), `sequence`, `activity_id`
-(required), `note` (Char). Adds `scenario_ids` (Many2many computed, with
-`_search`) on `pan.sl.activity`. `('scenario_ids', '=', False)` finds the
-activities that are in no step; `!= False` the ones that are in a step.
+Scenario (structure and progress mixins): `name`, `code`, `description`,
+`open_point`, `sequence`, `step_ids`, `activity_ids` (computed from steps, in
+step order), `progress` (Float 0-100, stored: share of its activities with
+rung >= Tested, 0 without activities), `task_ids`, `task_count`. Its
+`rung_state` is labelled "Lowest progress". Ordered by `sequence`.
+Step: `scenario_id` (cascade), `sequence`, `activity_id` (required), `note`.
+Adds `scenario_ids` (computed, searchable) on the activity.
 
 ### `project.task` (inherit) — `models/project_task.py`
-`pan_scenario_id` (Many2one `pan.sl.scenario`, index),
-`pan_activity_ids` (Many2many `pan.sl.activity`, relation
-`pan_sl_activity_project_task_rel`),
-`pan_rung` (Selection `0..5` as strings: Open, Decided, Built, Tested,
-Trained, Live; default `"0"`, tracking=True).
-On `pan.sl.activity`: `task_ids` (Many2many inverse of `pan_activity_ids`),
-`rung` (Integer, computed = min `int(pan_rung)` over the counted tasks, 0 if
-none), `rung_state` (Selection `RUNG_SELECTION`, string "Progress", computed
-from `rung`, for display, filters and grouping),
-`planned_hours` / `spent_hours` (Float, computed = sum of `allocated_hours` /
-`effective_hours` of the counted tasks; a task linked to several activities
-counts fully for each). Same two fields on `pan.sl.scenario`, summed over its
-own `task_ids`, so each task counts once there. Depends on `hr_timesheet`
-(which also installs Employees and analytic accounting).
-
-**Progress is the same for everyone.** `rung`, `rung_state`, `planned_hours`
-and `spent_hours` on activity and scenario are stored and computed with sudo
-(`compute_sudo=True`) over all linked tasks, also the ones the viewer cannot
-open. **Counted tasks** are all linked tasks except cancelled ones (state
-`1_canceled`); when every linked task is cancelled the rung is 0. Stored, so
-lists can filter ("Not Live"), group by "Rung" and sum the hours.
-
-Hours: estimates and timesheets stay on the tasks of whoever does the work
-(in the partner use case: the partner's own Odoo, linked by the same codes).
+`pan_scenario_id`, `pan_activity_ids` (relation
+`pan_sl_activity_project_task_rel`), `pan_rung` ("Blueprint progress",
+Selection `"0"`..`"5"`, tracking). Shown only to Blueprint users. Hours are
+the task's `allocated_hours` and `effective_hours`; a task on several
+activities counts for each, and once per scenario. Depends on `hr_timesheet`.
 
 ### `pan.sl.adkar.score` — `models/adkar.py`
-`user_id` (Many2one `res.users`, required), `date` (Date, default today),
-`round` (Integer, default 1: survey round), `awareness`, `desire`,
-`knowledge`, `ability`, `reinforcement` (Integer 1-5, SQL/py constraint),
-`note` (Text, manager-only: `groups=group_blueprint_manager`), `role_ids`
-(related/computed from roles holding the user).
-On `pan.sl.role`: `_get_adkar_profile()` → list of five floats (average over
-the role's users of each user's latest round) or `False` when fewer than
-`ADKAR_MIN_USERS_FOR_PROFILE` (3) of the role's users have a score, so a
-profile never shows one person. `_get_adkar_profiles()` is the batch version
-used by the map; both read scores with sudo and return only the aggregate.
+`partner_id` (Many2one `res.partner`, "Person", required, ondelete
+restrict), `date`, `round`, `awareness`, `desire`, `knowledge`, `ability`,
+`reinforcement` (1-5, SQL constraint), `average`, `note` (managers only),
+`role_ids` (related `partner_id.pan_role_ids`).
 
-**Scores are personal.** Record rules in `security/adkar_rules.xml`: a
-Blueprint user reads only their own scores (`rule_adkar_score_own`), a
-Blueprint administrator reads and writes all of them
-(`rule_adkar_score_manager_all`). The company map never shows an
-individual score.
+**ADKAR band.** `_get_adkar_bands()` takes each person's latest score, averages
+each element over the role, and turns the weakest element into a band: low
+(<= 2), medium (< 4), high (>= 4). `False` when fewer than
+`ADKAR_MIN_PEOPLE_FOR_BAND` (3) people of the role have a score. Read with
+sudo; only the word leaves the server.
+
+**Scores are personal.** `rule_adkar_score_own`
+(`[('partner_id', '=', user.partner_id.id)]`) for Blueprint users;
+`rule_adkar_score_manager_all` for administrators. Scores of people without a
+login are visible to administrators only.
 
 ### Blueprint (open format) — `models/blueprint.py`
-AbstractModel `pan.sl.blueprint` with `@api.model export_blueprint()` → dict
-and `@api.model import_blueprint(data, strict=True, fill_empty_only=False)` →
-summary dict. Idempotent: records match on `code`, existing ones are updated,
-nothing is deleted. Unknown codes in references raise `UserError` naming
-every unknown code (references are resolved with one query per section).
-Export writes English source names and `"lang": "en_US"`; import writes names
-in the file's `lang`. Format: see `docs/blueprint-format.md`.
+AbstractModel `pan.sl.blueprint`: `export_blueprint()` → dict and
+`import_blueprint(data, strict=True, fill_empty_only=False)` → summary.
+Records match on `code`; nothing is deleted. Unknown codes raise one
+`UserError` naming all of them. More than `MAX_RECORDS` (5000) records is
+refused. Format: `docs/blueprint-format.md`.
 
-**Loading a template never overwrites company edits.** "Load template" calls
-`import_blueprint(data, strict=False, fill_empty_only=True)`: unknown models
-leave the link empty and are reported per app (`MODEL_APPS`); missing
-records are created; on existing records only empty fields are filled and
-phase models are linked (added, never removed); choice states, booleans,
-references and existing scenario steps are never written.
+Direct actions, no wizard modes:
+- `action_load_template()`: loads the bundled template
+  (`data/blueprints/generic_manufacturing.json`) with `strict=False,
+  fill_empty_only=True` and reopens the map with a one-line summary. Only
+  records it really changes are written and counted; a second load says
+  "Nothing to change." Missing apps make the notification a sticky warning.
+- `action_export()`: downloads `blueprint.json`.
+- TransientModel `pan.sl.blueprint.wizard`: `file`, `filename`,
+  `action_import()`. Strict; refuses files above `MAX_FILE_BYTES` (5 MB).
 
-TransientModel `pan.sl.blueprint.wizard`: `mode` (`import|export|template`),
-`file` (Binary), `filename`, `template` (Selection of files in
-`data/blueprints/`, radio, preselected when only one ships), `result` (Text,
-shown as a success box), `warning` (Text: the apps to install, shown as a
-warning box with an "Open Apps" button for system administrators). Buttons
-`action_import`, `action_export`, `action_load_template`.
+Loading a template never overwrites company edits: only empty fields are
+filled; choice states, booleans, references and existing steps are kept.
 
 ### Map data — `models/map_data.py`
-On `pan.sl.activity`: `@api.model get_map_data()` → dict
-`{phases:[{id,name,code,apps:[str]}], roles:[{id,name,is_external,users:[str],adkar:[5 floats]|false}],
-activities:[{id,name,code,role_id,phase_id,choice_state,rung,open_point,scenario_ids:[int],model:str|false,
-training:[{id,name,trained:bool}]}],
-scenarios:[{id,code,name,description,open_point,rung,activity_ids:[ordered ints]}]}`.
-One call, no N+1 (read in batches). `adkar` is the role profile (false below
-three scored users). `training` lists the users of the activity's role with
-`trained = rung >= TRAINED_RUNG` (4, "Trained"): the map answers "who still
-needs training" from progress, never from individual ADKAR scores.
-`@api.model get_map_details()` → `[{id, tasks:[{id,name,rung:int}], click_path:str|false}]`
-(one entry per activity; `click_path` is the first line of the click path as
-plain text), loaded in parallel by the map for the Detail stop (one search
-for all tasks).
+`pan.sl.activity.get_map_data()` → one dict, read in batches:
 
-**Clash** (counter on the map): an activity whose choice is `revised`, or
-`fixed` while it still has an open point. Both mean "decided, but not settled".
+```
+phases:     [{id, name, code, apps: [{name, installed}]}]
+roles:      [{id, name, is_external, users: [str], adkar: "low"|"medium"|"high"|false}]
+activities: [{id, name, code, role_id, phase_id, choice_state, rung,
+              open_point, scenario_ids: [int], model: str|false}]
+scenarios:  [{id, code, name, description, open_point, rung, progress: int,
+              activity_ids: [ordered ints]}]
+```
+
+`installed` is true when an installed application (`ir.module.module`
+shortdesc, sudo) has that name. `users` are names only.
+`get_map_details()` → `[{id, tasks: [{id, name, rung}], click_path}]`
+(cancelled tasks left out; `click_path` is the first line as plain text),
+loaded in parallel for the Detail stop.
+
+## Security
+
+`group_blueprint_user` opens the map and reads the model and their own
+scores; `group_blueprint_manager` (implies user) edits everything. Read on
+`ir.model` is granted to managers only (they pick the model); users see
+`model_name`.
+
+## Upgrade to 19.0.1.2.0
+
+`migrations/19.0.1.2.0/pre-migrate.py` moves role members and scores from
+users to their partners (`pan_sl_role_res_partner_rel`, `partner_id`) and
+drops the XML ids of the old default chains and phases, so those records stay
+as ordinary data. `post-migrate.py` drops `pan_sl_role_res_users_rel` and the
+old `user_id` column.
 
 ## XML ids (binding)
 
 | Id | Owner file |
 |---|---|
-| `group_blueprint_user`, `group_blueprint_manager` (implies user) | `security/security.xml` |
+| `group_blueprint_user`, `group_blueprint_manager` | `security/security.xml` |
 | `rule_adkar_score_own`, `rule_adkar_score_manager_all` | `security/adkar_rules.xml` |
-| `chain_basis`, `chain_lead_to_cash`, `chain_source_to_pay`, `chain_plan_to_produce`, `chain_record_to_report`, `chain_hire_to_retire` | `data/default_structure.xml` |
-| `phase_master_data`, `phase_request`, `phase_quotation`, `phase_order`, `phase_plan_produce`, `phase_purchase_receive`, `phase_deliver`, `phase_invoice_pay` | `data/default_structure.xml` |
 | `action_chain`, `action_phase`, `action_role` + views | `views/structure_views.xml` |
 | `action_process`, `action_activity` + views | `views/activity_views.xml` |
 | `action_scenario` + views | `views/scenario_views.xml` |
 | `action_adkar_score` + views | `views/adkar_views.xml` |
 | task form page "Blueprint" (inherit `project.view_task_form2`) | `views/project_task_views.xml` |
-| `action_blueprint_wizard` + view | `views/blueprint_views.xml` |
-| `action_blueprint_map` (ir.actions.client, tag `pan_sl_blueprint_map`) | `views/map_action.xml` |
-| `menu_blueprint_root` (app "Blueprint"), submenus | `views/menus.xml` |
+| `action_blueprint_load_template`, `action_blueprint_export` (server actions), `action_blueprint_import` + `view_blueprint_import_form` | `views/blueprint_views.xml` |
+| `action_blueprint_map` (client action `pan_sl_blueprint_map`) | `views/map_action.xml` |
+| `menu_blueprint_root` and submenus | `views/menus.xml` |
 
-Chains and phases in `data/default_structure.xml` carry `forcecreate="0"`:
-a fresh install creates them, an upgrade never brings back one the company
-deleted.
-
-Menu: Blueprint → Company map (default) · Model (Chains, Processes,
-Activities, Scenarios, Phases, Roles) · People (ADKAR scores) · Import /
-export (`menu_blueprint_blueprint`; item "Load a template, import or export",
-`menu_blueprint_import_export`). Managers see Model and import; users see
-map, read model and their own ADKAR scores.
+Menu: Blueprint → Company map · Model (Chains, Processes, Activities,
+Scenarios, Phases, Roles) · People (ADKAR scores) · Import / export (managers:
+Load template, Import file, Export).
 
 ## Client action — `static/src/map/`
-OWL component registered in `registry.category("actions")` as
-`pan_sl_blueprint_map`. Loads `get_map_data` once. SVG company map with the
-fixed orientation. Controls in one row: scenario select (all / one),
-colour by (Choices / Progress / People ADKAR), zoom as a slider (range input, fit
-at the left end, up to 4x; mouse wheel and pinch move the same slider; label
-"Zoom"). No +/− buttons. A one-line intro per stop sits above the map.
+OWL component `pan_sl_blueprint_map`, plain OWL + SVG, no diagram library:
+the fixed grid must be deterministic so everyone finds the same thing in the
+same place. Loads `get_map_data` once. One row of controls: scenario select
+(each option ends in its progress %), colour by (Choices, Progress, People),
+zoom slider (fit to 4x; wheel and pinch move it).
 
-**Keyboard and screen readers.** The SVG is focusable: arrow keys pan (Shift
-further), PageUp/PageDown pan a screen, `+`/`-` zoom, Home fits. Tab and
-Shift+Tab walk every block or chip of the current stop in map order, culled
-ones included, and the camera follows focus (`reveal()`). Slider arrow keys
-jump between stops (Shift fine-tunes), the stop labels are buttons with
-`aria-pressed`, and an `aria-live` region announces the stop. Each chip's
-`aria-label` holds name, status, rung, clash, open point and users. Every
-colour tone also has a shape (check, half disc, cross, dashed), so status is
-never colour only.
+**Colour by.** The legend shows only the active mode, at most 3 items. Green
+and amber also carry a glyph (check, half disc), so status is never colour
+only. Red is never used: red means broken.
 
-**State.** Zoom, view box, scenario, colour-by, clash highlight, the
-selected activity and the phase panel are saved with `useSetupAction`
-(`getLocalState`) and restored from the breadcrumb.
-
-**Rendering choice (10-11): plain OWL + SVG, no diagram library.** The fixed
-grid is our map projection: it must be deterministic so everyone finds the
-same thing in the same place. Node-network libraries (Cytoscape, vis-network)
-use auto layouts that move things around; Mermaid and Excalidraw are static
-or hand-drawn. Interaction like a map: drag to pan, wheel/pinch/double-click
-to zoom on the cursor, continuous zoom with the four stops as thresholds,
-render only what is in view. Fallback if this ever feels too heavy:
-Leaflet with `CRS.Simple` (non-geographic map, zoom-dependent layers).
-Mermaid and Excalidraw stay possible as exports from the same data, for
-documents and workshops.
-
-**Semantic zoom (like a map: more detail appears as you zoom in, never just
-bigger text).** The slider has four marked stops; content switches at each:
-
-| Stop | Name | Question | What is drawn |
+| Mode | Green | Amber | Grey |
 |---|---|---|---|
-| 1 (fit) | Company | Are we on track, where is it stuck? | Progress band per phase with %, lane names, each role × phase cell as one coloured block with a count (no activity names), open-choice and clash counters in the header |
-| 2 | Processes | What happens where? | Activity chips with names and colour dot; selected scenario route with numbered steps |
-| 3 | Activities | Who, how far, what is open? | Chips add rung bar (0-5), user initials of the role, an "open point" marker, the Odoo model name |
-| 4 | Detail | What exactly? | Under each chip its linked tasks (name, rung) and the first line of the click path |
+| Choices | Settled (fixed) | Not settled (proposal, provisional, revised) | |
+| Progress | Tested or further | Decided or built | Open |
+| People | ADKAR high | ADKAR medium or low | No ADKAR data |
 
-Selecting a scenario jumps to stop 2 and fits the route. Clicking a chip
-always opens the side panel (the "street view"), at any stop. Selecting
-a scenario dims other activities and draws the numbered route. Clicking an
-activity opens a side panel (role, users, scenarios, open point, choice
-state) with a button that opens the activity form, and lists the role's
-users as "Trained" or "Needs training" (from `training`); the role's ADKAR
-average sits in a closed details toggle. Opening the panel keeps the chip in
-view next to it. Clicking a phase name opens a phase panel: who still needs
-training in that phase, "x of y activities trained" per person with buttons
-to the activities still to train, and roles without users. The clash
-counters are buttons: they dim everything else and zoom to the clashes.
-Uses Odoo's own CSS variables so it matches the backend in light and dark.
-Empty state when there are no activities: explain and offer "Load a
-template", which opens the wizard in template mode and reloads the map when
-it closes.
+**Semantic zoom.** Four stops; content switches at each:
+
+| Stop | Name | What is drawn |
+|---|---|---|
+| 1 (fit) | Company | Progress % per phase, one block per role × phase with a count, "N not settled" per phase |
+| 2 | Processes | Activity chips with names; the selected scenario route with numbered steps |
+| 3 | Activities | Chips add a 5-segment bar with the rung word and an open-point marker |
+| 4 | Detail | Under each chip its tasks (name, rung word) and the first line of the click path |
+
+The rung is always the word ("Tested"), never a number. Apps that are not
+installed are greyed out in the Odoo band. Clicking a chip opens the side
+panel: role (members by name, ADKAR band), scenarios, choice, progress, open
+point, model, and a button to the activity form.
+
+**Keyboard.** The SVG is focusable: arrows pan, `+`/`-` zoom, Home fits, Tab
+walks the blocks or chips of the current stop and the camera follows.
+Zoom, view box, scenario, colour-by and selection are saved with
+`useSetupAction` and restored from the breadcrumb.
+
+**Empty state** (no activities): one muted line in a dashed box. Managers get
+"No company model yet." and one button, "Load template"
+(`action_blueprint_load_template`, which reopens the map). Users get "No
+company model yet. Ask a Blueprint administrator."
 
 ## Conventions
-- Odoo 19: `list` views (not `tree`), `invisible=`/`readonly=` expressions,
-  no `attrs`. English source strings, Dutch in `i18n/nl.po`.
-- Field help on every field. No hardcoded fallbacks; raise clear errors.
+- Odoo 19: `list` views, `invisible=`/`readonly=` expressions, no `attrs`.
+  English source strings, Dutch in `i18n/nl.po`.
+- Every field has `string=` and `help=`. No silent fallbacks; raise clear errors.
+- Views show `rung_state`, never the integer `rung`. Sequence only as a list
+  handle. Copy follows `docs/brand.md`.
 - Tests: `tests/`, `TransactionCase`, tagged `post_install`, `-at_install`.

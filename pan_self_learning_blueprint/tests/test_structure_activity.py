@@ -116,11 +116,6 @@ class TestStructureActivity(BlueprintCase):
         )
         self.assertTrue(tracked, "Changing the choice state must be tracked in the chatter.")
 
-    def test_default_structure_loaded(self):
-        for xmlid in ("chain_basis", "chain_lead_to_cash", "phase_master_data", "phase_invoice_pay"):
-            with self.subTest(xmlid=xmlid):
-                self.assertTrue(self.env.ref(f"pan_self_learning_blueprint.{xmlid}", raise_if_not_found=False))
-
     def test_code_with_spaces_refused(self):
         """Process, activity and scenario use the structure mixin: no empty codes, no spaces."""
         cases = {

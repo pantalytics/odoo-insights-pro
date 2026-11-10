@@ -1,3 +1,4 @@
+from odoo.fields import Command
 from odoo.tests import tagged
 
 from .common import BlueprintCase
@@ -80,3 +81,42 @@ class TestScenario(BlueprintCase):
         ours = [("code", "like", "t_act_%")]
         found = self.Activity.search(ours + [("scenario_ids", "in", [scenario.id, False])])
         self.assertEqual(found, self.act_a | self.act_c)
+
+    # ------------------------------------------------------------------
+    # D9: progress = share of the scenario's activities that are Tested or further
+    # ------------------------------------------------------------------
+
+    def test_progress_zero_without_activities(self):
+        scenario = self._make_scenario("t_scen_prog_empty", [])
+        self.assertEqual(scenario.progress, 0.0)
+
+    def test_progress_is_share_of_tested_activities(self):
+        scenario = self._make_scenario(
+            "t_scen_prog", [(10, self.act_a), (20, self.act_b), (30, self.act_c), (40, self.act_a)]
+        )
+        self.assertEqual(scenario.progress, 0.0)
+        self._make_task(self.act_a, rung="2")
+        self.assertEqual(scenario.progress, 0.0, "Built is not yet tested.")
+        task_b = self._make_task(self.act_b, rung="3")
+        self.assertAlmostEqual(scenario.progress, 100 / 3, msg="A revisited activity counts once.")
+        self._make_task(self.act_c, rung="5")
+        self.assertAlmostEqual(scenario.progress, 200 / 3)
+        task_b.pan_rung = "1"
+        self.assertAlmostEqual(scenario.progress, 100 / 3, msg="Progress follows the task rungs.")
+
+    def test_progress_is_stored_and_searchable(self):
+        """The "Not tested" filter searches on the stored progress."""
+        done = self._make_scenario("t_scen_prog_done", [(10, self.act_a)])
+        open_ = self._make_scenario("t_scen_prog_open", [(10, self.act_b)])
+        self._make_task(self.act_a, rung="3")
+        self.assertTrue(self.Scenario._fields["progress"].store)
+        ours = [("code", "like", "t_scen_prog_%")]
+        self.assertEqual(self.Scenario.search(ours + [("progress", "<", 100)]), open_)
+        self.assertEqual(self.Scenario.search(ours + [("progress", "=", 100)]), done)
+
+    def test_progress_drops_with_a_new_untested_step(self):
+        scenario = self._make_scenario("t_scen_prog_add", [(10, self.act_a)])
+        self._make_task(self.act_a, rung="4")
+        self.assertEqual(scenario.progress, 100.0)
+        scenario.write({"step_ids": [Command.create({"sequence": 20, "activity_id": self.act_b.id})]})
+        self.assertEqual(scenario.progress, 50.0)

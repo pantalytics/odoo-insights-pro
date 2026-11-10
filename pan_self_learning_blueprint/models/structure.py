@@ -2,7 +2,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 # Readiness gates of an activity, kept on its tasks (project.task.pan_rung)
-# and shown on activities and scenarios as rung_state.
+# and shown on activities and scenarios as rung_state (the word, never the number).
 RUNG_SELECTION = [
     ("0", "Open"),
     ("1", "Decided"),
@@ -11,6 +11,10 @@ RUNG_SELECTION = [
     ("4", "Trained"),
     ("5", "Live"),
 ]
+
+# From this rung on ("Tested") an activity counts as ready in a scenario's
+# progress and in the progress band of the map.
+TESTED_RUNG = 3
 
 # Task state of a cancelled task (project). Cancelled tasks do not count for
 # the rung or the hours of an activity or scenario.
@@ -64,6 +68,81 @@ class PanSlStructureMixin(models.AbstractModel):
         )
         for record in self:
             record[target_field] = counts.get(record, 0)
+
+
+class PanSlProgressMixin(models.AbstractModel):
+    """Rung and hours of an activity or a scenario, computed in one place.
+
+    A model using it implements ``_progress_tasks()`` (the tasks that count
+    for its hours) and ``_progress_rungs()`` (the rungs its rung is the lowest
+    of), and overrides ``_compute_rung`` and ``_compute_hours`` only to declare
+    its own ``@api.depends``. Stored and computed as sudo, so progress is the
+    same for every viewer.
+    """
+
+    _name = "pan.sl.progress.mixin"
+    _description = "Blueprint progress (rung and hours)"
+
+    rung = fields.Integer(
+        string="Rung",
+        compute="_compute_rung",
+        store=True,
+        compute_sudo=True,
+        help="Technical: the rung as a number (0 Open to 5 Live). Shown as Progress.",
+    )
+    rung_state = fields.Selection(
+        selection=RUNG_SELECTION,
+        string="Progress",
+        compute="_compute_rung_state",
+        store=True,
+        help="Open, Decided, Built, Tested, Trained or Live.",
+    )
+    planned_hours = fields.Float(
+        string="Planned hours",
+        compute="_compute_hours",
+        store=True,
+        compute_sudo=True,
+        aggregator="sum",
+        help="Sum of the allocated hours of the counted tasks, cancelled tasks left out.",
+    )
+    spent_hours = fields.Float(
+        string="Spent hours",
+        compute="_compute_hours",
+        store=True,
+        compute_sudo=True,
+        aggregator="sum",
+        help="Sum of the timesheet hours on the counted tasks, cancelled tasks left out.",
+    )
+
+    def _progress_tasks(self):
+        """The project tasks that count for the hours of this record."""
+        raise NotImplementedError()
+
+    def _progress_rungs(self):
+        """The rungs (ints) this record's rung is the lowest of."""
+        raise NotImplementedError()
+
+    @staticmethod
+    def _counted(tasks):
+        """The tasks that count: all but the cancelled ones. Pass them as sudo,
+        so the result is the same for every viewer."""
+        return tasks.filtered(lambda task: task.state != CANCELLED_STATE)
+
+    def _compute_rung(self):
+        for record in self:
+            rungs = record._progress_rungs()
+            record.rung = min(rungs) if rungs else 0
+
+    @api.depends("rung")
+    def _compute_rung_state(self):
+        for record in self:
+            record.rung_state = str(record.rung)
+
+    def _compute_hours(self):
+        for record in self:
+            tasks = record._progress_tasks()
+            record.planned_hours = sum(tasks.mapped("allocated_hours"))
+            record.spent_hours = sum(tasks.mapped("effective_hours"))
 
 
 class PanSlChain(models.Model):
@@ -147,14 +226,9 @@ class PanSlPhase(models.Model):
         default=10,
         help="Position of the column on the company map, from left to right.",
     )
-    model_ids = fields.Many2many(
-        "ir.model",
-        string="Odoo models",
-        help="The Odoo documents (models) handled in this phase, for example quotations or deliveries.",
-    )
     app_labels = fields.Char(
         string="Apps",
-        help="Comma separated Odoo app names shown as chips in the Odoo band of the map, for example: Sales, Inventory.",
+        help="Comma separated Odoo app names as in the Apps menu, for example: Sales, Inventory.",
     )
     activity_ids = fields.One2many(
         "pan.sl.activity",
@@ -206,19 +280,6 @@ class PanSlRole(models.Model):
     is_external = fields.Boolean(
         string="External",
         help="Tick for roles outside the company, such as the customer or the supplier. They are drawn at the edges of the map.",
-    )
-    group_ids = fields.Many2many(
-        "res.groups",
-        string="Access groups",
-        help="The Odoo access groups people in this role need to do their activities.",
-    )
-    user_ids = fields.Many2many(
-        "res.users",
-        "pan_sl_role_res_users_rel",
-        "role_id",
-        "user_id",
-        string="Users",
-        help="The people who hold this role.",
     )
     description = fields.Text(
         string="Description",

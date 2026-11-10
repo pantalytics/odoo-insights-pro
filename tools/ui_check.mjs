@@ -5,7 +5,8 @@
 // the company map client action. On desktop (1440x900, deviceScaleFactor 1)
 // it moves the zoom slider to each of the four stops (Company, Processes,
 // Activities, Detail) and screenshots each, checks that the stops draw what
-// they should, selects a scenario and checks the numbered route badges,
+// they should, checks that the legend shows at most three items in each
+// colour-by mode, selects a scenario and checks the numbered route badges,
 // clicks an activity chip and checks the side panel, presses Esc and checks
 // that the panel closes. On mobile (390x844) it checks that the page does not
 // scroll sideways (the map scrolls inside its own container) and takes one
@@ -51,9 +52,10 @@ const SEL = {
     map: ".o_pan_sl_map",
     svg: ".o_pan_sl_map .o_pan_sl_svg",
     body: ".o_pan_sl_map .o_pan_sl_body",
-    emptyState: ".o_pan_sl_map .o_view_nocontent",
+    emptyState: ".o_pan_sl_map .o_pan_sl_empty",
     scenarioSelect: ".o_pan_sl_scenario_select",
     colorSelect: ".o_pan_sl_color_select",
+    legendItem: ".o_pan_sl_legend li",
     slider: ".o_pan_sl_zoom_slider",
     block: ".o_pan_sl_block",
     chip: ".o_pan_sl_chip",
@@ -353,7 +355,7 @@ async function checkDesktop(page, out) {
         if (stop.value === 1) {
             check(blocks > 0, `${label}: no role x phase blocks drawn.`);
             check(chips === 0, `${label}: activity chips are drawn, the company view shows blocks only.`);
-            check((await count(page, SEL.counter)) > 0, `${label}: open-choice and clash counters missing.`);
+            check((await count(page, SEL.counter)) > 0, `${label}: "not settled" counters missing.`);
         } else {
             check(blocks === 0, `${label}: company blocks are still drawn.`);
             check(chips > 0, `${label}: no activity chips drawn.`);
@@ -377,6 +379,16 @@ async function checkDesktop(page, out) {
         scales.every((scale, index) => !index || scale > scales[index - 1]),
         `The map does not get physically larger with each stop (scales ${scales.join(", ")}).`
     );
+
+    // The legend shows only the active colour-by mode, at most three items.
+    for (const mode of ["choices", "progress", "people"]) {
+        await page.locator(SEL.colorSelect).selectOption(mode);
+        await page.waitForTimeout(100);
+        const items = await count(page, SEL.legendItem);
+        check(items > 0 && items <= 3, `Colour by ${mode}: the legend has ${items} items, expected 1 to 3.`);
+        await expectNoBlack(page, `colour by ${mode}`);
+    }
+    await page.locator(SEL.colorSelect).selectOption("choices");
 
     await checkKeyboard(page);
     await setZoom(page, 3.6);

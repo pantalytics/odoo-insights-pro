@@ -1,19 +1,18 @@
 from odoo.fields import Command
-from odoo.tests import new_test_user, tagged
+from odoo.tests import tagged
 
-from ..models.map_data import TRAINED_RUNG
 from .common import BlueprintCase
 
 PHASE_KEYS = {"id", "name", "code", "apps"}
+APP_KEYS = {"name", "installed"}
 ROLE_KEYS = {"id", "name", "is_external", "users", "adkar"}
 ACTIVITY_KEYS = {
     "id", "name", "code", "role_id", "phase_id", "choice_state", "rung",
-    "open_point", "scenario_ids", "model", "training",
+    "open_point", "scenario_ids", "model",
 }
-TRAINING_KEYS = {"id", "name", "trained"}
 DETAIL_KEYS = {"id", "tasks", "click_path"}
 DETAIL_TASK_KEYS = {"id", "name", "rung"}
-SCENARIO_KEYS = {"id", "code", "name", "description", "open_point", "rung", "activity_ids"}
+SCENARIO_KEYS = {"id", "code", "name", "description", "open_point", "rung", "progress", "activity_ids"}
 
 
 @tagged("post_install", "-at_install")
@@ -23,7 +22,7 @@ class TestMapData(BlueprintCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.phase_a.app_labels = "Sales, Invoicing"
+        cls.phase_a.app_labels = "Project, T not an app"
         cls.act_a.write(
             {
                 "model_id": cls.env["ir.model"]._get("res.partner").id,
@@ -31,11 +30,17 @@ class TestMapData(BlueprintCase):
                 "choice_state": "provisional",
             }
         )
-        cls.user = new_test_user(cls.env, login="pan_sl_map_user", name="Map test user")
-        cls.role_sales.user_ids = cls.user
+        Partner = cls.env["res.partner"]
+        cls.people = Partner.create(
+            [{"name": "Map test person"}, {"name": "Map test person 2"}, {"name": "Map test person 3"}]
+        )
+        cls.role_sales.partner_ids = cls.people[0]
 
     def _by_id(self, items):
         return {item["id"]: item for item in items}
+
+    def _role(self, role):
+        return self._by_id(self.Activity.get_map_data()["roles"])[role.id]
 
     def test_structure_keys(self):
         data = self.Activity.get_map_data()
@@ -53,70 +58,63 @@ class TestMapData(BlueprintCase):
                 with self.subTest(section=section, item=item.get("code") or item.get("name")):
                     self.assertEqual(set(item), keys)
 
-    def test_phase_and_role_values(self):
-        data = self.Activity.get_map_data()
-        phase = self._by_id(data["phases"])[self.phase_a.id]
+    def test_phase_apps_with_installed_flag(self):
+        """D12: each app is ``{name, installed}``; installed only for an installed application."""
+        phases = self._by_id(self.Activity.get_map_data()["phases"])
+        phase = phases[self.phase_a.id]
         self.assertEqual(phase["code"], "t_phase_a")
-        self.assertEqual(phase["apps"], ["Sales", "Invoicing"])
-        self.assertEqual(self._by_id(data["phases"])[self.phase_b.id]["apps"], [])
+        self.assertEqual(
+            phase["apps"],
+            [{"name": "Project", "installed": True}, {"name": "T not an app", "installed": False}],
+        )
+        for app in phase["apps"]:
+            self.assertEqual(set(app), APP_KEYS)
+        self.assertEqual(phases[self.phase_b.id]["apps"], [])
 
-        roles = self._by_id(data["roles"])
+    def test_role_values(self):
+        roles = self._by_id(self.Activity.get_map_data()["roles"])
         self.assertFalse(roles[self.role_sales.id]["is_external"])
         self.assertTrue(roles[self.role_customer.id]["is_external"])
-        self.assertEqual(roles[self.role_sales.id]["users"], ["Map test user"])
+        self.assertEqual(roles[self.role_sales.id]["users"], ["Map test person"])
+        self.assertEqual(roles[self.role_customer.id]["users"], [])
         self.assertIs(roles[self.role_sales.id]["adkar"], False)
 
-    def test_role_adkar_profile(self):
-        """The role profile appears once three users of the role have a score."""
+    def test_role_adkar_band(self):
+        """D5: the band appears once three people of the role have a score, and is only a word."""
         Score = self.env["pan.sl.adkar.score"]
-        others = new_test_user(self.env, login="pan_sl_map_user2", name="Map test user 2") | new_test_user(
-            self.env, login="pan_sl_map_user3", name="Map test user 3"
-        )
-        self.role_sales.user_ids |= others
-        Score.create(
-            {"user_id": self.user.id, "awareness": 1, "desire": 2, "knowledge": 3, "ability": 4, "reinforcement": 5}
-        )
-        Score.create(
-            {"user_id": others[0].id, "awareness": 1, "desire": 2, "knowledge": 3, "ability": 4, "reinforcement": 5}
-        )
-        role = self._by_id(self.Activity.get_map_data()["roles"])[self.role_sales.id]
-        self.assertIs(role["adkar"], False, "Two scored users must not give a profile on the map.")
-        Score.create(
-            {"user_id": others[1].id, "awareness": 4, "desire": 5, "knowledge": 3, "ability": 1, "reinforcement": 2}
-        )
-        role = self._by_id(self.Activity.get_map_data()["roles"])[self.role_sales.id]
-        self.assertEqual(len(role["adkar"]), 5)
-        for actual, expected in zip(role["adkar"], (2, 3, 3, 3, 4)):
-            self.assertAlmostEqual(actual, expected)
+        self.role_sales.partner_ids = self.people
+        values = {"awareness": 5, "desire": 4, "knowledge": 4, "ability": 4, "reinforcement": 3}
+        Score.create([dict(values, partner_id=person.id) for person in self.people[:2]])
+        self.assertIs(self._role(self.role_sales)["adkar"], False, "Two scored people must not give a band.")
+        Score.create(dict(values, partner_id=self.people[2].id))
+        self.assertEqual(self._role(self.role_sales)["adkar"], "medium")
 
-    def test_training_list_per_activity(self):
-        """Who still needs training: the role's users, trained once the activity reaches rung 4."""
-        self.assertEqual(TRAINED_RUNG, 4)
-        second = new_test_user(self.env, login="pan_sl_map_trainee", name="Map trainee")
-        self.role_sales.user_ids |= second
-        task = self._make_task(self.act_a, rung="3")
-        activities = self._by_id(self.Activity.get_map_data()["activities"])
-        training = activities[self.act_a.id]["training"]
-        for item in training:
-            self.assertEqual(set(item), TRAINING_KEYS)
-        self.assertEqual(
-            {item["id"]: item["trained"] for item in training}, {self.user.id: False, second.id: False}
+    def test_no_adkar_number_reaches_the_map(self):
+        """D5: no float, no list of scores and no person id leave the server in the map data."""
+        Score = self.env["pan.sl.adkar.score"]
+        self.role_sales.partner_ids = self.people
+        Score.create(
+            [
+                {"partner_id": person.id, "awareness": 1, "desire": 2, "knowledge": 3, "ability": 4,
+                 "reinforcement": 5}
+                for person in self.people
+            ]
         )
-        self.assertEqual({item["name"] for item in training}, {"Map test user", "Map trainee"})
-        self.assertEqual(activities[self.act_c.id]["training"], [], "A role without users has nobody to train.")
+        role = self._role(self.role_sales)
+        self.assertEqual(role["adkar"], "low")
+        self.assertTrue(all(isinstance(name, str) for name in role["users"]))
 
-        task.pan_rung = "4"
-        training = self._by_id(self.Activity.get_map_data()["activities"])[self.act_a.id]["training"]
-        self.assertTrue(all(item["trained"] for item in training))
+        def walk(value, path):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    walk(item, f"{path}.{key}")
+            elif isinstance(value, (list, tuple)):
+                for index, item in enumerate(value):
+                    walk(item, f"{path}[{index}]")
+            else:
+                self.assertNotIsInstance(value, float, f"{path} is a float; the map gets no scores.")
 
-    def test_training_list_has_no_adkar_scores(self):
-        """Individual ADKAR scores never reach the map, not even in the training list."""
-        self.env["pan.sl.adkar.score"].create(
-            {"user_id": self.user.id, "awareness": 1, "desire": 1, "knowledge": 1, "ability": 1, "reinforcement": 1}
-        )
-        item = self._by_id(self.Activity.get_map_data()["activities"])[self.act_a.id]
-        for person in item["training"]:
-            self.assertEqual(set(person), TRAINING_KEYS)
+        walk(self.Activity.get_map_data(), "data")
 
     def test_activity_values(self):
         scenario = self._make_scenario("t_map_values", [(10, self.act_a)])
@@ -131,19 +129,23 @@ class TestMapData(BlueprintCase):
         self.assertEqual(item["open_point"], "Who approves?")
         self.assertEqual(item["scenario_ids"], [scenario.id])
         self.assertEqual(item["model"], "res.partner")
+        self.assertNotIn("training", item, "D3: no per-person training on the map.")
 
         other = activities[self.act_b.id]
         self.assertIs(other["model"], False)
         self.assertEqual(other["scenario_ids"], [])
         self.assertEqual(other["rung"], 0)
 
-    def test_scenario_activity_order(self):
+    def test_scenario_activity_order_and_progress(self):
         scenario = self._make_scenario("t_map_order", [(30, self.act_a), (10, self.act_c), (20, self.act_b)])
-        self._make_task(self.act_a | self.act_b | self.act_c, rung="3")
+        self._make_task(self.act_a | self.act_b, rung="3")
+        self._make_task(self.act_c, rung="1")
         item = self._by_id(self.Activity.get_map_data()["scenarios"])[scenario.id]
         self.assertEqual(item["code"], "t_map_order")
         self.assertEqual(item["activity_ids"], [self.act_c.id, self.act_b.id, self.act_a.id])
-        self.assertEqual(item["rung"], 3)
+        self.assertEqual(item["rung"], 1)
+        self.assertEqual(item["progress"], 67, "Two of three activities tested, as a rounded percentage.")
+        self.assertIsInstance(item["progress"], int)
 
     def _count_queries(self):
         self.env.flush_all()
@@ -227,6 +229,14 @@ class TestMapData(BlueprintCase):
         self.assertEqual(by_id[self.act_c.id]["tasks"], [])
         self.assertEqual(by_id[self.act_a.id]["click_path"], "Contacts, New")
         self.assertIs(by_id[self.act_b.id]["click_path"], False)
+
+    def test_map_details_leave_out_cancelled_tasks(self):
+        """Cancelled tasks do not count for the rung, so the Detail stop does not list them either."""
+        kept = self._make_task(self.act_a, rung="2")
+        cancelled = self._make_task(self.act_a, rung="0")
+        cancelled.state = "1_canceled"
+        tasks = self._by_id(self.Activity.get_map_details())[self.act_a.id]["tasks"]
+        self.assertEqual([task["id"] for task in tasks], [kept.id])
 
     def test_map_first_line(self):
         cases = [

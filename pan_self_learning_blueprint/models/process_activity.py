@@ -126,6 +126,12 @@ class PanSlActivity(models.Model):
         ondelete="set null",
         help="Odoo model (document) this activity acts on, for example sale.order.",
     )
+    model_name = fields.Char(
+        string="Odoo model",
+        related="model_id.model",
+        store=True,
+        help="Technical name of the Odoo document, for example sale.order.",
+    )
     click_path = fields.Html(
         string="Click Path",
         help="Level 4: the steps in Odoo. Basis for the manual and the exercise.",

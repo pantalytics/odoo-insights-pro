@@ -5,24 +5,33 @@ See ``docs/blueprint-format.md`` for the format. Records are matched on
 
 Unknown Odoo models
 -------------------
-An activity or phase may name an Odoo model (``sale.order``) whose app is not
+An activity may name an Odoo model (``sale.order``) whose app is not
 installed. ``import_blueprint(data)`` is strict by default and refuses the
 file, naming the missing models, so a hand-made or exported blueprint never
-loses information silently. The bundled templates are written for a full
-installation; ``import_blueprint(data, strict=False)`` (used by the wizard's
-"Load template") imports every record but leaves the model link empty for
-models that are not installed, and lists those models in the result so the
-user knows which apps to install and which links to set later.
+loses information silently. The bundled template is written for a full
+installation; ``import_blueprint(data, strict=False)`` (used by "Load
+template") imports every record but leaves the model link empty for models
+that are not installed, and lists those models in the result so the user
+knows which apps to install and which links to set later.
+
+Phases name their Odoo apps (``apps``). Older files also list phase
+``models``; import accepts that key and ignores it.
 
 Loading a template never overwrites the company's own work
 -----------------------------------------------------------
 ``import_blueprint(data, fill_empty_only=True)`` (used by "Load template")
 creates the records that are missing and only fills what is still empty on
-the existing ones: an empty name, description, open point or click path, an
-empty model link, and the phase models (added, never removed). It never
-touches choice states, booleans, references or scenario steps a company
-already has. So loading the template again after installing an app links the
-new models without undoing any decision.
+the existing ones: an empty name, description, click path or model link. It
+never touches choice states, booleans, references, open points or scenario
+steps a company already has, and only records it actually writes count as
+updated. So loading the template again after installing an app links the new
+models without undoing any decision.
+
+Limits
+------
+A file import refuses files above ``MAX_FILE_BYTES`` and blueprints with more
+than ``MAX_RECORDS`` records (all sections plus scenario steps), so one wrong
+file cannot flood a production database.
 
 Language
 --------
@@ -34,16 +43,18 @@ replaces the English source text.
 
 import base64
 import json
-import os
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import file_open, file_path, is_html_empty
+from odoo.tools import file_open, is_html_empty
 
 BLUEPRINT_FORMAT = "pantalytics-blueprint"
 BLUEPRINT_VERSION = 1
-TEMPLATE_DIR = "pan_self_learning_blueprint/data/blueprints"
+# The one bundled template. Add a template choice only when there is a second one.
+TEMPLATE_FILE = "pan_self_learning_blueprint/data/blueprints/generic_manufacturing.json"
 SOURCE_LANG = "en_US"
+MAX_FILE_BYTES = 5 * 1024 * 1024
+MAX_RECORDS = 5000
 
 # The Odoo app (module) that provides a model, to tell a user which app to
 # install instead of naming a technical model. Models not listed here are
@@ -118,7 +129,6 @@ class PanSlBlueprint(models.AbstractModel):
                     "code": phase.code,
                     "name": phase.name,
                     "sequence": phase.sequence,
-                    "models": phase.model_ids.mapped("model"),
                     "apps": self._split_labels(phase.app_labels),
                 }
                 for phase in phases
@@ -151,7 +161,7 @@ class PanSlBlueprint(models.AbstractModel):
                     "process": activity.process_id.code,
                     "role": activity.role_id.code,
                     "phase": activity.phase_id.code,
-                    "model": activity.model_id.model or "",
+                    "model": activity.model_name or "",
                     "choice_state": activity.choice_state,
                     "open_point": activity.open_point or "",
                     "click_path": activity.click_path or "",
@@ -193,16 +203,18 @@ class PanSlBlueprint(models.AbstractModel):
             the whole file; when False the model link is left empty and the
             model is reported in ``skipped_models``.
         :param bool fill_empty_only: when True (template loading) existing
-            records are never overwritten: only empty fields are filled, phase
-            models are added, and scenarios that already have steps keep them.
+            records are never overwritten: only empty fields are filled, and
+            scenarios that already have steps keep them.
         :return: summary dict ``{"name", "chains": {"created", "updated"}, ...,
             "skipped_models": [str]}``
-        :raise UserError: on a wrong format, version or language, a malformed
-            record, a reference to an unknown code, or (strict) an unknown model.
+        :raise UserError: on a wrong format, version or language, more than
+            ``MAX_RECORDS`` records, a malformed record, a reference to an
+            unknown code, or (strict) an unknown model.
         """
         self._check_header(data)
         self = self.with_context(lang=self._get_import_lang(data))
         sections = {key: self._get_section(data, key) for key in SECTIONS}
+        self._check_record_count(sections)
         model_map, missing_models = self._resolve_models(sections)
         if missing_models and strict:
             raise UserError(
@@ -221,7 +233,7 @@ class PanSlBlueprint(models.AbstractModel):
         summary["phases"] = self._upsert(
             "phases",
             sections["phases"],
-            lambda item, is_new: self._phase_vals(item, model_map, fill_empty_only),
+            lambda item, is_new: self._phase_vals(item),
             refs,
             fill_empty_only,
         )
@@ -291,6 +303,21 @@ class PanSlBlueprint(models.AbstractModel):
             )
 
     @api.model
+    def _check_record_count(self, sections):
+        total = sum(len(items) for items in sections.values()) + sum(
+            len(item["steps"]) for item in sections["scenarios"] if isinstance(item.get("steps"), list)
+        )
+        if total > MAX_RECORDS:
+            raise UserError(
+                self.env._(
+                    "This blueprint holds %(count)s records; at most %(max)s can be imported at once. "
+                    "Split the file or remove records.",
+                    count=total,
+                    max=MAX_RECORDS,
+                )
+            )
+
+    @api.model
     def _get_section(self, data, key):
         items = data.get(key, [])
         if not isinstance(items, list):
@@ -319,15 +346,7 @@ class PanSlBlueprint(models.AbstractModel):
 
         :return: (dict name -> id, sorted list of names that are not installed)
         """
-        names = set()
-        for phase in sections["phases"]:
-            phase_models = phase.get("models", [])
-            if not isinstance(phase_models, list):
-                raise UserError(
-                    self.env._("'models' of phase '%(code)s' must be a list.", code=phase["code"])
-                )
-            names.update(phase_models)
-        names.update(activity["model"] for activity in sections["activities"] if activity.get("model"))
+        names = {activity["model"] for activity in sections["activities"] if activity.get("model")}
         for name in names:
             if not isinstance(name, str):
                 raise UserError(self.env._("A model name must be text, found %(value)r.", value=name))
@@ -435,22 +454,16 @@ class PanSlBlueprint(models.AbstractModel):
         """Keep only the values that fill an empty field of ``record``.
 
         Booleans and selections always hold a decision (``is_external``,
-        ``choice_state``), so they are never filled. x2many commands are kept:
-        the callers only send additive ``link`` commands in this mode.
+        ``choice_state``), so they are never filled. An empty value fills
+        nothing, so it is dropped: a record is only written, and counted as
+        updated, when something really changes.
         """
         kept = {}
         for key, value in vals.items():
-            if key in NEVER_REFILL:
-                continue
             field = record._fields[key]
-            if field.type in ("many2many", "one2many"):
-                kept[key] = value
-            elif field.type in ("boolean", "selection"):
+            if not value or key in NEVER_REFILL or field.type in ("boolean", "selection"):
                 continue
-            elif field.type == "html":
-                if is_html_empty(record[key]):
-                    kept[key] = value
-            elif not record[key]:
+            if is_html_empty(record[key]) if field.type == "html" else not record[key]:
                 kept[key] = value
         return kept
 
@@ -473,15 +486,9 @@ class PanSlBlueprint(models.AbstractModel):
         return self._common_vals(item, ("name", "description"))
 
     @api.model
-    def _phase_vals(self, item, model_map, fill_empty_only=False):
+    def _phase_vals(self, item):
+        # A legacy "models" key is accepted and ignored: phases name apps, activities models.
         vals = self._common_vals(item, ("name",))
-        if "models" in item:
-            ids = [model_map[name] for name in item["models"] if name in model_map]
-            if fill_empty_only:
-                # Add the models that are installed now; keep the ones the company set.
-                vals["model_ids"] = [fields.Command.link(model_id) for model_id in ids]
-            else:
-                vals["model_ids"] = [fields.Command.set(ids)]
         if "apps" in item:
             if not isinstance(item["apps"], list):
                 raise UserError(self.env._("'apps' of phase '%(code)s' must be a list.", code=item["code"]))
@@ -589,111 +596,35 @@ class PanSlBlueprint(models.AbstractModel):
             ]
         )
 
-
-class PanSlBlueprintWizard(models.TransientModel):
-    _name = "pan.sl.blueprint.wizard"
-    _description = "Blueprint import / export"
-
-    mode = fields.Selection(
-        [("import", "Import a file"), ("export", "Export"), ("template", "Load a template")],
-        string="Action",
-        required=True,
-        default="import",
-        help="Import a blueprint file, export the current model, or load one of the bundled templates.",
-    )
-    file = fields.Binary(
-        string="Blueprint file",
-        help="A blueprint JSON file (format 'pantalytics-blueprint', version 1). "
-        "After an export this holds the exported file.",
-    )
-    filename = fields.Char(
-        string="File name",
-        help="Name of the blueprint file.",
-    )
-    template = fields.Selection(
-        selection="_selection_template",
-        string="Template",
-        default=lambda self: self._default_template(),
-        help="A blueprint shipped with the module (data/blueprints). Models of apps that are not "
-        "installed are skipped and listed in the result.",
-    )
-    result = fields.Text(
-        string="Result",
-        readonly=True,
-        help="Summary of the last import or export.",
-    )
-    warning = fields.Text(
-        string="Warning",
-        readonly=True,
-        help="What the last template load could not do, such as the apps to install so that "
-        "activities and phases can be linked to their Odoo documents.",
-    )
+    # ------------------------------------------------------------------
+    # Menu actions (administrators)
+    # ------------------------------------------------------------------
 
     @api.model
-    def _selection_template(self):
-        directory = file_path(TEMPLATE_DIR)
-        return [
-            (name, os.path.splitext(name)[0].replace("_", " ").capitalize())
-            for name in sorted(os.listdir(directory))
-            if name.endswith(".json")
-        ]
-
-    @api.model
-    def _default_template(self):
-        """Preselect the template when the module ships exactly one."""
-        templates = self._selection_template()
-        return templates[0][0] if len(templates) == 1 else False
-
-    def action_import(self):
-        self.ensure_one()
-        if not self.file:
-            raise UserError(self.env._("Choose a blueprint file to import."))
-        data = self._parse_json(base64.b64decode(self.file), self.filename or self.env._("the file"))
-        summary = self.env["pan.sl.blueprint"].import_blueprint(data, strict=True)
-        self.write({"result": self._format_summary(summary), "warning": False})
-        return self._reopen()
-
     def action_load_template(self):
-        self.ensure_one()
-        if not self.template:
-            raise UserError(self.env._("Choose a template to load."))
-        if self.template not in dict(self._selection_template()):
-            raise UserError(self.env._("The template %(name)s does not exist.", name=self.template))
-        with file_open(f"{TEMPLATE_DIR}/{self.template}", "rb", filter_ext=(".json",)) as handle:
-            data = self._parse_json(handle.read(), self.template)
+        """Load the bundled template without overwriting anything, then open the map."""
+        with file_open(TEMPLATE_FILE, "rb", filter_ext=(".json",)) as handle:
+            data = self._parse_json(handle.read(), TEMPLATE_FILE.rsplit("/", 1)[-1])
         # Never overwrite the company's own decisions: only fill what is missing.
-        summary = self.env["pan.sl.blueprint"].import_blueprint(data, strict=False, fill_empty_only=True)
-        self.write(
-            {
-                "result": self._format_summary(summary),
-                "warning": self._format_missing_apps(summary["skipped_models"]),
-            }
-        )
-        return self._reopen()
+        summary = self.import_blueprint(data, strict=False, fill_empty_only=True)
+        return self._open_map_with_summary(self.env._("Template loaded"), summary)
 
+    @api.model
     def action_export(self):
-        self.ensure_one()
-        data = self.env["pan.sl.blueprint"].export_blueprint()
+        """Download the current model as blueprint.json."""
+        data = self.export_blueprint()
         content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-        self.write(
-            {
-                "file": base64.b64encode(content.encode("utf-8")),
-                "filename": "blueprint.json",
-                "warning": False,
-                "result": self.env._(
-                    "Exported %(chains)s chains, %(phases)s phases, %(roles)s roles, %(processes)s processes, "
-                    "%(activities)s activities and %(scenarios)s scenarios.",
-                    **{key: len(data[key]) for key in SECTIONS},
-                ),
-            }
+        holder = self.env["pan.sl.blueprint.wizard"].create(
+            {"file": base64.b64encode(content.encode("utf-8")), "filename": "blueprint.json"}
         )
         return {
             "type": "ir.actions.act_url",
-            "url": f"/web/content?model={self._name}&id={self.id}&field=file"
+            "url": f"/web/content?model={holder._name}&id={holder.id}&field=file"
             "&filename_field=filename&download=true",
             "target": "download",
         }
 
+    @api.model
     def _parse_json(self, raw, label):
         try:
             return json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
@@ -702,20 +633,55 @@ class PanSlBlueprintWizard(models.TransientModel):
                 self.env._("%(name)s is not a valid JSON file: %(error)s", name=label, error=error)
             ) from error
 
-    def _format_summary(self, summary):
-        lines = [self.env._("Imported blueprint %(name)s.", name=summary["name"] or "-")]
-        for key in SECTIONS:
-            counts = summary[key]
-            lines.append(
-                self.env._(
-                    "%(section)s: %(created)s created, %(updated)s updated.",
-                    section=key.capitalize(),
-                    created=counts["created"],
-                    updated=counts["updated"],
-                )
-            )
-        return "\n".join(lines)
+    @api.model
+    def _open_map_with_summary(self, title, summary):
+        """Show what an import changed in a notification, then open the company map."""
+        message = self._format_summary(summary)
+        missing_apps = self._format_missing_apps(summary["skipped_models"])
+        if missing_apps:
+            message = f"{message} {missing_apps}"
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": title,
+                "message": message,
+                "type": "warning" if missing_apps else "success",
+                "sticky": bool(missing_apps),
+                "next": self.env["ir.actions.actions"]._for_xml_id(
+                    "pan_self_learning_blueprint.action_blueprint_map"
+                ),
+            },
+        }
 
+    @api.model
+    def _format_summary(self, summary):
+        """One line: what was created and what was updated, per section."""
+        labels = {
+            "chains": self.env._("chains"),
+            "phases": self.env._("phases"),
+            "roles": self.env._("roles"),
+            "processes": self.env._("processes"),
+            "activities": self.env._("activities"),
+            "scenarios": self.env._("scenarios"),
+        }
+
+        def counts(key):
+            return ", ".join(
+                f"{summary[section][key]} {labels[section]}" for section in SECTIONS if summary[section][key]
+            )
+
+        created, updated = counts("created"), counts("updated")
+        if not created and not updated:
+            return self.env._("Nothing to change.")
+        parts = []
+        if created:
+            parts.append(self.env._("Created %(counts)s.", counts=created))
+        if updated:
+            parts.append(self.env._("Updated %(counts)s.", counts=updated))
+        return " ".join(parts)
+
+    @api.model
     def _format_missing_apps(self, skipped_models):
         """Name the apps to install for the models a template could not link, or False."""
         if not skipped_models:
@@ -726,35 +692,43 @@ class PanSlBlueprintWizard(models.TransientModel):
             [("name", "in", list(module_names))], ["name", "shortdesc"]
         )
         app_names = {row["name"]: row["shortdesc"] for row in modules}
-        apps = sorted(
-            {app_names[MODEL_APPS[model]] for model in skipped_models if MODEL_APPS.get(model) in app_names}
+        names = {app_names[MODEL_APPS[model]] for model in skipped_models if MODEL_APPS.get(model) in app_names}
+        # Models without a known app are named technically, so nothing is left out.
+        names.update(model for model in skipped_models if MODEL_APPS.get(model) not in app_names)
+        return self.env._(
+            "Not installed: %(apps)s. Install them and load the template again to link them.",
+            apps=", ".join(sorted(names)),
         )
-        unknown = sorted(model for model in skipped_models if MODEL_APPS.get(model) not in app_names)
-        lines = []
-        if apps:
-            lines.append(
-                self.env._(
-                    "Not installed: %(apps)s. The activities and phases that use these apps are "
-                    "loaded without their Odoo link. Install the apps, then load the template again: "
-                    "it only fills in the missing links and keeps your own changes.",
-                    apps=", ".join(apps),
-                )
-            )
-        if unknown:
-            lines.append(
-                self.env._(
-                    "Also not installed (technical model names): %(models)s.",
-                    models=", ".join(unknown),
-                )
-            )
-        return "\n".join(lines)
 
-    def _reopen(self):
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": self._name,
-            "res_id": self.id,
-            "view_mode": "form",
-            "target": "new",
-            "name": self.env._("Blueprint"),
-        }
+
+class PanSlBlueprintWizard(models.TransientModel):
+    _name = "pan.sl.blueprint.wizard"
+    _description = "Blueprint file"
+
+    file = fields.Binary(
+        string="Blueprint file",
+        help="A blueprint JSON file of at most 5 MB.",
+    )
+    filename = fields.Char(
+        string="File name",
+        help="Name of the blueprint file.",
+    )
+
+    def action_import(self):
+        """Import the chosen file (strict: unknown models refuse it), then open the map."""
+        self.ensure_one()
+        if not self.file:
+            raise UserError(self.env._("Choose a blueprint file to import."))
+        raw = base64.b64decode(self.file)
+        if len(raw) > MAX_FILE_BYTES:
+            raise UserError(
+                self.env._(
+                    "The file is %(size)s MB; at most %(max)s MB can be imported. Split the file or remove records.",
+                    size=round(len(raw) / 1024 / 1024, 1),
+                    max=MAX_FILE_BYTES // 1024 // 1024,
+                )
+            )
+        Blueprint = self.env["pan.sl.blueprint"]
+        data = Blueprint._parse_json(raw, self.filename or self.env._("The file"))
+        summary = Blueprint.import_blueprint(data, strict=True)
+        return Blueprint._open_map_with_summary(self.env._("Blueprint imported"), summary)

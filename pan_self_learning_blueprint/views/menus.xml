@@ -43,7 +43,9 @@
             name="Import / export"
             groups="group_blueprint_manager"
             sequence="40">
-            <menuitem id="menu_blueprint_import_export" name="Load a template, import or export" action="action_blueprint_wizard" sequence="10"/>
+            <menuitem id="menu_blueprint_load_template" name="Load template" action="action_blueprint_load_template" sequence="10"/>
+            <menuitem id="menu_blueprint_import" name="Import file" action="action_blueprint_import" sequence="20"/>
+            <menuitem id="menu_blueprint_export" name="Export" action="action_blueprint_export" sequence="30"/>
         </menuitem>
 
     </menuitem>

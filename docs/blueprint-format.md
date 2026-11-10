@@ -14,7 +14,7 @@ people and ADKAR scores are not part of a blueprint.
   "chains":    [{"code": "lead_to_cash", "name": "Lead to Cash", "sequence": 20,
                  "description": "From the first contact to the payment."}],
   "phases":    [{"code": "quotation", "name": "Quotation", "sequence": 30,
-                 "models": ["sale.order"], "apps": ["Sales"]}],
+                 "apps": ["Sales"]}],
   "roles":     [{"code": "sales", "name": "Sales", "sequence": 30, "external": false,
                  "description": "Inside sales and account managers."}],
   "processes": [{"code": "quote_approve", "name": "Quote and approve", "sequence": 10,
@@ -36,7 +36,7 @@ people and ADKAR scores are not part of a blueprint.
 | Section | Required for a new record | Optional |
 |---|---|---|
 | chains | `code`, `name` | `sequence`, `description` |
-| phases | `code`, `name` | `sequence`, `models` (technical model names), `apps` (labels shown as chips in the Odoo band) |
+| phases | `code`, `name` | `sequence`, `apps` (app names shown as chips in the Odoo band) |
 | roles | `code`, `name` | `sequence`, `external` (customer, supplier), `description` |
 | processes | `code`, `name`, `chain` | `sequence`, `owner_role` |
 | activities | `code`, `name`, `process`, `role`, `phase` | `sequence`, `model`, `choice_state` (`proposal`, `provisional`, `fixed`, `revised`), `open_point`, `click_path` (HTML) |
@@ -59,22 +59,19 @@ A code has no spaces. `sequence` is a whole number.
   when the step needs a note (for example the test data to use). The export
   writes the object form only for steps with a note.
 - Keys left out of an item are not changed on update.
-- `model` (and each entry of `models`) is a technical model name. Importing a
-  file is strict: an unknown model refuses the whole file and names the model
-  (the app may not be installed).
+- `model` is a technical model name. Importing a file is strict: an unknown
+  model refuses the whole file and names the model (the app may not be
+  installed).
+- A phase `models` key (older files) is accepted and ignored.
+- A file above 5 MB, or with more than 5,000 records in total (all sections
+  plus scenario steps), is refused.
 - Import creates and updates, never deletes. Importing a file replaces the
   steps of every scenario that lists `steps`.
-- Loading a bundled template is lenient and never overwrites the company's
-  own work:
-  - an unknown model leaves the link empty, and the result names the apps to
-    install;
-  - missing records are created;
-  - on existing records only empty values are filled (name, description,
-    sequence, open point, click path, model link, app labels), and phase
-    models are added, never removed;
-  - choice states, the external flag, references and the steps of a
-    scenario that already has steps are kept.
-
-  So after installing a missing app, load the template again to fill in the
-  links.
+- Loading the bundled template is lenient and never overwrites the
+  company's own work: an unknown model leaves the link empty and the
+  notification names the apps to install; missing records are created; on
+  existing records only empty values are filled; choice states, the external
+  flag, references and existing scenario steps are kept. Only records that
+  really change are counted. After installing a missing app, load the
+  template again to link it.
 - Export writes all records in this format, ordered by sequence.

@@ -1,14 +1,14 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
-from .structure import CANCELLED_STATE, RUNG_SELECTION
+from .structure import TESTED_RUNG
 
 
 class PanSlScenario(models.Model):
     """A test route across processes: an ordered list of activities."""
 
     _name = "pan.sl.scenario"
-    _inherit = ["pan.sl.structure.mixin"]
+    _inherit = ["pan.sl.structure.mixin", "pan.sl.progress.mixin"]
     _description = "Blueprint Scenario"
     _order = "sequence, id"
 
@@ -50,20 +50,28 @@ class PanSlScenario(models.Model):
         help="Activities of this scenario, in the order of its steps.",
     )
     rung = fields.Integer(
-        string="Rung",
-        compute="_compute_rung",
-        store=True,
-        compute_sudo=True,
-        help="Lowest rung (0 Open to 5 Live) of the activities in this scenario; "
-        "0 when the scenario has no activities.",
+        help="Technical: the lowest rung (0 Open to 5 Live) of the activities in "
+        "this scenario; 0 when it has no activities.",
     )
     rung_state = fields.Selection(
-        selection=RUNG_SELECTION,
+        string="Lowest progress",
+        help="Progress of the least ready activity in this scenario.",
+    )
+    progress = fields.Float(
         string="Progress",
-        compute="_compute_rung_state",
+        compute="_compute_progress",
         store=True,
-        help="The rung of this scenario as a name (Open, Decided, Built, "
-        "Tested, Trained, Live), for filtering, grouping and display.",
+        compute_sudo=True,
+        aggregator="avg",
+        help="Share of the activities in this scenario that are Tested or further, in percent.",
+    )
+    planned_hours = fields.Float(
+        help="Sum of the allocated hours of all tasks on this scenario, cancelled "
+        "tasks left out. Each task counts once.",
+    )
+    spent_hours = fields.Float(
+        help="Sum of the timesheet hours on all tasks of this scenario, cancelled "
+        "tasks left out. Each task counts once.",
     )
     task_ids = fields.One2many(
         "project.task",
@@ -90,35 +98,16 @@ class PanSlScenario(models.Model):
             ordered_ids = list(dict.fromkeys(steps.activity_id.ids))
             scenario.activity_ids = self.env["pan.sl.activity"].browse(ordered_ids)
 
+    def _progress_tasks(self):
+        self.ensure_one()
+        return self._counted(self.sudo().task_ids)
+
+    def _progress_rungs(self):
+        return self.step_ids.activity_id.mapped("rung")
+
     @api.depends("step_ids.activity_id.rung")
     def _compute_rung(self):
-        for scenario in self:
-            rungs = scenario.step_ids.activity_id.mapped("rung")
-            scenario.rung = min(rungs) if rungs else 0
-
-    @api.depends("rung")
-    def _compute_rung_state(self):
-        for scenario in self:
-            scenario.rung_state = str(scenario.rung)
-
-    planned_hours = fields.Float(
-        string="Planned hours",
-        compute="_compute_hours",
-        store=True,
-        compute_sudo=True,
-        aggregator="sum",
-        help="Sum of the allocated hours of all tasks on this scenario, cancelled "
-        "tasks left out. Each task counts once.",
-    )
-    spent_hours = fields.Float(
-        string="Spent hours",
-        compute="_compute_hours",
-        store=True,
-        compute_sudo=True,
-        aggregator="sum",
-        help="Sum of the timesheet hours on all tasks of this scenario, cancelled "
-        "tasks left out. Each task counts once.",
-    )
+        return super()._compute_rung()
 
     @api.depends(
         "task_ids.allocated_hours",
@@ -127,11 +116,14 @@ class PanSlScenario(models.Model):
         "task_ids.active",
     )
     def _compute_hours(self):
+        return super()._compute_hours()
+
+    @api.depends("step_ids.activity_id.rung")
+    def _compute_progress(self):
         for scenario in self:
-            # sudo: the same totals for every viewer, whatever tasks they may read.
-            tasks = scenario.sudo().task_ids.filtered(lambda task: task.state != CANCELLED_STATE)
-            scenario.planned_hours = sum(tasks.mapped("allocated_hours"))
-            scenario.spent_hours = sum(tasks.mapped("effective_hours"))
+            rungs = scenario.step_ids.activity_id.mapped("rung")
+            tested = sum(1 for rung in rungs if rung >= TESTED_RUNG)
+            scenario.progress = 100.0 * tested / len(rungs) if rungs else 0.0
 
     @api.depends("task_ids")
     def _compute_task_count(self):

@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 
-from .structure import CANCELLED_STATE, RUNG_SELECTION
+from .structure import RUNG_SELECTION
 
 
 class ProjectTask(models.Model):
@@ -19,12 +19,12 @@ class ProjectTask(models.Model):
         column1="task_id",
         column2="activity_id",
         string="Blueprint Activities",
-        help="Blueprint activities this task moves forward. The lowest rung of "
-        "the tasks linked to an activity is that activity's progress.",
+        help="Blueprint activities this task moves forward; the lowest progress of "
+        "their tasks is the progress of an activity.",
     )
     pan_rung = fields.Selection(
         selection=RUNG_SELECTION,
-        string="Rung",
+        string="Blueprint progress",
         default="0",
         required=True,
         tracking=True,
@@ -35,7 +35,8 @@ class ProjectTask(models.Model):
 
 
 class PanSlActivity(models.Model):
-    _inherit = "pan.sl.activity"
+    _name = "pan.sl.activity"
+    _inherit = ["pan.sl.activity", "pan.sl.progress.mixin"]
 
     task_ids = fields.Many2many(
         comodel_name="project.task",
@@ -46,47 +47,28 @@ class PanSlActivity(models.Model):
         help="Project tasks that implement this activity.",
     )
     rung = fields.Integer(
-        string="Rung",
-        compute="_compute_rung",
-        store=True,
-        compute_sudo=True,
-        help="Progress of this activity: the lowest rung (0 Open to 5 Live) "
-        "over all its linked tasks, also the ones you cannot open. Cancelled "
-        "tasks are left out. 0 when no task is linked.",
+        help="Technical: the lowest rung (0 Open to 5 Live) over all linked tasks, "
+        "also the ones you cannot open, cancelled tasks left out. 0 when no task is linked.",
     )
-    rung_state = fields.Selection(
-        selection=RUNG_SELECTION,
-        string="Progress",
-        compute="_compute_rung_state",
-        store=True,
-        help="The rung of this activity as a name (Open, Decided, Built, "
-        "Tested, Trained, Live), for filtering, grouping and display.",
-    )
-
     planned_hours = fields.Float(
-        string="Planned hours",
-        compute="_compute_hours",
-        store=True,
-        compute_sudo=True,
-        aggregator="sum",
         help="Sum of the allocated hours of all linked tasks, cancelled tasks "
         "left out. A task linked to several activities counts fully for each of them.",
     )
     spent_hours = fields.Float(
-        string="Spent hours",
-        compute="_compute_hours",
-        store=True,
-        compute_sudo=True,
-        aggregator="sum",
         help="Sum of the timesheet hours on all linked tasks, cancelled tasks "
         "left out. A task linked to several activities counts fully for each of them.",
     )
 
-    def _counted_tasks(self):
-        """All linked tasks that count for progress: every task (sudo, so the
-        result is the same for every viewer) except cancelled ones."""
+    def _progress_tasks(self):
         self.ensure_one()
-        return self.sudo().task_ids.filtered(lambda task: task.state != CANCELLED_STATE)
+        return self._counted(self.sudo().task_ids)
+
+    def _progress_rungs(self):
+        return [int(rung) for rung in self._progress_tasks().mapped("pan_rung")]
+
+    @api.depends("task_ids.pan_rung", "task_ids.state", "task_ids.active")
+    def _compute_rung(self):
+        return super()._compute_rung()
 
     @api.depends(
         "task_ids.allocated_hours",
@@ -95,18 +77,4 @@ class PanSlActivity(models.Model):
         "task_ids.active",
     )
     def _compute_hours(self):
-        for activity in self:
-            tasks = activity._counted_tasks()
-            activity.planned_hours = sum(tasks.mapped("allocated_hours"))
-            activity.spent_hours = sum(tasks.mapped("effective_hours"))
-
-    @api.depends("task_ids.pan_rung", "task_ids.state", "task_ids.active")
-    def _compute_rung(self):
-        for activity in self:
-            rungs = [int(rung) for rung in activity._counted_tasks().mapped("pan_rung")]
-            activity.rung = min(rungs) if rungs else 0
-
-    @api.depends("rung")
-    def _compute_rung_state(self):
-        for activity in self:
-            activity.rung_state = str(activity.rung)
+        return super()._compute_hours()

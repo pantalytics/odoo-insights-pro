@@ -5,7 +5,7 @@
         <field name="model">pan.sl.adkar.score</field>
         <field name="arch" type="xml">
             <list string="ADKAR scores" editable="bottom" multi_edit="1">
-                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="partner_id" widget="many2one_avatar"/>
                 <field name="role_ids" widget="many2many_tags" optional="show"/>
                 <field name="date"/>
                 <field name="round"/>
@@ -27,8 +27,8 @@
             <form string="ADKAR score">
                 <sheet>
                     <div class="oe_title">
-                        <label for="user_id"/>
-                        <h1><field name="user_id" widget="many2one_avatar_user" placeholder="Who is this score about?"/></h1>
+                        <label for="partner_id"/>
+                        <h1><field name="partner_id" widget="many2one_avatar" placeholder="Who is this score about?"/></h1>
                     </div>
                     <group>
                         <group string="Survey">
@@ -56,17 +56,17 @@
         <field name="model">pan.sl.adkar.score</field>
         <field name="arch" type="xml">
             <search string="ADKAR scores">
-                <field name="user_id"/>
+                <field name="partner_id"/>
                 <field name="role_ids"/>
                 <field name="round"/>
-                <filter name="filter_my_scores" string="My scores" domain="[('user_id', '=', uid)]"/>
+                <filter name="filter_my_scores" string="My scores" domain="[('partner_id.user_ids', 'in', [uid])]"/>
                 <separator/>
                 <filter name="filter_low" string="Has a score below 3"
                         domain="['|', '|', '|', '|', ('awareness', '&lt;', 3), ('desire', '&lt;', 3), ('knowledge', '&lt;', 3), ('ability', '&lt;', 3), ('reinforcement', '&lt;', 3)]"/>
                 <separator/>
                 <filter name="filter_date" string="Date" date="date"/>
                 <group>
-                    <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_partner" string="Person" context="{'group_by': 'partner_id'}"/>
                     <filter name="group_round" string="Round" context="{'group_by': 'round'}"/>
                     <filter name="group_date" string="Date" context="{'group_by': 'date'}"/>
                 </group>
@@ -79,7 +79,7 @@
         <field name="model">pan.sl.adkar.score</field>
         <field name="arch" type="xml">
             <pivot string="ADKAR averages" sample="1">
-                <field name="user_id" type="row"/>
+                <field name="partner_id" type="row"/>
                 <field name="round" type="col"/>
                 <field name="awareness" type="measure"/>
                 <field name="desire" type="measure"/>
@@ -98,12 +98,6 @@
         <field name="search_view_id" ref="view_adkar_score_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Record the first ADKAR round</p>
-            <p>
-                Score each person 1 to 5 on Awareness, Desire, Knowledge, Ability and
-                Reinforcement. The company map shows the average per role, based on
-                each person's latest round, once at least three people of a role
-                have a score. Blueprint users see only their own scores.
-            </p>
         </field>
     </record>
 </odoo>

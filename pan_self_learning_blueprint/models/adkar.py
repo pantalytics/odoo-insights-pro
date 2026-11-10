@@ -1,39 +1,44 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Domain
 
 ADKAR_FIELDS = ("awareness", "desire", "knowledge", "ability", "reinforcement")
 ADKAR_MIN = 1
 ADKAR_MAX = 5
-# A role profile is only shown when at least this many of its users have a
-# score, so the "average" on the company map never exposes one person.
-ADKAR_MIN_USERS_FOR_PROFILE = 3
+# A role band is only shown when at least this many of its people have a
+# score, so the company map never says something about one person.
+ADKAR_MIN_PEOPLE_FOR_BAND = 3
+# Band of the weakest ADKAR element of a role: "low" up to 2, "medium" below 4,
+# "high" from 4.
+ADKAR_BAND_LOW_MAX = 2
+ADKAR_BAND_HIGH_MIN = 4
 
 
 class PanSlAdkarScore(models.Model):
-    """One ADKAR self-assessment of one user in one survey round.
+    """One ADKAR assessment of one person in one survey round.
 
     ADKAR (Awareness, Desire, Knowledge, Ability, Reinforcement) measures
     whether people are ready for the change. Each element is scored 1 to 5.
-    The company map shows the average profile per role, based on the latest
-    round of each user holding that role.
+    People are contacts, so someone without a login can be scored too. The
+    company map shows per role only a band (low, medium, high) for the weakest
+    element, based on the latest round of each person holding that role.
 
-    Scores are personal: record rules let a Blueprint user read only their
-    own scores, managers read all of them, and the note is manager-only.
+    Scores are personal: record rules let a Blueprint user read only the
+    scores on their own contact, managers read all of them, and the note is
+    manager-only.
     """
 
     _name = "pan.sl.adkar.score"
     _description = "ADKAR score"
     _order = "date desc, round desc, id desc"
-    _rec_name = "user_id"
+    _rec_name = "partner_id"
 
-    user_id = fields.Many2one(
-        "res.users",
-        string="User",
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Person",
         required=True,
         index=True,
-        ondelete="cascade",
-        help="The person this ADKAR score is about.",
+        ondelete="restrict",
+        help="The person this ADKAR score is about. A contact, so a person without a login can be scored too.",
     )
     date = fields.Date(
         string="Date",
@@ -46,7 +51,7 @@ class PanSlAdkarScore(models.Model):
         required=True,
         default=1,
         aggregator="max",
-        help="Survey round. The company map uses the latest round of each user.",
+        help="Survey round. The company map uses the latest round of each person.",
     )
     awareness = fields.Integer(
         string="Awareness",
@@ -92,11 +97,9 @@ class PanSlAdkarScore(models.Model):
         help="Context for the score, for example the main blocker the person mentioned.",
     )
     role_ids = fields.Many2many(
-        "pan.sl.role",
+        related="partner_id.pan_role_ids",
         string="Roles",
-        compute="_compute_role_ids",
-        search="_search_role_ids",
-        help="Blueprint roles held by this user (from the users on each role).",
+        help="Blueprint roles held by this person.",
     )
 
     _round_positive = models.Constraint(
@@ -113,90 +116,84 @@ class PanSlAdkarScore(models.Model):
                 if not ADKAR_MIN <= value <= ADKAR_MAX:
                     raise ValidationError(
                         _(
-                            "%(element)s for %(user)s must be between %(min)s and %(max)s, not %(value)s.",
+                            "%(element)s for %(person)s must be between %(min)s and %(max)s, not %(value)s.",
                             element=labels[name],
-                            user=score.user_id.display_name,
+                            person=score.partner_id.display_name,
                             min=ADKAR_MIN,
                             max=ADKAR_MAX,
                             value=value,
                         )
                     )
 
-    @api.constrains("round")
-    def _check_round(self):
-        for score in self:
-            if score.round < 1:
-                raise ValidationError(
-                    _("The survey round of %(user)s must be 1 or higher.", user=score.user_id.display_name)
-                )
-
     @api.depends(*ADKAR_FIELDS)
     def _compute_average(self):
         for score in self:
             score.average = sum(score[name] for name in ADKAR_FIELDS) / len(ADKAR_FIELDS)
 
-    @api.depends("user_id")
-    def _compute_role_ids(self):
-        roles = self.env["pan.sl.role"].search([("user_ids", "in", self.user_id.ids)])
-        for score in self:
-            score.role_ids = roles.filtered(lambda role: score.user_id in role.user_ids)
 
-    def _search_role_ids(self, operator, value):
-        Role = self.env["pan.sl.role"]
-        if operator == "in":
-            values = list(value) if isinstance(value, (list, tuple, set)) else [value]
-            if not all(isinstance(item, int) for item in values):
-                return NotImplemented
-            roles = Role.browse(values).exists()
-        elif operator == "ilike" and isinstance(value, str):
-            roles = Role.search([("name", "ilike", value)])
-        elif operator == "any":
-            roles = Role.search(value)
-        else:
-            return NotImplemented
-        return Domain("user_id", "in", roles.user_ids.ids)
+class ResPartner(models.Model):
+    _inherit = "res.partner"
+
+    pan_role_ids = fields.Many2many(
+        "pan.sl.role",
+        "pan_sl_role_res_partner_rel",
+        "partner_id",
+        "role_id",
+        string="Blueprint roles",
+        groups="pan_self_learning_blueprint.group_blueprint_user",
+        help="Blueprint roles this person holds (the other side of the people on each role).",
+    )
 
 
 class PanSlRole(models.Model):
     _inherit = "pan.sl.role"
 
-    def _get_adkar_profile(self):
-        """Average ADKAR profile of the users holding this role.
+    partner_ids = fields.Many2many(
+        "res.partner",
+        "pan_sl_role_res_partner_rel",
+        "role_id",
+        "partner_id",
+        string="People",
+        domain=[("is_company", "=", False)],
+        help="The people who hold this role. Contacts, so people without a login can be listed and scored too.",
+    )
 
-        For each user of the role only the latest score counts (highest round,
-        then latest date). Returns a list of five floats in ADKAR order, or
-        ``False`` when fewer than ``ADKAR_MIN_USERS_FOR_PROFILE`` of the
-        role's users have a score (no individual profile is ever returned).
-        """
-        self.ensure_one()
-        return self._get_adkar_profiles()[self.id]
+    def _get_adkar_bands(self):
+        """ADKAR band per role: ``{role_id: "low" | "medium" | "high" | False}``.
 
-    def _get_adkar_profiles(self):
-        """Batch version of :meth:`_get_adkar_profile`: ``{role_id: profile}``.
-
+        For each person of the role only the latest score counts (highest
+        round, then latest date). The band describes the weakest of the five
+        element averages. ``False`` when fewer than
+        ``ADKAR_MIN_PEOPLE_FOR_BAND`` of the role's people have a score.
         Scores are read with sudo, because a Blueprint user may only read their
-        own scores; only the aggregate per role leaves this method.
+        own; only the band word leaves this method, never a number.
         """
-        users = self.user_ids
+        partners = self.partner_ids
         latest = {}
-        if users:
+        if partners:
             scores = (
                 self.env["pan.sl.adkar.score"]
                 .sudo()
                 .search(
-                    [("user_id", "in", users.ids)],
+                    [("partner_id", "in", partners.ids)],
                     order="round desc, date desc, id desc",
                 )
             )
             for score in scores:
-                latest.setdefault(score.user_id.id, score)
-        profiles = {}
+                latest.setdefault(score.partner_id.id, score)
+        bands = {}
         for role in self:
-            role_scores = [latest[user.id] for user in role.user_ids if user.id in latest]
-            if len(role_scores) < ADKAR_MIN_USERS_FOR_PROFILE:
-                profiles[role.id] = False
+            role_scores = [latest[partner.id] for partner in role.partner_ids if partner.id in latest]
+            if len(role_scores) < ADKAR_MIN_PEOPLE_FOR_BAND:
+                bands[role.id] = False
                 continue
-            profiles[role.id] = [
+            weakest = min(
                 sum(score[name] for score in role_scores) / len(role_scores) for name in ADKAR_FIELDS
-            ]
-        return profiles
+            )
+            if weakest <= ADKAR_BAND_LOW_MAX:
+                bands[role.id] = "low"
+            elif weakest < ADKAR_BAND_HIGH_MIN:
+                bands[role.id] = "medium"
+            else:
+                bands[role.id] = "high"
+        return bands

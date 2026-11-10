@@ -7,3 +7,4 @@ from . import test_map_data
 from . import test_hours
 from . import test_security
 from . import test_map_ui
+from . import test_migration

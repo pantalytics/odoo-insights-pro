@@ -12,6 +12,7 @@ import {
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/search/action_hook";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
@@ -74,50 +75,58 @@ const APP_CHAR_W = 6.2;
 const ODOO_PAD = 10;
 const LINE_H = 15; // detail lines under a chip (stop 4)
 const MAX_TASK_LINES = 3;
-const MAX_INITIALS = 3;
-const INITIAL_STEP = 17;
+const TASK_PILL_W = 46; // the rung word of a task at stop 4
 
 const TESTED_RUNG = 3;
-const TRAINED_RUNG = 4; // users of the role count as trained from this rung on
 const MAX_RUNG = 5;
 const WHEEL_ZOOM_SPEED = 0.0015; // zoom factor change per wheel pixel (exponential)
 const PINCH_WHEEL_SPEED = 0.01; // trackpad pinch arrives as ctrl + wheel with small deltas
 
-const CHOICE_STATES = ["proposal", "provisional", "fixed", "revised"];
-const OPEN_CHOICES = ["proposal", "provisional"];
-const RUNGS = [0, 1, 2, 3, 4, 5];
-const PEOPLE_LEVELS = ["ready", "partly", "not_ready", "no_data"];
-
-// Status tone per colour-by mode: ok green, warn amber, danger red, off grey;
-// level 1-3 is how strong the tint is, dashed marks "nothing decided yet".
-const CHOICE_TONES = {
-    proposal: { tone: "off", level: 2, dashed: true },
-    provisional: { tone: "warn", level: 2 },
-    fixed: { tone: "ok", level: 2 },
-    revised: { tone: "danger", level: 2 },
-};
-const RUNG_TONES = [
-    { tone: "off", level: 2 },
-    { tone: "warn", level: 1 },
-    { tone: "warn", level: 2 },
-    { tone: "ok", level: 1 },
-    { tone: "ok", level: 2 },
-    { tone: "ok", level: 3 },
-];
-const PEOPLE_TONES = {
-    ready: { tone: "ok", level: 2 },
-    partly: { tone: "warn", level: 2 },
-    not_ready: { tone: "danger", level: 2 },
-    no_data: { tone: "off", level: 2 },
+// Status per colour-by mode, at most three, in legend order. Tones follow the
+// brand: ok green (works), warn amber (needs the user), off grey (no data or
+// not started). Red means broken and is never a status on the map.
+const SETTLED_CHOICE = "fixed";
+const CHOICE_LEVELS = ["settled", "not_settled"];
+const PROGRESS_LEVELS = ["open", "building", "tested"];
+const PEOPLE_LEVELS = ["high", "lower", "no_data"];
+const TONES = {
+    settled: "ok",
+    not_settled: "warn",
+    open: "off",
+    building: "warn",
+    tested: "ok",
+    high: "ok",
+    lower: "warn",
+    no_data: "off",
 };
 
-export function toneClass({ tone, level, dashed }) {
-    return `o_pan_sl_tone_${tone} o_pan_sl_lvl_${level}${dashed ? " o_pan_sl_dashed" : ""}`;
+export function choiceLevel(activity) {
+    return activity.choice_state === SETTLED_CHOICE ? "settled" : "not_settled";
+}
+
+/** Rung 0 Open, 1-2 Decided or Built, 3-5 Tested or further. */
+export function progressLevel(rung) {
+    if (rung >= TESTED_RUNG) {
+        return "tested";
+    }
+    return rung > 0 ? "building" : "open";
+}
+
+/** ADKAR band of the role (lowest element): high, medium or low; false without enough scores. */
+export function peopleLevel(role) {
+    if (!role.adkar) {
+        return "no_data";
+    }
+    return role.adkar === "high" ? "high" : "lower";
+}
+
+export function toneClass(tone) {
+    return `o_pan_sl_tone_${tone}`;
 }
 
 /**
  * Second visual cue per tone, so status never depends on hue alone: ok is a
- * check, warn a half-filled disc, danger a cross; off has its dashed outline.
+ * check, warn a half-filled disc; off has no glyph.
  * Returns {className, d} for an SVG path centred on (cx, cy), or false.
  */
 export function toneGlyph(tone, cx, cy, r) {
@@ -126,12 +135,6 @@ export function toneGlyph(tone, cx, cy, r) {
         return {
             className: "o_pan_sl_glyph",
             d: `M ${cx - s} ${cy + s * 0.05} L ${cx - s * 0.25} ${cy + s * 0.75} L ${cx + s} ${cy - s * 0.65}`,
-        };
-    }
-    if (tone === "danger") {
-        return {
-            className: "o_pan_sl_glyph",
-            d: `M ${cx - s} ${cy - s} L ${cx + s} ${cy + s} M ${cx + s} ${cy - s} L ${cx - s} ${cy + s}`,
         };
     }
     if (tone === "warn") {
@@ -152,27 +155,6 @@ function truncate(text, length) {
 
 function charsFor(width, charWidth = CHAR_W) {
     return Math.max(Math.floor(width / charWidth), 3);
-}
-
-export function initials(name) {
-    const words = (name || "").split(/\s+/).filter(Boolean);
-    if (!words.length) {
-        return "?";
-    }
-    const letters =
-        words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[words.length - 1][0];
-    return letters.toUpperCase();
-}
-
-/**
- * A clash: a choice that was fixed and had to be reopened (revised), or a
- * fixed choice that still carries an open point.
- */
-export function isClash(activity) {
-    return (
-        activity.choice_state === "revised" ||
-        (activity.choice_state === "fixed" && Boolean(activity.open_point))
-    );
 }
 
 /**
@@ -240,15 +222,14 @@ export function computeLayout(data, details, stop, compact = false) {
         cells.get(key).push(activity);
     }
 
-    // Header: phase names, plus open choices and clashes per phase (stop 1).
+    // Header: phase names, plus the choices not settled per phase (stop 1).
     const columns = phases.map((phase, index) => {
         const inPhase = data.activities.filter((a) => a.phase_id === phase.id);
         return {
             phase,
             x: labelW + index * colW,
             label: truncate(phase.name, charsFor(colW - 16, 7)),
-            open: inPhase.filter((a) => OPEN_CHOICES.includes(a.choice_state)).length,
-            clashes: inPhase.filter(isClash).length,
+            notSettled: inPhase.filter((a) => choiceLevel(a) === "not_settled").length,
         };
     });
 
@@ -353,15 +334,16 @@ export function computeLayout(data, details, stop, compact = false) {
         let row = 0;
         const maxRowWidth = colW - 2 * ODOO_PAD;
         for (const app of phase.apps) {
-            const chipWidth = Math.min(maxRowWidth, app.length * APP_CHAR_W + 18);
+            const chipWidth = Math.min(maxRowWidth, app.name.length * APP_CHAR_W + 18);
             if (rowX > 0 && rowX + chipWidth > maxRowWidth) {
                 row += 1;
                 rowX = 0;
             }
             apps.push({
-                key: `${phase.id}-${app}`,
-                label: truncate(app, charsFor(chipWidth - 14, APP_CHAR_W)),
-                title: app,
+                key: `${phase.id}-${app.name}`,
+                label: truncate(app.name, charsFor(chipWidth - 14, APP_CHAR_W)),
+                title: app.installed ? app.name : _t("%s (not installed)", app.name),
+                installed: app.installed,
                 x: labelW + index * colW + ODOO_PAD + rowX,
                 y: lanesBottom + ODOO_PAD + row * (APP_CHIP_H + APP_CHIP_GAP),
                 width: chipWidth,
@@ -395,10 +377,7 @@ export function computeLayout(data, details, stop, compact = false) {
         items: stop === STOP_COMPANY ? blocks : chips,
         itemByKey: new Map([...blocks, ...chips].map((item) => [item.key, item])),
         apps,
-        totals: {
-            open: data.activities.filter((a) => OPEN_CHOICES.includes(a.choice_state)).length,
-            clashes: data.activities.filter(isClash).length,
-        },
+        notSettled: data.activities.filter((a) => choiceLevel(a) === "not_settled").length,
     };
 }
 
@@ -455,6 +434,7 @@ export class CompanyMap extends Component {
             PROGRESS_H,
             APP_CHIP_H,
             DETAIL_CHIP_H: STOP_GEOMETRY[STOP_DETAIL].chipH,
+            TASK_PILL_W,
             STOP_COMPANY,
             STOP_PROCESSES,
             STOP_ACTIVITIES,
@@ -471,9 +451,7 @@ export class CompanyMap extends Component {
             revision: 0, // bumped when the (non-reactive) map data is reloaded
             scenarioId: restored.scenarioId || false,
             colorBy: restored.colorBy || "choices",
-            highlight: restored.highlight || false, // false or "clashes"
             selectedId: restored.selectedId || false,
-            phasePanelId: restored.phasePanelId || false,
             zoom: restored.zoom || MIN_ZOOM,
             vx: restored.vx || 0,
             vy: restored.vy || 0,
@@ -505,9 +483,7 @@ export class CompanyMap extends Component {
                     companyMap: {
                         scenarioId: this.state.scenarioId,
                         colorBy: this.state.colorBy,
-                        highlight: this.state.highlight,
                         selectedId: this.state.selectedId,
-                        phasePanelId: this.state.phasePanelId,
                         zoom: this.state.zoom,
                         vx: camera.vx,
                         vy: camera.vy,
@@ -524,7 +500,13 @@ export class CompanyMap extends Component {
             isAvailable: () => this.panelOpen,
         });
 
-        onWillStart(() => this.load());
+        onWillStart(async () => {
+            const [isManager] = await Promise.all([
+                user.hasGroup("pan_self_learning_blueprint.group_blueprint_manager"),
+                this.load(),
+            ]);
+            this.isManager = isManager;
+        });
 
         // Culling re-orders the chip list; a moved DOM node loses focus, so the
         // focused map item gets it back after the patch.
@@ -601,9 +583,6 @@ export class CompanyMap extends Component {
         }
         if (this.state.selectedId && !this.activityById.has(this.state.selectedId)) {
             this.state.selectedId = false;
-        }
-        if (this.state.phasePanelId && !this.phaseById.has(this.state.phasePanelId)) {
-            this.state.phasePanelId = false;
         }
         this.state.loaded = true;
         this.state.revision += 1;
@@ -695,7 +674,7 @@ export class CompanyMap extends Component {
     }
 
     get panelOpen() {
-        return Boolean(this.state.selectedId || this.state.phasePanelId);
+        return Boolean(this.state.selectedId);
     }
 
     /** Screen pixels the open side panel covers at the right (desktop) or bottom (phone). */
@@ -753,14 +732,14 @@ export class CompanyMap extends Component {
 
     /**
      * Zoom from the controls (slider, stop labels, keys): around the centre,
-     * and when the stop changes while a scenario or the clashes are
-     * highlighted, bring them back into view.
+     * and when the stop changes while a scenario is selected, bring its
+     * route back into view.
      */
     zoomTo(zoom) {
         const before = this.stop;
         this.zoomAt(zoom);
         if (this.stop !== before) {
-            this.revealHighlight();
+            this.revealRoute();
         }
     }
 
@@ -958,7 +937,7 @@ export class CompanyMap extends Component {
     }
 
     onDoubleClick(ev) {
-        if (ev.target.closest(".o_pan_sl_chip, .o_pan_sl_link")) {
+        if (ev.target.closest(".o_pan_sl_chip")) {
             return;
         }
         const point = this.pointInContainer(ev);
@@ -1190,59 +1169,46 @@ export class CompanyMap extends Component {
         };
     }
 
+    /** The rung as a word (rung_state), the only notation of a rung on the map. */
     get rungLabels() {
         return [_t("Open"), _t("Decided"), _t("Built"), _t("Tested"), _t("Trained"), _t("Live")];
     }
 
-    get peopleLabels() {
+    get adkarBandLabels() {
+        return { high: _t("high"), medium: _t("medium"), low: _t("low") };
+    }
+
+    /** Legend label of each status level, per colour-by mode. */
+    get levelLabels() {
         return {
-            ready: _t("Ready (ADKAR 4+)"),
-            partly: _t("Partly ready (ADKAR 2+)"),
-            not_ready: _t("Not ready"),
+            settled: _t("Settled"),
+            not_settled: _t("Not settled"),
+            open: _t("Open"),
+            building: _t("Decided or built"),
+            tested: _t("Tested or further"),
+            high: _t("ADKAR high"),
+            lower: _t("ADKAR medium or low"),
             no_data: _t("No ADKAR data"),
         };
     }
 
-    get adkarLabels() {
-        return [_t("Awareness"), _t("Desire"), _t("Knowledge"), _t("Ability"), _t("Reinforcement")];
-    }
-
-    get intro() {
-        if (this.stop === STOP_COMPANY) {
-            return _t(
-                "Your company map: phases run left to right, roles top to bottom. The number in a block is how many activities that role has in that phase; click a block to zoom in."
-            );
-        }
-        return _t(
-            "Click an activity for its details, or a phase name to see who still needs training. Drag, scroll or use the arrow keys to move around."
-        );
-    }
-
-    get legend() {
-        let items;
+    get levels() {
         if (this.state.colorBy === "choices") {
-            items = CHOICE_STATES.map((key) => ({
-                key,
-                status: CHOICE_TONES[key],
-                label: this.choiceLabels[key],
-            }));
-        } else if (this.state.colorBy === "progress") {
-            items = RUNGS.map((rung) => ({
-                key: String(rung),
-                status: RUNG_TONES[rung],
-                label: `${rung} ${this.rungLabels[rung]}`,
-            }));
-        } else {
-            items = PEOPLE_LEVELS.map((key) => ({
-                key,
-                status: PEOPLE_TONES[key],
-                label: this.peopleLabels[key],
-            }));
+            return CHOICE_LEVELS;
         }
-        return items.map((item) => ({
-            ...item,
-            className: toneClass(item.status),
-            glyph: toneGlyph(item.status.tone, 9, 6, 4.5),
+        if (this.state.colorBy === "progress") {
+            return PROGRESS_LEVELS;
+        }
+        return PEOPLE_LEVELS;
+    }
+
+    /** Only the active colour-by mode, at most three items. */
+    get legend() {
+        return this.levels.map((key) => ({
+            key,
+            label: this.levelLabels[key],
+            className: toneClass(TONES[key]),
+            glyph: toneGlyph(TONES[key], 9, 6, 4.5),
         }));
     }
 
@@ -1250,47 +1216,22 @@ export class CompanyMap extends Component {
     // Colours, dimming and route
     // ------------------------------------------------------------------
 
-    peopleLevel(role) {
-        if (!role.adkar) {
-            return "no_data";
-        }
-        const lowest = Math.min(...role.adkar);
-        if (lowest >= 4) {
-            return "ready";
-        }
-        if (lowest >= 2) {
-            return "partly";
-        }
-        return "not_ready";
-    }
-
-    /** Status of one activity in the current colour-by mode: {key, tone, level, dashed}. */
-    status(activity) {
+    /** Status level of one activity in the current colour-by mode (a key of TONES). */
+    level(activity) {
         if (this.state.colorBy === "choices") {
-            return { key: activity.choice_state, ...CHOICE_TONES[activity.choice_state] };
+            return choiceLevel(activity);
         }
         if (this.state.colorBy === "progress") {
-            return { key: String(activity.rung), ...RUNG_TONES[activity.rung] };
+            return progressLevel(activity.rung);
         }
-        const level = this.peopleLevel(this.roleById.get(activity.role_id));
-        return { key: level, ...PEOPLE_TONES[level] };
+        return peopleLevel(this.roleById.get(activity.role_id));
     }
 
-    statusLabel(status) {
-        if (this.state.colorBy === "choices") {
-            return this.choiceLabels[status.key];
-        }
-        if (this.state.colorBy === "progress") {
-            return `${status.key} ${this.rungLabels[parseInt(status.key, 10)]}`;
-        }
-        return this.peopleLabels[status.key];
-    }
-
-    /** The status dot of a chip: tone colour plus a glyph (check, half, cross, dashed). */
+    /** The status dot of a chip: tone colour plus a glyph (check, half). */
     dotView(activity, cx, cy) {
-        const status = this.status(activity);
+        const tone = TONES[this.level(activity)];
         const r = 5.5;
-        return { cx, cy, r, className: toneClass(status), glyph: toneGlyph(status.tone, cx, cy, r) };
+        return { cx, cy, r, className: toneClass(tone), glyph: toneGlyph(tone, cx, cy, r) };
     }
 
     /** Accessible name of a chip: everything the chip shows, not only its colour. */
@@ -1298,24 +1239,13 @@ export class CompanyMap extends Component {
         const activity = chip.activity;
         const parts = [
             activity.name,
-            this.statusLabel(this.status(activity)),
-            _t("rung %(rung)s of %(max)s, %(label)s", {
-                rung: activity.rung,
-                max: MAX_RUNG,
-                label: this.rungLabels[activity.rung],
-            }),
+            this.levelLabels[this.level(activity)],
+            this.rungLabels[activity.rung],
         ];
-        if (isClash(activity)) {
-            parts.push(_t("clash"));
-        }
         if (activity.open_point) {
             parts.push(_t("open point: %s", activity.open_point));
         }
-        parts.push(
-            chip.role.users.length
-                ? _t("users: %s", chip.role.users.join(", "))
-                : _t("nobody holds this role yet")
-        );
+        parts.push(chip.role.name);
         return parts.join(", ");
     }
 
@@ -1328,9 +1258,9 @@ export class CompanyMap extends Component {
         return !scenario || scenario.activity_ids.includes(activityId);
     }
 
-    /** Faded out: not in the selected scenario, or not a clash while clashes are shown. */
+    /** Faded out: not in the selected scenario. */
     isDimmed(activity) {
-        return !this.inScenario(activity.id) || (this.state.highlight === "clashes" && !isClash(activity));
+        return !this.inScenario(activity.id);
     }
 
     chipClass(chip) {
@@ -1338,55 +1268,44 @@ export class CompanyMap extends Component {
         if (this.isDimmed(chip.activity)) {
             classes.push("o_pan_sl_dim");
         }
-        if (isClash(chip.activity)) {
-            classes.push("o_pan_sl_clash");
-        }
         if (this.state.selectedId === chip.id) {
             classes.push("o_pan_sl_selected");
         }
         return classes.join(" ");
     }
 
-    /** Stop 1: the cell as stacked segments, one per status, in legend order. */
+    /** Stop 1: the cell as stacked segments, one per status level, in legend order. */
     blockView(block) {
-        const order = this.legend.map((item) => item.key);
         const counts = new Map();
         for (const activity of block.activities) {
-            const status = this.status(activity);
-            if (!counts.has(status.key)) {
-                counts.set(status.key, { status, count: 0 });
-            }
-            counts.get(status.key).count += 1;
+            const level = this.level(activity);
+            counts.set(level, (counts.get(level) || 0) + 1);
         }
         const total = block.activities.length;
-        const clashes = block.activities.filter(isClash).length;
         let x = block.x;
-        const groups = [...counts.values()].sort(
-            (a, b) => order.indexOf(a.status.key) - order.indexOf(b.status.key)
-        );
-        const segments = groups.map(({ status, count }) => {
-            const width = (block.width * count) / total;
-            const glyph = width >= 18 ? toneGlyph(status.tone, x + 9, block.y + 9, 5) : false;
-            const segment = { key: status.key, x, width, className: toneClass(status), glyph };
+        const groups = this.levels.filter((level) => counts.has(level));
+        const segments = groups.map((level) => {
+            const width = (block.width * counts.get(level)) / total;
+            const tone = TONES[level];
+            const glyph = width >= 18 ? toneGlyph(tone, x + 9, block.y + 9, 5) : false;
+            const segment = { key: level, x, width, className: toneClass(tone), glyph };
             x += width;
             return segment;
         });
         const summary = groups
-            .map(({ status, count }) => `${count} ${this.statusLabel(status)}`)
+            .map((level) => `${counts.get(level)} ${this.levelLabels[level]}`)
             .join(", ");
         const dim = block.activities.every((a) => this.isDimmed(a));
         return {
             segments,
             count: total,
-            clashes,
             dim,
             clipId: `o_pan_sl_clip_${block.key}`,
-            title: _t("%(role)s in %(phase)s: %(count)s activities (%(summary)s)%(clashes)s. Click to zoom in.", {
+            title: _t("%(role)s in %(phase)s: %(count)s activities (%(summary)s). Click to zoom in.", {
                 role: block.role.name,
                 phase: block.phase.name,
                 count: total,
                 summary,
-                clashes: clashes ? _t(", %s clash(es)", clashes) : "",
             }),
         };
     }
@@ -1396,39 +1315,14 @@ export class CompanyMap extends Component {
         if (chip.extras) {
             return chip.extras;
         }
-        const users = chip.role.users;
-        const shown = users.slice(0, MAX_INITIALS);
-        const extraUsers = users.length - shown.length;
-        const rightEdge = chip.width - 12;
-        const userItems = shown.map((name, index) => ({
-            key: `${index}-${name}`,
-            initials: initials(name),
-            name,
-            cx: rightEdge - (shown.length - 1 - index) * INITIAL_STEP,
-        }));
-        const usersW = shown.length ? shown.length * INITIAL_STEP + (extraUsers ? 16 : 0) : 22;
-        const model = chip.activity.model || "";
-        const modelX = 10 + MAX_RUNG * 9 + 26;
         chip.extras = {
-            users: userItems,
-            noUsers: !users.length,
-            noUsersX: rightEdge,
-            extraUsers,
-            extraUsersX: shown.length ? userItems[0].cx - 12 : 0,
-            usersTitle: users.length ? users.join(", ") : _t("Nobody holds this role yet"),
             rungSegments: Array.from({ length: MAX_RUNG }, (_, index) => ({
                 key: index,
                 x: 10 + index * 9,
                 filled: index < chip.activity.rung,
             })),
-            rungLabel: `${chip.activity.rung}/${MAX_RUNG}`,
+            rungLabel: this.rungLabels[chip.activity.rung],
             rungLabelX: 10 + MAX_RUNG * 9 + 2,
-            rungTitle: `${chip.activity.rung} ${this.rungLabels[chip.activity.rung]}`,
-            modelX,
-            model: model
-                ? truncate(model, charsFor(chip.width - modelX - usersW - 6, SMALL_CHAR_W))
-                : _t("no model"),
-            hasModel: Boolean(model),
         };
         return chip.extras;
     }
@@ -1439,7 +1333,7 @@ export class CompanyMap extends Component {
             return chip.detailLines;
         }
         const detail = chip.detail || { tasks: [], click_path: false };
-        const chars = charsFor(chip.width - 44, SMALL_CHAR_W);
+        const chars = charsFor(chip.width - TASK_PILL_W - 22, SMALL_CHAR_W);
         const lines = [];
         let y = STOP_GEOMETRY[STOP_DETAIL].chipH + 4 + 11;
         if (!detail.tasks.length) {
@@ -1452,9 +1346,9 @@ export class CompanyMap extends Component {
                 y,
                 kind: "task",
                 text: truncate(task.name, chars),
-                title: `${task.name} (${task.rung} ${this.rungLabels[task.rung]})`,
-                rung: `R${task.rung}`,
-                rungClass: toneClass(RUNG_TONES[task.rung]),
+                title: `${task.name} (${this.rungLabels[task.rung]})`,
+                rung: this.rungLabels[task.rung],
+                rungClass: toneClass(TONES[progressLevel(task.rung)]),
             });
             y += LINE_H;
         }
@@ -1503,24 +1397,10 @@ export class CompanyMap extends Component {
         };
     }
 
-    /** Chips that are highlighted right now, in order: the scenario route, else the clashes. */
-    get highlightedChips() {
-        if (this.stop === STOP_COMPANY) {
-            return [];
-        }
+    /** When no chip of the scenario route is in view, show the whole route, or its first chip. */
+    revealRoute() {
         const route = this.route;
-        if (route) {
-            return route.stops;
-        }
-        if (this.state.highlight === "clashes") {
-            return this.layout.chips.filter((chip) => isClash(chip.activity));
-        }
-        return [];
-    }
-
-    /** When none of the highlighted chips is in view, show them all, or the first one. */
-    revealHighlight() {
-        const chips = this.highlightedChips;
+        const chips = route ? route.stops : [];
         if (!chips.length) {
             return;
         }
@@ -1555,7 +1435,6 @@ export class CompanyMap extends Component {
         if (!scenarioId) {
             return;
         }
-        this.state.highlight = false;
         // Jump to "Processes" and fit the route.
         this.commitPan();
         this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
@@ -1567,45 +1446,6 @@ export class CompanyMap extends Component {
 
     onColorByChange(ev) {
         this.state.colorBy = ev.target.value;
-    }
-
-    /** Clicking a clash counter: fade everything else and zoom to the clashes (of one phase). */
-    showClashes(phaseId = false) {
-        const clashes = this.data.activities.filter(
-            (a) => isClash(a) && (!phaseId || a.phase_id === phaseId)
-        );
-        if (!clashes.length) {
-            return;
-        }
-        this.state.highlight = "clashes";
-        this.state.scenarioId = false;
-        this.commitPan();
-        if (this.stop === STOP_COMPANY) {
-            this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
-        }
-        const chips = clashes.map((a) => this.layout.chipById.get(a.id)).filter((chip) => chip);
-        if (chips.length) {
-            const box = this.boundingBox(chips);
-            const free = this.freeArea(0, 0);
-            const fits = box.w <= free.right - free.left && box.h <= free.bottom - free.top;
-            this.showBox(fits ? box : this.boxOf(chips[0]));
-        }
-    }
-
-    clearHighlight() {
-        this.state.highlight = false;
-    }
-
-    onLinkKeydown(ev, callback) {
-        if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            ev.stopPropagation();
-            callback();
-        }
-    }
-
-    get clashCount() {
-        return this.layout.totals.clashes;
     }
 
     /** Stop 1: clicking a cell zooms in to "Processes" on that cell. */
@@ -1624,7 +1464,7 @@ export class CompanyMap extends Component {
     }
 
     // ------------------------------------------------------------------
-    // Side panel: one activity, or who still needs training in a phase
+    // Side panel: one activity
     // ------------------------------------------------------------------
 
     rememberFocus() {
@@ -1645,8 +1485,7 @@ export class CompanyMap extends Component {
 
     openPanel(activityId) {
         this.rememberFocus();
-        const changed = this.state.selectedId !== activityId || Boolean(this.state.phasePanelId);
-        this.state.phasePanelId = false;
+        const changed = this.state.selectedId !== activityId;
         this.state.selectedId = activityId;
         // Keep the chip visible next to the panel, not under it.
         const chip = this.layout.chipById.get(activityId);
@@ -1656,17 +1495,8 @@ export class CompanyMap extends Component {
         this.focusPanelTitle(changed);
     }
 
-    openPhasePanel(phaseId) {
-        this.rememberFocus();
-        const changed = this.state.phasePanelId !== phaseId || Boolean(this.state.selectedId);
-        this.state.selectedId = false;
-        this.state.phasePanelId = phaseId;
-        this.focusPanelTitle(changed);
-    }
-
     closePanel() {
         this.state.selectedId = false;
-        this.state.phasePanelId = false;
         this.clampView();
         const item = this.returnKey && this.layout.itemByKey.get(this.returnKey);
         if (item) {
@@ -1678,14 +1508,6 @@ export class CompanyMap extends Component {
         this.returnKey = null;
     }
 
-    trainingRows(training) {
-        return training.map((person) => ({
-            ...person,
-            label: person.trained ? _t("Trained") : _t("Needs training"),
-            className: toneClass(person.trained ? PEOPLE_TONES.ready : PEOPLE_TONES.partly),
-        }));
-    }
-
     get panel() {
         if (!this.state.selectedId) {
             return false;
@@ -1693,83 +1515,20 @@ export class CompanyMap extends Component {
         const activity = this.activityById.get(this.state.selectedId);
         const role = this.roleById.get(activity.role_id);
         const detail = this.details.get(activity.id) || { tasks: [], click_path: false };
-        const choiceStatus = CHOICE_TONES[activity.choice_state];
+        const tone = TONES[choiceLevel(activity)];
         return {
             activity,
             role,
             phase: this.phaseById.get(activity.phase_id),
             choiceLabel: this.choiceLabels[activity.choice_state],
-            choiceDot: {
-                cx: 7,
-                cy: 7,
-                r: 5.5,
-                className: toneClass(choiceStatus),
-                glyph: toneGlyph(choiceStatus.tone, 7, 7, 5.5),
-            },
-            isClash: isClash(activity),
-            rungLabel: `${activity.rung} ${this.rungLabels[activity.rung]}`,
-            tasks: detail.tasks.map((task) => ({
-                ...task,
-                rungLabel: `${task.rung} ${this.rungLabels[task.rung]}`,
-            })),
+            choiceDot: { cx: 7, cy: 7, r: 5.5, className: toneClass(tone), glyph: toneGlyph(tone, 7, 7, 5.5) },
+            rungLabel: this.rungLabels[activity.rung],
+            tasks: detail.tasks.map((task) => ({ ...task, rungLabel: this.rungLabels[task.rung] })),
             clickPath: detail.click_path,
             scenarios: activity.scenario_ids
                 .map((id) => this.scenarioById.get(id))
                 .filter((scenario) => scenario),
-            training: this.trainingRows(activity.training),
-            toTrain: activity.training.filter((person) => !person.trained).length,
-            adkar: role.adkar
-                ? role.adkar.map((value, index) => ({
-                      label: this.adkarLabels[index],
-                      value: value.toFixed(1),
-                  }))
-                : false,
-        };
-    }
-
-    /** Who still needs training for the activities of one phase (trained = rung 4 or higher). */
-    get phasePanel() {
-        if (!this.state.phasePanelId) {
-            return false;
-        }
-        const phase = this.phaseById.get(this.state.phasePanelId);
-        const activities = this.data.activities.filter((a) => a.phase_id === phase.id);
-        const people = new Map();
-        const unstaffed = new Set();
-        for (const activity of activities) {
-            if (!activity.training.length) {
-                unstaffed.add(this.roleById.get(activity.role_id).name);
-            }
-            for (const person of activity.training) {
-                if (!people.has(person.id)) {
-                    people.set(person.id, { id: person.id, name: person.name, total: 0, open: [] });
-                }
-                const entry = people.get(person.id);
-                entry.total += 1;
-                if (!person.trained) {
-                    entry.open.push(activity);
-                }
-            }
-        }
-        const rows = [...people.values()]
-            .map((entry) => ({
-                ...entry,
-                trained: !entry.open.length,
-                label: entry.open.length ? _t("Needs training") : _t("Trained"),
-                className: toneClass(entry.open.length ? PEOPLE_TONES.partly : PEOPLE_TONES.ready),
-                progress: _t("%(done)s of %(total)s activities trained", {
-                    done: entry.total - entry.open.length,
-                    total: entry.total,
-                }),
-            }))
-            .sort((a, b) => b.open.length - a.open.length || a.name.localeCompare(b.name));
-        const toTrain = rows.filter((row) => !row.trained);
-        return {
-            phase,
-            count: activities.length,
-            rows,
-            toTrain: toTrain.map((row) => row.name).join(", "),
-            unstaffed: [...unstaffed].sort(),
+            adkarBand: role.adkar ? this.adkarBandLabels[role.adkar] : false,
         };
     }
 
@@ -1793,12 +1552,9 @@ export class CompanyMap extends Component {
         });
     }
 
-    /** Empty state: open the wizard on "Load a template"; reload the map when it closes. */
-    async openTemplateWizard() {
-        await this.actionService.doAction("pan_self_learning_blueprint.action_blueprint_wizard", {
-            additionalContext: { default_mode: "template" },
-            onClose: () => this.load(),
-        });
+    /** Empty state (managers): load the bundled template; its action reloads the map. */
+    async loadTemplate() {
+        await this.actionService.doAction("pan_self_learning_blueprint.action_blueprint_load_template");
     }
 }
 

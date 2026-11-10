@@ -1,14 +1,17 @@
 """Access per group, checked as real (non-super) users with ``with_user()``.
 
-Contract: users see the map and read the model; managers edit the model and
-import. ADKAR scores are personal: a user reads only their own scores, a
-manager reads all, the note is manager-only, and a role profile is only an
-aggregate over at least three users. Progress (rung, hours) is the same for
-every viewer, whatever tasks they may open.
+Contract: users see the map and read the model; managers edit the model,
+pick Odoo models (ir.model) and import. ADKAR scores are personal: a user
+reads only the scores on their own contact, a manager reads all, the note is
+manager-only, and the map shows a role band only over at least three people.
+Progress (rung, hours) is the same for every viewer, whatever tasks they may
+open. Project users without Blueprint access see no Blueprint fields on tasks.
 """
 
 import base64
 import json
+
+from lxml import etree
 
 from odoo.exceptions import AccessError
 from odoo.fields import Command
@@ -61,7 +64,7 @@ class TestSecurity(BlueprintCase):
 
     def _score(self, user, value=3, note=False):
         vals = dict.fromkeys(("awareness", "desire", "knowledge", "ability", "reinforcement"), value)
-        return self.Score.create(dict(vals, user_id=user.id, note=note))
+        return self.Score.create(dict(vals, partner_id=user.partner_id.id, note=note))
 
     # ------------------------------------------------------------------
     # Blueprint user: read the model, open the map, change nothing
@@ -85,14 +88,37 @@ class TestSecurity(BlueprintCase):
         details = Activity.get_map_details()
         self.assertIn(self.act_a.id, [item["id"] for item in details])
 
-    def test_user_opens_the_map_with_odoo_models(self):
-        """The map names the Odoo model of an activity; a plain user may not read ir.model."""
-        partner_model = self.env["ir.model"]._get("res.partner")
-        self.act_a.model_id = partner_model
-        self.phase_a.model_ids = [Command.set(partner_model.ids)]
+    @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
+    def test_user_sees_model_name_without_ir_model_access(self):
+        """D6: the map and the activity show ``model_name``; only managers read ir.model."""
+        self.act_a.model_id = self.env["ir.model"]._get("res.partner")
+        activity = self.act_a.with_user(self.bp_user)
+        activity.invalidate_recordset()
+        self.assertEqual(activity.model_name, "res.partner")
         data = self.Activity.with_user(self.bp_user).get_map_data()
         item = next(item for item in data["activities"] if item["id"] == self.act_a.id)
         self.assertEqual(item["model"], "res.partner")
+        found = self.Activity.with_user(self.bp_user).search([("model_name", "=", "res.partner")])
+        self.assertIn(self.act_a, found)
+
+        with self.assertRaises(AccessError):
+            self.env["ir.model"].with_user(self.bp_user).search([("model", "=", "res.partner")])
+        self.assertTrue(self.env["ir.model"].with_user(self.bp_manager).search([("model", "=", "res.partner")]))
+
+    def test_activity_form_hides_model_picker_from_users(self):
+        """D6: a plain user's activity form has no ``model_id`` (it would read ir.model)."""
+        for user, has_picker in ((self.bp_user, False), (self.bp_manager, True)):
+            with self.subTest(user=user.login):
+                views = self.Activity.with_user(user).get_views([(False, "form")])
+                arch = etree.fromstring(views["views"]["form"]["arch"])
+                self.assertEqual(bool(arch.xpath("//field[@name='model_id']")), has_picker)
+                self.assertNotEqual(bool(arch.xpath("//field[@name='model_name']")), has_picker)
+        self.act_a.model_id = self.env["ir.model"]._get("res.partner")
+        views = self.Activity.with_user(self.bp_user).get_views([(False, "form")])
+        arch = etree.fromstring(views["views"]["form"]["arch"])
+        fields = {node.get("name") for node in arch.iter("field")} & set(self.Activity._fields)
+        record = self.act_a.with_user(self.bp_user).web_read({name: {} for name in fields})
+        self.assertEqual(record[0]["model_name"], "res.partner")
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_user_cannot_change_the_model(self):
@@ -120,7 +146,10 @@ class TestSecurity(BlueprintCase):
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_user_cannot_import(self):
         with self.assertRaises(AccessError):
-            self.env["pan.sl.blueprint.wizard"].with_user(self.bp_user).create({"mode": "import"})
+            self.env["pan.sl.blueprint.wizard"].with_user(self.bp_user).create({})
+        for xmlid in ("action_blueprint_load_template", "action_blueprint_export"):
+            with self.subTest(action=xmlid), self.assertRaises(AccessError):
+                self.env.ref(f"pan_self_learning_blueprint.{xmlid}").with_user(self.bp_user).run()
         data = {
             "format": "pantalytics-blueprint",
             "version": 1,
@@ -165,33 +194,19 @@ class TestSecurity(BlueprintCase):
             "chains": [{"code": "t_sec_bp_chain", "name": "Chain"}],
         }
         wizard = self.env["pan.sl.blueprint.wizard"].with_user(self.bp_manager).create(
-            {
-                "mode": "import",
-                "file": base64.b64encode(json.dumps(data).encode()),
-                "filename": "manager.json",
-            }
+            {"file": base64.b64encode(json.dumps(data).encode()), "filename": "manager.json"}
         )
-        wizard.action_import()
-        self.assertTrue(wizard.result)
+        action = wizard.action_import()
+        self.assertIn("Created", action["params"]["message"])
         self.assertEqual(self.Chain.search_count([("code", "=", "t_sec_bp_chain")]), 1)
-        wizard = self.env["pan.sl.blueprint.wizard"].with_user(self.bp_manager).create({"mode": "export"})
-        wizard.action_export()
-        self.assertTrue(wizard.file)
-
-    def test_manager_exports_phase_models(self):
-        partner_model = self.env["ir.model"]._get("res.partner")
-        self.phase_a.model_ids = [Command.set(partner_model.ids)]
-        self.act_a.model_id = partner_model
-        exported = self.env["pan.sl.blueprint"].with_user(self.bp_manager).export_blueprint()
-        phase = next(item for item in exported["phases"] if item["code"] == "t_phase_a")
-        self.assertEqual(phase["models"], ["res.partner"])
+        action = self.env.ref("pan_self_learning_blueprint.action_blueprint_export").with_user(self.bp_manager).run()
+        self.assertEqual(action["type"], "ir.actions.act_url")
 
     def test_manager_loads_template(self):
-        Wizard = self.env["pan.sl.blueprint.wizard"].with_user(self.bp_manager)
-        templates = Wizard._fields["template"].get_values(self.env)
-        wizard = Wizard.create({"mode": "template", "template": templates[0]})
-        wizard.action_load_template()
-        self.assertTrue(wizard.result)
+        action = self.env.ref("pan_self_learning_blueprint.action_blueprint_load_template")
+        result = action.with_user(self.bp_manager).run()
+        self.assertEqual(result["tag"], "display_notification")
+        self.assertTrue(result["params"]["message"])
 
     # ------------------------------------------------------------------
     # ADKAR: own scores only, notes for managers, profile as aggregate
@@ -202,7 +217,8 @@ class TestSecurity(BlueprintCase):
         own = self._score(self.bp_user, note="Own note")
         other = self._score(self.bp_colleague, note="Colleague's blocker")
         Score = self.Score.with_user(self.bp_user)
-        self.assertEqual(Score.search([("user_id", "in", (self.bp_user | self.bp_colleague).ids)]), own)
+        partners = (self.bp_user | self.bp_colleague).partner_id
+        self.assertEqual(Score.search([("partner_id", "in", partners.ids)]), own)
         own.with_user(self.bp_user).read(["awareness", "average"])
         with self.assertRaises(AccessError):
             other.with_user(self.bp_user).read(["awareness"])
@@ -224,28 +240,42 @@ class TestSecurity(BlueprintCase):
             self._score_as(self.bp_user, self.bp_user)
 
     def _score_as(self, author, user):
+        return self._score_partner_as(author, user.partner_id)
+
+    def _score_partner_as(self, author, partner):
         vals = dict.fromkeys(("awareness", "desire", "knowledge", "ability", "reinforcement"), 4)
-        return self.Score.with_user(author).create(dict(vals, user_id=user.id))
+        return self.Score.with_user(author).create(dict(vals, partner_id=partner.id))
 
     def test_manager_reads_and_records_all_scores(self):
         own = self._score(self.bp_user)
         other = self._score(self.bp_colleague)
-        found = self.Score.with_user(self.bp_manager).search([("user_id", "in", (self.bp_user | self.bp_colleague).ids)])
+        partners = (self.bp_user | self.bp_colleague).partner_id
+        found = self.Score.with_user(self.bp_manager).search([("partner_id", "in", partners.ids)])
         self.assertEqual(found, own | other)
         created = self._score_as(self.bp_manager, self.bp_third)
-        self.assertEqual(created.user_id, self.bp_third)
+        self.assertEqual(created.partner_id, self.bp_third.partner_id)
 
-    def test_profile_visible_to_user_only_as_aggregate(self):
-        """A user without access to colleagues' scores still sees the role profile on the map."""
-        self.role_sales.user_ids = self.bp_user | self.bp_colleague | self.bp_third
+    @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
+    def test_manager_scores_person_without_login(self):
+        """D4: someone without a login is scored by a manager; users never see that score."""
+        person = self.env["res.partner"].create({"name": "Warehouse worker without login"})
+        score = self._score_partner_as(self.bp_manager, person)
+        self.assertEqual(score.partner_id, person)
+        self.assertEqual(self.Score.with_user(self.bp_manager).search([("partner_id", "=", person.id)]), score)
+        self.assertFalse(self.Score.with_user(self.bp_user).search([("partner_id", "=", person.id)]))
+
+    def test_band_visible_to_user_only_as_aggregate(self):
+        """A user without access to colleagues' scores still sees the role band on the map."""
+        self.role_sales.partner_ids = (self.bp_user | self.bp_colleague | self.bp_third).partner_id
         self._score(self.bp_user, 1)
         self._score(self.bp_colleague, 3)
         roles = {role["id"]: role for role in self.Activity.with_user(self.bp_user).get_map_data()["roles"]}
-        self.assertIs(roles[self.role_sales.id]["adkar"], False, "Two scores: no profile, also not for a user.")
+        self.assertIs(roles[self.role_sales.id]["adkar"], False, "Two scores: no band, also not for a user.")
         self._score(self.bp_third, 5)
         roles = {role["id"]: role for role in self.Activity.with_user(self.bp_user).get_map_data()["roles"]}
-        self.assertEqual(roles[self.role_sales.id]["adkar"], [3.0] * 5)
-        self.assertEqual(self.role_sales.with_user(self.bp_user)._get_adkar_profile(), [3.0] * 5)
+        self.assertEqual(roles[self.role_sales.id]["adkar"], "medium")
+        role = self.role_sales.with_user(self.bp_user)
+        self.assertEqual(role._get_adkar_bands(), {self.role_sales.id: "medium"})
 
     # ------------------------------------------------------------------
     # Progress is the same for every viewer
@@ -321,3 +351,38 @@ class TestSecurity(BlueprintCase):
         self.assertNotIn("Hidden task", names)
         manager_details = {item["id"]: item for item in self.Activity.get_map_details()}
         self.assertIn("Hidden task", [task["name"] for task in manager_details[self.act_a.id]["tasks"]])
+
+    # ------------------------------------------------------------------
+    # D13: tasks for project users without Blueprint access
+    # ------------------------------------------------------------------
+
+    def test_task_views_hide_blueprint_without_group(self):
+        """A project user outside Blueprint opens task views and a linked task without errors."""
+        project_only = new_test_user(
+            self.env, login="pan_sl_sec_project_only", name="Project only", groups="project.group_project_user"
+        )
+        task = self.Task.create(
+            {
+                "name": "Linked task",
+                "project_id": self.project.id,
+                "pan_activity_ids": [Command.set(self.act_a.ids)],
+                "pan_scenario_id": self.scenario.id,
+                "pan_rung": "2",
+            }
+        )
+        Task = self.Task.with_user(project_only)
+        views = Task.get_views([(False, "form"), (False, "list"), (False, "search")])
+        for view_type, view in views["views"].items():
+            with self.subTest(view=view_type):
+                arch = etree.fromstring(view["arch"])
+                self.assertFalse(
+                    arch.xpath("//*[starts-with(@name, 'pan_')]"), f"The {view_type} view shows Blueprint fields."
+                )
+        # What the web client reads: the fields in the form arch it was given.
+        arch = etree.fromstring(views["views"]["form"]["arch"])
+        fields = {node.get("name") for node in arch.iter("field")} & set(self.Task._fields)
+        record = task.with_user(project_only).web_read({name: {} for name in fields})
+        self.assertEqual(record[0]["id"], task.id)
+
+        views = self.Task.with_user(self.project_user).get_views([(False, "form")])
+        self.assertIn("pan_blueprint_page", views["views"]["form"]["arch"], "Blueprint users keep the page.")

@@ -6,8 +6,8 @@ Odoo Self Learning: Blueprint
 =============================
 
 Describe a company as one model (value chain, process, activity, click path),
-put Odoo over it (apps, models, access groups) and track readiness per
-activity: choices made, Odoo ready, people ready (ADKAR), live.
+put Odoo over it (apps and models) and track readiness per activity: choices
+made, Odoo ready, people ready (ADKAR), live.
 
 Project tasks get three fields (scenario, activities, rung). An activity is
 as far as its least advanced task, the same for every user; cancelled tasks
@@ -16,25 +16,25 @@ from the linked tasks (allocated hours and timesheets stay on the tasks; that
 is why the module depends on Timesheets).
 
 One company map shows it all, filtered by scenario and coloured by choices,
-progress or ADKAR, and shows per activity and phase who still needs
-training. ADKAR scores are personal: users see their own, administrators see
-all; a role average needs at least three scored users.
+progress or people. People are contacts, so someone without a login can hold
+a role and be scored. ADKAR scores are personal: users see their own,
+administrators see all; the map shows per role only a band for the weakest
+element, and only when at least three people of the role have a score.
 
-Import and export the whole model as an open JSON blueprint. Loading the
-bundled template again only fills what is missing and never overwrites the
-company's own choices.
+Chains, phases, roles and activities come from the bundled template or an
+open JSON blueprint. Loading the template again only fills what is missing
+and never overwrites the company's own choices.
     """,
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Services/Project",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.2.0",
     "license": "LGPL-3",
     "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
         "security/adkar_rules.xml",
-        "data/default_structure.xml",
         "views/structure_views.xml",
         "views/activity_views.xml",
         "views/scenario_views.xml",

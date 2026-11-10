@@ -1,8 +1,7 @@
 """Shared fixture for the blueprint tests.
 
 Every record made here uses a code with the ``t_`` prefix, so the tests never
-collide with the default structure (``data/default_structure.xml``) or with a
-template that is already loaded in the database.
+collide with a template that is already loaded in the database.
 """
 
 from odoo.fields import Command
