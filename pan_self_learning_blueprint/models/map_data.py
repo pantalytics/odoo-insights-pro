@@ -6,6 +6,11 @@ from odoo.tools import html2plaintext
 # Block elements whose text counts as one line of a click path.
 _CLICK_PATH_LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
 
+# From this rung on ("Trained") the users of an activity's role count as
+# trained for it. The map answers "who still needs training" with this rule;
+# individual ADKAR scores never reach the map.
+TRAINED_RUNG = 4
+
 
 class PanSlActivity(models.Model):
     _inherit = "pan.sl.activity"
@@ -15,7 +20,9 @@ class PanSlActivity(models.Model):
         """Everything the company map needs, in one call.
 
         Returns a dict with ``phases`` (map columns), ``roles`` (map lanes),
-        ``activities`` (chips) and ``scenarios`` (routes). Records are read
+        ``activities`` (chips) and ``scenarios`` (routes). Each activity also
+        carries ``training``: the users of its role as ``{id, name, trained}``,
+        ``trained`` meaning the activity reached rung ``TRAINED_RUNG``. Records are read
         as recordsets so related and computed values are fetched in batches
         (prefetching), never one query per activity.
         """
@@ -59,6 +66,10 @@ class PanSlActivity(models.Model):
                     "open_point": activity.open_point or False,
                     "scenario_ids": activity.scenario_ids.ids,
                     "model": activity.model_id.model or False,
+                    "training": [
+                        {"id": user.id, "name": user.name, "trained": activity.rung >= TRAINED_RUNG}
+                        for user in activity.role_id.user_ids
+                    ],
                 }
                 for activity in activities
             ],

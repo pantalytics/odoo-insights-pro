@@ -17,3 +17,4 @@ access_pan_sl_adkar_score_user,pan.sl.adkar.score user,model_pan_sl_adkar_score,
 access_pan_sl_adkar_score_manager,pan.sl.adkar.score manager,model_pan_sl_adkar_score,group_blueprint_manager,1,1,1,1
 access_pan_sl_blueprint_wizard_user,pan.sl.blueprint.wizard user,model_pan_sl_blueprint_wizard,group_blueprint_user,1,0,0,0
 access_pan_sl_blueprint_wizard_manager,pan.sl.blueprint.wizard manager,model_pan_sl_blueprint_wizard,group_blueprint_manager,1,1,1,1
+access_ir_model_blueprint_user,ir.model read for blueprint users,base.model_ir_model,group_blueprint_user,1,0,0,0

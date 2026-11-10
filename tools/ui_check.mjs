@@ -11,6 +11,13 @@
 // scroll sideways (the map scrolls inside its own container) and takes one
 // screenshot with the panel open as a bottom sheet.
 //
+// Keyboard: arrow keys pan the focused map, + / - zoom and Home fits it; the
+// slider's arrow keys jump from stop to stop; Tab walks every chip of the
+// Detail stop (culled ones included) and each focused chip is in view; Enter
+// on a Company block moves focus to a chip. State restore: after opening an
+// activity from the panel and coming back through the breadcrumb, zoom, view,
+// scenario, colour-by and the panel are as the user left them.
+//
 // At every stop it also checks that no SVG shape is painted black: an
 // undefined CSS variable in an SVG fill falls back to black.
 //
@@ -46,6 +53,7 @@ const SEL = {
     body: ".o_pan_sl_map .o_pan_sl_body",
     emptyState: ".o_pan_sl_map .o_view_nocontent",
     scenarioSelect: ".o_pan_sl_scenario_select",
+    colorSelect: ".o_pan_sl_color_select",
     slider: ".o_pan_sl_zoom_slider",
     block: ".o_pan_sl_block",
     chip: ".o_pan_sl_chip",
@@ -54,6 +62,9 @@ const SEL = {
     detail: ".o_pan_sl_chip .o_pan_sl_detail text",
     counter: ".o_pan_sl_counter",
     panel: ".o_pan_sl_panel",
+    panelOpenActivity: ".o_pan_sl_panel .card-footer .btn-primary",
+    formView: ".o_form_view",
+    breadcrumbMap: ".o_breadcrumb .breadcrumb-item a",
     errorDialog: ".o_error_dialog",
 };
 
@@ -186,11 +197,14 @@ async function clickVisibleChip(page, selector, what) {
     const point = await page.evaluate((sel) => {
         for (const chip of document.querySelectorAll(sel)) {
             const r = chip.getBoundingClientRect();
-            const x = r.left + Math.min(r.width / 2, 60);
             const y = r.top + Math.min(r.height / 2, 14);
-            const hit = document.elementFromPoint(x, y);
-            if (hit && chip.contains(hit)) {
-                return { x, y };
+            // Try a few points along the chip: its left part may sit under the label column.
+            for (const share of [0.25, 0.5, 0.75]) {
+                const x = r.left + r.width * share;
+                const hit = document.elementFromPoint(x, y);
+                if (hit && chip.contains(hit)) {
+                    return { x, y };
+                }
             }
         }
         return null;
@@ -205,6 +219,124 @@ async function expectNoErrorDialog(page) {
 
 async function count(page, selector) {
     return page.locator(selector).count();
+}
+
+/** Description of document.activeElement: which map item it is and whether it is in view. */
+async function activeItem(page) {
+    return page.evaluate(() => {
+        const el = document.activeElement;
+        const body = document.querySelector(".o_pan_sl_body")?.getBoundingClientRect();
+        if (!el || !body) {
+            return null;
+        }
+        const r = el.getBoundingClientRect();
+        const cx = r.left + Math.min(r.width / 2, 40);
+        const cy = r.top + Math.min(r.height / 2, 14);
+        const hit = document.elementFromPoint(cx, cy);
+        return {
+            tag: el.tagName,
+            item: el.dataset ? el.dataset.item || null : null,
+            isChip: el.classList.contains("o_pan_sl_chip"),
+            inView: cx >= body.left && cx <= body.right && cy >= body.top && cy <= body.bottom,
+            // Not covered by the sticky header or label column.
+            uncovered: Boolean(hit && el.contains(hit)),
+        };
+    });
+}
+
+async function checkKeyboard(page) {
+    // Tab walks every chip at the Detail stop, culled ones included, each in
+    // view: forward from a chip to the last one, then Shift+Tab back to the first.
+    await setZoom(page, 3.6);
+    const total = (await svgData(page)).chipTotal;
+    await page.locator(SEL.chip).first().focus();
+    const seen = new Set();
+    let last = null;
+    for (const key of ["Tab", "Shift+Tab"]) {
+        if (last) {
+            await page.locator(`[data-item="${last}"]`).focus();
+        }
+        for (let step = 0; step <= total; step++) {
+            const active = await activeItem(page);
+            if (!active || !active.isChip) {
+                check(step > 0, `${key}: focus is not on a chip to start from (${active && active.tag}).`);
+                break;
+            }
+            check(active.inView && active.uncovered, `${key} step ${step}: the focused chip ${active.item} is not visible.`);
+            seen.add(active.item);
+            last = active.item;
+            await page.keyboard.press(key);
+            await page.waitForTimeout(30);
+        }
+    }
+    check(seen.size === total, `Tab and Shift+Tab reached ${seen.size} of the ${total} chips.`);
+
+    // Arrow keys pan the focused map; + and - zoom; Home fits.
+    await setZoom(page, 2.8);
+    await page.locator(SEL.svg).focus();
+    const start = (await svgData(page)).viewBox;
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(100);
+    const right = (await svgData(page)).viewBox;
+    check(right[0] > start[0], `ArrowRight does not pan the map (${start} -> ${right}).`);
+    await page.keyboard.press("ArrowLeft");
+    await page.waitForTimeout(100);
+    const left = (await svgData(page)).viewBox;
+    check(left[0] < right[0], `ArrowLeft does not pan the map back (${right} -> ${left}).`);
+    const zoomBefore = (await svgData(page)).zoom;
+    await page.keyboard.press("+");
+    await page.waitForTimeout(100);
+    check((await svgData(page)).zoom > zoomBefore, "The + key does not zoom in.");
+    await page.keyboard.press("-");
+    await page.keyboard.press("-");
+    await page.waitForTimeout(100);
+    check((await svgData(page)).zoom < zoomBefore, "The - key does not zoom out.");
+    await page.keyboard.press("Home");
+    await page.waitForTimeout(100);
+    check((await svgData(page)).stop === 1, "Home does not fit the map (Company stop).");
+
+    // The slider's arrow keys jump to the next stop.
+    await page.locator(SEL.slider).focus();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(100);
+    check((await svgData(page)).stop === 2, "ArrowRight on the zoom slider does not jump to the Processes stop.");
+
+    // Enter on a Company block zooms in and moves focus to a chip of that cell.
+    await setZoom(page, 1);
+    await page.locator(SEL.block).first().focus();
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(200);
+    const afterBlock = await activeItem(page);
+    check(afterBlock && afterBlock.isChip, `Enter on a block leaves focus on ${afterBlock && afterBlock.tag}, not a chip.`);
+}
+
+/** Leave the map through the panel and come back: everything is as the user left it. */
+async function checkStateRestore(page) {
+    await page.locator(SEL.colorSelect).selectOption("progress");
+    await page.waitForTimeout(100);
+    await clickVisibleChip(page, `${SEL.chip}:not(.o_pan_sl_dim)`, "route chip");
+    await expectVisible(page, SEL.panel, "activity side panel (before leaving)");
+    const before = await svgData(page);
+    const scenario = await page.locator(SEL.scenarioSelect).inputValue();
+    const title = await page.locator(`${SEL.panel} .o_pan_sl_panel_title`).textContent();
+    await page.locator(SEL.panelOpenActivity).click();
+    await expectVisible(page, SEL.formView, "activity form");
+    await page.locator(SEL.breadcrumbMap).first().click();
+    await expectVisible(page, SEL.svg, "company map after the breadcrumb");
+    await expectVisible(page, SEL.panel, "side panel restored after the breadcrumb");
+    await page.waitForTimeout(200);
+    const after = await svgData(page);
+    check(Math.abs(after.zoom - before.zoom) < 0.01, `Zoom not restored (${before.zoom} -> ${after.zoom}).`);
+    check(
+        after.viewBox.every((value, index) => Math.abs(value - before.viewBox[index]) < 1),
+        `View not restored (${before.viewBox} -> ${after.viewBox}).`
+    );
+    check((await page.locator(SEL.scenarioSelect).inputValue()) === scenario, "Scenario not restored.");
+    check((await page.locator(SEL.colorSelect).inputValue()) === "progress", "Colour-by not restored.");
+    const titleAfter = await page.locator(`${SEL.panel} .o_pan_sl_panel_title`).textContent();
+    check(titleAfter === title, `The panel shows "${titleAfter}" instead of "${title}".`);
+    await page.keyboard.press("Escape");
+    await expectGone(page, SEL.panel, "The side panel after pressing Esc (restored)");
 }
 
 async function checkDesktop(page, out) {
@@ -245,6 +377,9 @@ async function checkDesktop(page, out) {
         scales.every((scale, index) => !index || scale > scales[index - 1]),
         `The map does not get physically larger with each stop (scales ${scales.join(", ")}).`
     );
+
+    await checkKeyboard(page);
+    await setZoom(page, 3.6);
 
     // Drag to pan.
     const box = await page.locator(SEL.body).boundingBox();
@@ -311,6 +446,9 @@ async function checkDesktop(page, out) {
     await expectVisible(page, SEL.panel, "activity side panel (opened with Enter)");
     await page.keyboard.press("Escape");
     await expectGone(page, SEL.panel, "The side panel after pressing Esc (keyboard)");
+    await expectNoErrorDialog(page);
+
+    await checkStateRestore(page);
     await expectNoErrorDialog(page);
 }
 

@@ -5,3 +5,5 @@ from . import test_adkar
 from . import test_blueprint
 from . import test_map_data
 from . import test_hours
+from . import test_security
+from . import test_map_ui

@@ -1,14 +1,18 @@
 from odoo.fields import Command
 from odoo.tests import new_test_user, tagged
 
+from ..models.map_data import TRAINED_RUNG
 from .common import BlueprintCase
 
 PHASE_KEYS = {"id", "name", "code", "apps"}
 ROLE_KEYS = {"id", "name", "is_external", "users", "adkar"}
 ACTIVITY_KEYS = {
     "id", "name", "code", "role_id", "phase_id", "choice_state", "rung",
-    "open_point", "scenario_ids", "model",
+    "open_point", "scenario_ids", "model", "training",
 }
+TRAINING_KEYS = {"id", "name", "trained"}
+DETAIL_KEYS = {"id", "tasks", "click_path"}
+DETAIL_TASK_KEYS = {"id", "name", "rung"}
 SCENARIO_KEYS = {"id", "code", "name", "description", "open_point", "rung", "activity_ids"}
 
 
@@ -63,13 +67,56 @@ class TestMapData(BlueprintCase):
         self.assertIs(roles[self.role_sales.id]["adkar"], False)
 
     def test_role_adkar_profile(self):
-        self.env["pan.sl.adkar.score"].create(
+        """The role profile appears once three users of the role have a score."""
+        Score = self.env["pan.sl.adkar.score"]
+        others = new_test_user(self.env, login="pan_sl_map_user2", name="Map test user 2") | new_test_user(
+            self.env, login="pan_sl_map_user3", name="Map test user 3"
+        )
+        self.role_sales.user_ids |= others
+        Score.create(
             {"user_id": self.user.id, "awareness": 1, "desire": 2, "knowledge": 3, "ability": 4, "reinforcement": 5}
+        )
+        Score.create(
+            {"user_id": others[0].id, "awareness": 1, "desire": 2, "knowledge": 3, "ability": 4, "reinforcement": 5}
+        )
+        role = self._by_id(self.Activity.get_map_data()["roles"])[self.role_sales.id]
+        self.assertIs(role["adkar"], False, "Two scored users must not give a profile on the map.")
+        Score.create(
+            {"user_id": others[1].id, "awareness": 4, "desire": 5, "knowledge": 3, "ability": 1, "reinforcement": 2}
         )
         role = self._by_id(self.Activity.get_map_data()["roles"])[self.role_sales.id]
         self.assertEqual(len(role["adkar"]), 5)
-        for actual, expected in zip(role["adkar"], (1, 2, 3, 4, 5)):
+        for actual, expected in zip(role["adkar"], (2, 3, 3, 3, 4)):
             self.assertAlmostEqual(actual, expected)
+
+    def test_training_list_per_activity(self):
+        """Who still needs training: the role's users, trained once the activity reaches rung 4."""
+        self.assertEqual(TRAINED_RUNG, 4)
+        second = new_test_user(self.env, login="pan_sl_map_trainee", name="Map trainee")
+        self.role_sales.user_ids |= second
+        task = self._make_task(self.act_a, rung="3")
+        activities = self._by_id(self.Activity.get_map_data()["activities"])
+        training = activities[self.act_a.id]["training"]
+        for item in training:
+            self.assertEqual(set(item), TRAINING_KEYS)
+        self.assertEqual(
+            {item["id"]: item["trained"] for item in training}, {self.user.id: False, second.id: False}
+        )
+        self.assertEqual({item["name"] for item in training}, {"Map test user", "Map trainee"})
+        self.assertEqual(activities[self.act_c.id]["training"], [], "A role without users has nobody to train.")
+
+        task.pan_rung = "4"
+        training = self._by_id(self.Activity.get_map_data()["activities"])[self.act_a.id]["training"]
+        self.assertTrue(all(item["trained"] for item in training))
+
+    def test_training_list_has_no_adkar_scores(self):
+        """Individual ADKAR scores never reach the map, not even in the training list."""
+        self.env["pan.sl.adkar.score"].create(
+            {"user_id": self.user.id, "awareness": 1, "desire": 1, "knowledge": 1, "ability": 1, "reinforcement": 1}
+        )
+        item = self._by_id(self.Activity.get_map_data()["activities"])[self.act_a.id]
+        for person in item["training"]:
+            self.assertEqual(set(person), TRAINING_KEYS)
 
     def test_activity_values(self):
         scenario = self._make_scenario("t_map_values", [(10, self.act_a)])
@@ -145,5 +192,76 @@ class TestMapData(BlueprintCase):
             large - small,
             10,
             f"get_map_data used {small} queries before and {large} after adding {len(added)} activities: "
+            "it reads per record instead of in batches.",
+        )
+
+    # ------------------------------------------------------------------
+    # get_map_details (zoom stop "Detail")
+    # ------------------------------------------------------------------
+
+    def test_map_details_shape(self):
+        """One item per activity: ``{id, tasks: [{id, name, rung}], click_path}`` (what map_action.js reads)."""
+        self.act_a.click_path = "<ol><li>Contacts, New</li><li>Save</li></ol>"
+        shared = self._make_task(self.act_a | self.act_b, rung="3")
+        shared.name = "Shared task"
+        only_a = self._make_task(self.act_a, rung="1")
+        details = self.Activity.get_map_details()
+        self.assertIsInstance(details, list)
+        by_id = self._by_id(details)
+        self.assertEqual(set(by_id), set(self.Activity.search([]).ids))
+        for item in details:
+            self.assertEqual(set(item), DETAIL_KEYS)
+            for task in item["tasks"]:
+                self.assertEqual(set(task), DETAIL_TASK_KEYS)
+                self.assertIsInstance(task["rung"], int)
+
+        tasks_a = {task["id"]: task for task in by_id[self.act_a.id]["tasks"]}
+        self.assertEqual(set(tasks_a), {shared.id, only_a.id})
+        self.assertEqual(tasks_a[shared.id], {"id": shared.id, "name": "Shared task", "rung": 3})
+        self.assertEqual(tasks_a[only_a.id]["rung"], 1)
+        self.assertEqual(
+            [task["id"] for task in by_id[self.act_b.id]["tasks"]],
+            [shared.id],
+            "A task linked to two activities appears under both.",
+        )
+        self.assertEqual(by_id[self.act_c.id]["tasks"], [])
+        self.assertEqual(by_id[self.act_a.id]["click_path"], "Contacts, New")
+        self.assertIs(by_id[self.act_b.id]["click_path"], False)
+
+    def test_map_first_line(self):
+        cases = [
+            ("<ol><li>A</li><li>B</li></ol>", "A"),
+            ("<div><ul><li>X</li></ul></div>", "X"),
+            ("<p>  Open   <b>Sales</b> </p><p>Then save</p>", "Open Sales"),
+            ("line1<br>line2", "line1"),
+            ("plain text", "plain text"),
+            ("<p><br></p>", False),
+            ("", False),
+            (False, False),
+        ]
+        for click_path, expected in cases:
+            with self.subTest(click_path=click_path):
+                self.assertEqual(self.Activity._map_first_line(click_path), expected)
+
+    def _count_detail_queries(self):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        before = self.cr.sql_log_count
+        details = self.Activity.get_map_details()
+        return self.cr.sql_log_count - before, details
+
+    def test_map_details_query_count_does_not_grow(self):
+        """Loose N+1 guard for get_map_details, like the one for get_map_data."""
+        scenario = self._make_scenario("t_map_dbulk", [(10, self.act_a)])
+        self._add_activities(5, scenario)
+        self._count_detail_queries()
+        small, details_small = self._count_detail_queries()
+        added = self._add_activities(30, scenario)
+        large, details_large = self._count_detail_queries()
+        self.assertEqual(len(details_large), len(details_small) + len(added))
+        self.assertLess(
+            large - small,
+            10,
+            f"get_map_details used {small} queries before and {large} after adding {len(added)} activities: "
             "it reads per record instead of in batches.",
         )

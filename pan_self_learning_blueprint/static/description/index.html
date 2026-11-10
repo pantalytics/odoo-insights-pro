@@ -23,6 +23,9 @@
                 <li>Filter by scenario to draw a numbered test route across processes.</li>
                 <li>Colour by choices (proposal, provisional, fixed, revised), by progress or by ADKAR readiness.</li>
                 <li>Zoom in for more detail; click an activity to open its side panel.</li>
+                <li>Click a phase name to see who still needs training in that phase.</li>
+                <li>Clashes (a choice that was revised, or fixed with an open point) are outlined and can be shown on their own.</li>
+                <li>Works with the keyboard, and every colour also has a shape.</li>
             </ul>
         </div>
     </div>
@@ -35,12 +38,20 @@
             <p>
                 Project tasks get three fields: a scenario, the activities they move forward and a rung:
                 0 Open, 1 Decided, 2 Built, 3 Tested, 4 Trained, 5 Live. An activity is as far as its least
-                advanced task. Tasks from any project can point at activities, so the map keeps working after
+                advanced task, counted over all its tasks so every user sees the same progress; cancelled tasks
+                are left out. Tasks from any project can point at activities, so the map keeps working after
                 go-live.
             </p>
             <p>
+                Planned and spent hours per activity and scenario are summed from the linked tasks. A task on
+                several activities counts for each of them, and once per scenario. Estimates and timesheets
+                stay on the tasks (the module depends on Timesheets, which also installs Employees).
+            </p>
+            <p>
                 ADKAR scores (awareness, desire, knowledge, ability, reinforcement) per user show whether the
-                people in each role are ready for the change.
+                people in each role are ready for the change. Scores are personal: users see only their own,
+                administrators see all. The map shows a role's average once at least three of its users have
+                a score, and lists per activity who still needs training.
             </p>
         </div>
     </div>
@@ -53,7 +64,8 @@
             <p>
                 Import and export the whole model as one JSON file. Records match on their code, so a file can be
                 imported again and again and kept in git. A blueprint holds no personal data. Start from the
-                bundled template and adapt it to the company.
+                bundled template and adapt it to the company: loading the template again only fills what is
+                missing and keeps the company's own choices, click paths, open points and scenario steps.
             </p>
         </div>
     </div>
@@ -65,7 +77,8 @@
         <div class="oe_span12">
             <ol>
                 <li>Install the app and give users the Blueprint user or manager access right.</li>
-                <li>Open Blueprint, Blueprint, Import / export and load a template, or import your own file.</li>
+                <li>Open Blueprint, Import / export, Load a template, import or export, and load the template or
+                    import your own file.</li>
                 <li>Open Blueprint, Company map.</li>
             </ol>
             <p>License: LGPL-3. Made by Pantalytics.</p>

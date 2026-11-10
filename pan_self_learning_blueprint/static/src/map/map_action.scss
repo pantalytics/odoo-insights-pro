@@ -31,6 +31,10 @@ $o-pan-sl-surface: #ffffff;
     --pan-lane-external: color-mix(in srgb, var(--pan-off) 14%, var(--pan-bg));
     --pan-column-alt: color-mix(in srgb, var(--pan-fg) 2.5%, var(--pan-bg));
     --pan-track: color-mix(in srgb, var(--pan-off) 35%, var(--pan-surface));
+    // Amber as text: bright amber is kept for fills and markers; as small
+    // text it is mixed with the foreground to reach 4.5:1 on the background.
+    --pan-warn-text: color-mix(in srgb, var(--pan-warn) 45%, var(--pan-fg));
+    --pan-danger-text: color-mix(in srgb, var(--pan-danger) 80%, var(--pan-fg));
 
     background-color: var(--pan-bg);
     color: var(--pan-fg);
@@ -99,7 +103,19 @@ $o-pan-sl-surface: #ffffff;
     }
 
     .o_pan_sl_text_warn {
-        color: color-mix(in srgb, var(--pan-warn) 70%, var(--pan-fg));
+        color: var(--pan-warn-text);
+    }
+
+    .o_pan_sl_text_danger {
+        color: var(--pan-danger-text);
+    }
+
+    .o_pan_sl_intro {
+        color: var(--pan-muted);
+    }
+
+    .o_pan_sl_people_hint {
+        color: var(--pan-fg);
     }
 
     // Map container ---------------------------------------------------
@@ -120,6 +136,16 @@ $o-pan-sl-surface: #ffffff;
 
         &:active {
             cursor: grabbing;
+        }
+
+        // Keyboard focus on the map itself (arrow keys pan, + and - zoom).
+        &:focus {
+            outline: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--pan-accent);
+            outline-offset: -2px;
         }
 
         text {
@@ -159,12 +185,53 @@ $o-pan-sl-surface: #ffffff;
 
     .o_pan_sl_counter_open {
         font-weight: 700;
-        fill: color-mix(in srgb, var(--pan-warn) 75%, var(--pan-fg));
+        fill: var(--pan-warn-text);
     }
 
     .o_pan_sl_counter_clash {
         font-weight: 700;
+        fill: var(--pan-danger-text);
+    }
+
+    // Clickable parts of the SVG (phase names, clash counters).
+    .o_pan_sl_link {
+        cursor: pointer;
+        outline: none;
+
+        .o_pan_sl_link_hit {
+            fill: transparent;
+            stroke: none;
+        }
+
+        &:hover .o_pan_sl_link_hit {
+            fill: color-mix(in srgb, var(--pan-accent) 10%, transparent);
+        }
+
+        &:focus-visible .o_pan_sl_link_hit,
+        &:focus-visible .o_pan_sl_clash_pill {
+            stroke: var(--pan-accent);
+            stroke-width: 2;
+        }
+    }
+
+    .o_pan_sl_phase_link:hover .o_pan_sl_phase_label {
+        text-decoration: underline;
+    }
+
+    .o_pan_sl_counter_link {
+        text-decoration: underline;
+    }
+
+    .o_pan_sl_clash_pill {
         fill: var(--pan-danger);
+        stroke: var(--pan-surface);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_clash_pill_text {
+        fill: var(--pan-on-accent) !important;
+        font-size: 10.5px !important;
+        font-weight: 700;
     }
 
     .o_pan_sl_counter_none {
@@ -206,6 +273,10 @@ $o-pan-sl-surface: #ffffff;
 
     .o_pan_sl_role_label {
         font-weight: 600;
+    }
+
+    .o_pan_sl_role_label_group {
+        pointer-events: none;
     }
 
     .o_pan_sl_role_sub {
@@ -288,6 +359,24 @@ $o-pan-sl-surface: #ffffff;
         stroke-width: 1;
     }
 
+    // Glyphs that repeat the tone as a shape: check (ok), half disc (warn),
+    // cross (danger). Off keeps its dashed outline.
+    .o_pan_sl_glyph {
+        fill: none;
+        stroke: var(--pan-fg);
+        stroke-width: 1.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        pointer-events: none;
+    }
+
+    .o_pan_sl_glyph_half {
+        fill: var(--pan-fg);
+        fill-opacity: 0.55;
+        stroke: none;
+        pointer-events: none;
+    }
+
     .o_pan_sl_dot.o_pan_sl_tone_off.o_pan_sl_dashed,
     .o_pan_sl_swatch.o_pan_sl_dashed {
         fill: var(--pan-surface);
@@ -319,6 +408,31 @@ $o-pan-sl-surface: #ffffff;
         fill: none;
         stroke: color-mix(in srgb, var(--pan-fg) 35%, var(--pan-border));
         stroke-width: 1.25;
+
+        &.o_pan_sl_clash_frame {
+            stroke: var(--pan-danger);
+            stroke-width: 2;
+        }
+    }
+
+    .o_pan_sl_clash_badge {
+        circle {
+            fill: var(--pan-danger);
+            stroke: var(--pan-surface);
+            stroke-width: 1.5;
+        }
+
+        text {
+            fill: var(--pan-on-accent) !important;
+            font-size: 10px !important;
+            font-weight: 700;
+        }
+    }
+
+    .o_pan_sl_swatch_clash {
+        fill: var(--pan-surface);
+        stroke: var(--pan-danger);
+        stroke-width: 2;
     }
 
     .o_pan_sl_block_count_bg {
@@ -352,6 +466,12 @@ $o-pan-sl-surface: #ffffff;
         fill: var(--pan-surface);
         stroke: var(--pan-border);
         stroke-width: 1.25;
+    }
+
+    // A clash (revised, or fixed with an open point) is outlined red at every stop.
+    .o_pan_sl_chip.o_pan_sl_clash:not(.o_pan_sl_selected):not(:focus-visible) .o_pan_sl_chip_box {
+        stroke: var(--pan-danger);
+        stroke-width: 2;
     }
 
     .o_pan_sl_chip_label {
@@ -486,19 +606,29 @@ $o-pan-sl-surface: #ffffff;
         .o_pan_sl_open_point {
             white-space: pre-wrap;
         }
+
+        // Focus lands on the title when the panel opens; Tab continues inside.
+        .o_pan_sl_panel_title:focus {
+            outline: none;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+        }
     }
 
-    .o_pan_sl_state_badge {
+    // Status pill in the panel (Trained / Needs training): text plus tone.
+    .o_pan_sl_pill {
         display: inline-block;
-        padding: 0.1rem 0.5rem;
+        flex: 0 0 auto;
+        padding: 0 0.5rem;
         border-radius: 1rem;
-        border: 1.5px solid var(--pan-tone, var(--pan-off));
-        background-color: color-mix(in srgb, var(--pan-tone, var(--pan-off)) 30%, var(--pan-surface));
-
-        &.o_pan_sl_dashed {
-            border-style: dashed;
-            background-color: var(--pan-surface);
-        }
+        border: 1px solid var(--pan-tone, var(--pan-off));
+        background-color: color-mix(in srgb, var(--pan-tone, var(--pan-off)) 18%, var(--pan-surface));
+        color: var(--pan-fg);
+        font-size: 0.75rem;
+        white-space: nowrap;
     }
 
     // Phones: controls wrap, the map scrolls inside its container and the
@@ -533,6 +663,11 @@ $o-pan-sl-surface: #ffffff;
 
         .o_pan_sl_legend {
             margin-left: 0 !important;
+        }
+
+        // Phones: the first screen explains the map; once zoomed in the space goes to the map.
+        .o_pan_sl_intro_zoomed {
+            display: none;
         }
 
         .o_pan_sl_panel {

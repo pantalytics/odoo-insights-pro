@@ -1,6 +1,7 @@
 from odoo.fields import Command
 from odoo.tests import tagged
 
+from ..models.structure import CANCELLED_STATE
 from .common import BlueprintCase
 
 
@@ -69,3 +70,82 @@ class TestRung(BlueprintCase):
         task = self._make_task(self.act_a, rung="1", scenario=scenario)
         self.assertEqual(scenario.task_ids, task)
         self.assertEqual(scenario.task_count, 1)
+
+    # ------------------------------------------------------------------
+    # cancelled tasks, stored values, rung_state
+    # ------------------------------------------------------------------
+
+    def test_cancelled_task_does_not_hold_back_the_rung(self):
+        cancelled = self._make_task(self.act_a, rung="0")
+        self._make_task(self.act_a, rung="4")
+        self.assertEqual(self.act_a.rung, 0)
+        cancelled.state = CANCELLED_STATE
+        self.assertEqual(self.act_a.rung, 4, "A cancelled task must not count for the rung.")
+        cancelled.state = "01_in_progress"
+        self.assertEqual(self.act_a.rung, 0, "A task that is no longer cancelled counts again.")
+
+    def test_only_cancelled_tasks_gives_zero(self):
+        task = self._make_task(self.act_a, rung="5")
+        self.assertEqual(self.act_a.rung, 5)
+        task.state = CANCELLED_STATE
+        self.assertEqual(self.act_a.rung, 0)
+        self.assertEqual(self.act_a.rung_state, "0")
+
+    def test_cancelled_task_leaves_scenario_rung(self):
+        scenario = self._make_scenario("t_scen_cancel", [(10, self.act_a), (20, self.act_b)])
+        self._make_task(self.act_a, rung="3")
+        blocker = self._make_task(self.act_b, rung="1")
+        self._make_task(self.act_b, rung="4")
+        self.assertEqual(scenario.rung, 1)
+        blocker.state = CANCELLED_STATE
+        self.assertEqual(scenario.rung, 3)
+
+    def test_rung_is_stored_and_searchable(self):
+        for model, field_name in (
+            ("pan.sl.activity", "rung"),
+            ("pan.sl.activity", "rung_state"),
+            ("pan.sl.activity", "planned_hours"),
+            ("pan.sl.activity", "spent_hours"),
+            ("pan.sl.scenario", "rung"),
+            ("pan.sl.scenario", "rung_state"),
+            ("pan.sl.scenario", "planned_hours"),
+            ("pan.sl.scenario", "spent_hours"),
+        ):
+            with self.subTest(model=model, field=field_name):
+                self.assertTrue(self.env[model]._fields[field_name].store, f"{model}.{field_name} must be stored")
+        self._make_task(self.act_a, rung="2")
+        self._make_task(self.act_b, rung="4")
+        ours = [("code", "like", "t_act_%")]
+        self.assertEqual(self.Activity.search(ours + [("rung", "<", 3)]), self.act_a | self.act_c)
+        self.assertEqual(self.Activity.search(ours + [("rung_state", "=", "4")]), self.act_b)
+        groups = dict(
+            self.Activity._read_group(ours, ["rung_state"], ["__count"])
+        )
+        self.assertEqual(groups, {"0": 1, "2": 1, "4": 1})
+
+    def test_rung_state_labels(self):
+        expected = [
+            ("0", "Open"),
+            ("1", "Decided"),
+            ("2", "Built"),
+            ("3", "Tested"),
+            ("4", "Trained"),
+            ("5", "Live"),
+        ]
+        for model in ("pan.sl.activity", "pan.sl.scenario"):
+            with self.subTest(model=model):
+                self.assertEqual(self.env[model]._fields["rung_state"].selection, expected)
+        self.assertEqual(self.Task._fields["pan_rung"].selection, expected)
+
+    def test_rung_state_follows_rung(self):
+        scenario = self._make_scenario("t_scen_state", [(10, self.act_a)])
+        self.assertEqual(self.act_a.rung_state, "0")
+        self.assertEqual(scenario.rung_state, "0")
+        task = self._make_task(self.act_a, rung="3")
+        self.assertEqual(self.act_a.rung_state, "3")
+        self.assertEqual(scenario.rung_state, "3")
+        task.pan_rung = "5"
+        self.assertEqual(self.act_a.rung_state, "5")
+        self.assertEqual(scenario.rung_state, "5")
+        labels = dict(self.Activity._fields["rung_state"]._description_selection(self.env))
+        self.assertEqual(labels[self.act_a.rung_state], "Live")

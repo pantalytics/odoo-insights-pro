@@ -33,7 +33,10 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='stage_id']" position="after">
                 <field name="pan_scenario_id" optional="hide"/>
-                <field name="pan_rung" optional="show" widget="badge"/>
+                <field name="pan_rung" optional="show" widget="badge"
+                       decoration-muted="pan_rung == '0'"
+                       decoration-warning="pan_rung in ('1', '2')"
+                       decoration-success="pan_rung in ('3', '4', '5')"/>
             </xpath>
         </field>
     </record>
@@ -50,7 +53,7 @@
                 <separator/>
                 <filter string="Blueprint Task" name="pan_blueprint_task"
                         domain="['|', ('pan_scenario_id', '!=', False), ('pan_activity_ids', '!=', False)]"/>
-                <filter string="Not Live" name="pan_not_live"
+                <filter string="Not live" name="pan_not_live"
                         domain="[('pan_rung', '!=', '5')]"/>
             </xpath>
             <filter name="stage" position="after">

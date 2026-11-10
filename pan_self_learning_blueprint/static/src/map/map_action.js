@@ -1,8 +1,19 @@
-import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onPatched,
+    onWillPatch,
+    onWillStart,
+    onWillUnmount,
+    useEffect,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useService } from "@web/core/utils/hooks";
+import { useSetupAction } from "@web/search/action_hook";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 // ----------------------------------------------------------------------
@@ -33,10 +44,25 @@ export const STOP_THRESHOLDS = [1, 1.75, 2.5, 3.25]; // zoom where stop 1..4 sta
 // of the current stop's layout, which keeps text sizes steady).
 const MAX_SCALE = 1.6;
 const FIT_MIN_SCALE = 0.55; // below this text gets unreadable: pan instead
+// Narrow containers (phones): text stays readable at the Company stop and the
+// label column gets narrower; the user pans the map sideways instead.
+const NARROW_W = 576;
+const FIT_MIN_SCALE_NARROW = 0.8;
+const COMPACT_LABEL_W = 100;
 const FIT_MAX_SCALE = 1.25;
 const CULL_MARGIN = 200; // user units around the view that still get chips
 const DRAG_THRESHOLD = 4; // px before a press becomes a pan
 const DOUBLE_CLICK_ZOOM = 0.75;
+const KEY_PAN_PX = 80; // arrow keys pan this many screen pixels (Shift: 3x)
+const KEY_ZOOM_STEP = 0.25; // + and - change the zoom factor by this much
+const WHEEL_PAN_COMMIT_MS = 120; // a sideways scroll is done after this pause
+// The side panel (see .o_pan_sl_panel in the SCSS): 340px wide with a 12px
+// gap on desktop, a bottom sheet of at most 65% of the map on phones.
+const PANEL_W = 340;
+const PANEL_GAP = 12;
+const SHEET_SHARE = 0.65;
+const SMALL_SCREEN_MEDIA = "(max-width: 767.98px)";
+const REVEAL_MARGIN_PX = 16;
 
 const PROGRESS_H = 40;
 const CHIP_INSET = 8; // chip inset within its column
@@ -52,6 +78,7 @@ const MAX_INITIALS = 3;
 const INITIAL_STEP = 17;
 
 const TESTED_RUNG = 3;
+const TRAINED_RUNG = 4; // users of the role count as trained from this rung on
 const MAX_RUNG = 5;
 const WHEEL_ZOOM_SPEED = 0.0015; // zoom factor change per wheel pixel (exponential)
 const PINCH_WHEEL_SPEED = 0.01; // trackpad pinch arrives as ctrl + wheel with small deltas
@@ -86,6 +113,34 @@ const PEOPLE_TONES = {
 
 export function toneClass({ tone, level, dashed }) {
     return `o_pan_sl_tone_${tone} o_pan_sl_lvl_${level}${dashed ? " o_pan_sl_dashed" : ""}`;
+}
+
+/**
+ * Second visual cue per tone, so status never depends on hue alone: ok is a
+ * check, warn a half-filled disc, danger a cross; off has its dashed outline.
+ * Returns {className, d} for an SVG path centred on (cx, cy), or false.
+ */
+export function toneGlyph(tone, cx, cy, r) {
+    const s = r * 0.55;
+    if (tone === "ok") {
+        return {
+            className: "o_pan_sl_glyph",
+            d: `M ${cx - s} ${cy + s * 0.05} L ${cx - s * 0.25} ${cy + s * 0.75} L ${cx + s} ${cy - s * 0.65}`,
+        };
+    }
+    if (tone === "danger") {
+        return {
+            className: "o_pan_sl_glyph",
+            d: `M ${cx - s} ${cy - s} L ${cx + s} ${cy + s} M ${cx + s} ${cy - s} L ${cx - s} ${cy + s}`,
+        };
+    }
+    if (tone === "warn") {
+        return {
+            className: "o_pan_sl_glyph_half",
+            d: `M ${cx} ${cy - r} A ${r} ${r} 0 0 0 ${cx} ${cy + r} Z`,
+        };
+    }
+    return false;
 }
 
 function truncate(text, length) {
@@ -163,9 +218,10 @@ function chipHeight(stop, detail) {
  * Compute the static geometry of the map for one zoom stop. Colours,
  * dimming and the route depend on the controls and are applied at render.
  */
-export function computeLayout(data, details, stop) {
+export function computeLayout(data, details, stop, compact = false) {
     const geo = STOP_GEOMETRY[stop];
-    const { labelW, colW, headerH, lanePad } = geo;
+    const { colW, headerH, lanePad } = geo;
+    const labelW = compact ? COMPACT_LABEL_W : geo.labelW;
     const chipW = colW - 2 * CHIP_INSET;
     const phases = data.phases;
     const roles = orderRoles(data.roles);
@@ -253,7 +309,7 @@ export function computeLayout(data, details, stop) {
             const cellX = labelW + phaseIndex.get(phase.id) * colW + CHIP_INSET;
             if (stop === STOP_COMPANY) {
                 blocks.push({
-                    key: `${role.id}-${phase.id}`,
+                    key: `b${role.id}-${phase.id}`,
                     role,
                     phase,
                     activities: cellActivities,
@@ -269,6 +325,7 @@ export function computeLayout(data, details, stop) {
                 const detail = details.get(activity.id);
                 const chipH = chipHeight(stop, detail);
                 chips.push({
+                    key: `c${activity.id}`,
                     id: activity.id,
                     activity,
                     role,
@@ -334,6 +391,9 @@ export function computeLayout(data, details, stop) {
         chips,
         blocks,
         chipById: new Map(chips.map((chip) => [chip.id, chip])),
+        // Keyboard order: blocks at stop 1, chips at stops 2-4 (lane by lane).
+        items: stop === STOP_COMPANY ? blocks : chips,
+        itemByKey: new Map([...blocks, ...chips].map((item) => [item.key, item])),
         apps,
         totals: {
             open: data.activities.filter((a) => OPEN_CHOICES.includes(a.choice_state)).length,
@@ -377,6 +437,11 @@ export function mapPoint(from, to, x, y) {
     return { x: nx, y: ny };
 }
 
+/** A chip's box widened to the left for its numbered route badge. */
+function withBadgeRoom(chip) {
+    return { x: chip.x - 14, y: chip.y, width: chip.width + 14, height: chip.height };
+}
+
 export class CompanyMap extends Component {
     static template = "pan_self_learning_blueprint.CompanyMap";
     static props = { ...standardActionServiceProps };
@@ -397,42 +462,99 @@ export class CompanyMap extends Component {
             MIN_ZOOM,
             MAX_ZOOM,
         };
+        // Coming back to the map (breadcrumb) restores where the user was.
+        const restored = (this.props.state && this.props.state.companyMap) || {};
         // The camera: zoom factor and the top-left of the view in user units
         // of the current stop's layout; cw/ch is the container size in px.
         this.state = useState({
             loaded: false,
-            scenarioId: false,
-            colorBy: "choices",
-            selectedId: false,
-            zoom: MIN_ZOOM,
-            vx: 0,
-            vy: 0,
+            revision: 0, // bumped when the (non-reactive) map data is reloaded
+            scenarioId: restored.scenarioId || false,
+            colorBy: restored.colorBy || "choices",
+            highlight: restored.highlight || false, // false or "clashes"
+            selectedId: restored.selectedId || false,
+            phasePanelId: restored.phasePanelId || false,
+            zoom: restored.zoom || MIN_ZOOM,
+            vx: restored.vx || 0,
+            vy: restored.vy || 0,
             cw: 0,
             ch: 0,
         });
+        this.compact = window.innerWidth < NARROW_W;
         this.pointers = new Map(); // active pointers, for drag and pinch
         this.gesture = null;
         this.suppressClick = false;
         this.lastFocused = null;
+        this.returnKey = null; // map item that gets focus back when the panel closes
+        this.focusedKey = null; // focused map item: always rendered, even when culled
+        this.pendingFocus = null; // selector focused after the next render
+        this.pressing = false; // a pointer is down: focus comes from a click, not the keyboard
+        // Pan runs outside the OWL render: the live camera is painted straight
+        // onto the SVG and only committed to the state (re-cull, re-render)
+        // when it moved far enough or the gesture ended.
+        this.live = null;
+        this.frame = null;
+        this.wheelZoom = null;
+        this.wheelFrame = null;
+        this.commitTimer = null;
+
+        useSetupAction({
+            getLocalState: () => {
+                const camera = this.live || this.state;
+                return {
+                    companyMap: {
+                        scenarioId: this.state.scenarioId,
+                        colorBy: this.state.colorBy,
+                        highlight: this.state.highlight,
+                        selectedId: this.state.selectedId,
+                        phasePanelId: this.state.phasePanelId,
+                        zoom: this.state.zoom,
+                        vx: camera.vx,
+                        vy: camera.vy,
+                    },
+                };
+            },
+        });
+
+        // A press that ends outside the map still ends.
+        useExternalListener(window, "pointerup", () => (this.pressing = false));
 
         useHotkey("escape", () => this.closePanel(), {
             bypassEditableProtection: true,
-            isAvailable: () => Boolean(this.state.selectedId),
+            isAvailable: () => this.panelOpen,
         });
 
-        onWillStart(async () => {
-            const [data, details] = await Promise.all([
-                this.orm.call("pan.sl.activity", "get_map_data", []),
-                this.orm.call("pan.sl.activity", "get_map_details", []),
-            ]);
-            this.data = data;
-            this.details = new Map(details.map((detail) => [detail.id, detail]));
-            this.roleById = new Map(data.roles.map((role) => [role.id, role]));
-            this.scenarioById = new Map(data.scenarios.map((s) => [s.id, s]));
-            this.layouts = Object.fromEntries(
-                ALL_STOPS.map((stop) => [stop, computeLayout(data, this.details, stop)])
-            );
-            this.state.loaded = true;
+        onWillStart(() => this.load());
+
+        // Culling re-orders the chip list; a moved DOM node loses focus, so the
+        // focused map item gets it back after the patch.
+        onWillPatch(() => {
+            const active = document.activeElement;
+            const svg = this.svgRef.el;
+            this.focusBeforePatch =
+                svg && active && svg.contains(active) && active.dataset.item ? active.dataset.item : null;
+        });
+        onPatched(() => {
+            let selector = this.pendingFocus;
+            this.pendingFocus = null;
+            if (!selector && this.focusBeforePatch) {
+                const svg = this.svgRef.el;
+                const active = document.activeElement;
+                if (!svg || !active || !svg.contains(active) || active.dataset.item !== this.focusBeforePatch) {
+                    selector = `[data-item="${this.focusBeforePatch}"]`;
+                }
+            }
+            this.focusBeforePatch = null;
+            const el = selector && this.queryMap(selector);
+            if (el) {
+                el.focus({ preventScroll: true });
+            }
+        });
+
+        onWillUnmount(() => {
+            cancelAnimationFrame(this.frame);
+            cancelAnimationFrame(this.wheelFrame);
+            clearTimeout(this.commitTimer);
         });
 
         // Track the container size; the fit scale and the view follow it.
@@ -442,6 +564,12 @@ export class CompanyMap extends Component {
                     return;
                 }
                 const update = () => {
+                    this.commitPan();
+                    const compact = el.clientWidth < NARROW_W;
+                    if (compact !== this.compact) {
+                        this.compact = compact;
+                        this.computeLayouts();
+                    }
                     this.state.cw = el.clientWidth;
                     this.state.ch = el.clientHeight;
                     this.clampView();
@@ -453,6 +581,43 @@ export class CompanyMap extends Component {
             },
             () => [this.bodyRef.el]
         );
+    }
+
+    /** Load (or reload) the map data and drop a restored selection that no longer exists. */
+    async load() {
+        const [data, details] = await Promise.all([
+            this.orm.call("pan.sl.activity", "get_map_data", []),
+            this.orm.call("pan.sl.activity", "get_map_details", []),
+        ]);
+        this.data = data;
+        this.details = new Map(details.map((detail) => [detail.id, detail]));
+        this.roleById = new Map(data.roles.map((role) => [role.id, role]));
+        this.scenarioById = new Map(data.scenarios.map((s) => [s.id, s]));
+        this.activityById = new Map(data.activities.map((a) => [a.id, a]));
+        this.phaseById = new Map(data.phases.map((phase) => [phase.id, phase]));
+        this.computeLayouts();
+        if (this.state.scenarioId && !this.scenarioById.has(this.state.scenarioId)) {
+            this.state.scenarioId = false;
+        }
+        if (this.state.selectedId && !this.activityById.has(this.state.selectedId)) {
+            this.state.selectedId = false;
+        }
+        if (this.state.phasePanelId && !this.phaseById.has(this.state.phasePanelId)) {
+            this.state.phasePanelId = false;
+        }
+        this.state.loaded = true;
+        this.state.revision += 1;
+    }
+
+    computeLayouts() {
+        this.layouts = Object.fromEntries(
+            ALL_STOPS.map((stop) => [stop, computeLayout(this.data, this.details, stop, this.compact)])
+        );
+    }
+
+    queryMap(selector) {
+        const root = this.bodyRef.el && this.bodyRef.el.closest(".o_pan_sl_map");
+        return root ? root.querySelector(selector) : null;
     }
 
     // ------------------------------------------------------------------
@@ -490,7 +655,8 @@ export class CompanyMap extends Component {
             return 1;
         }
         const fit = Math.min(this.state.cw / layout.width, this.state.ch / layout.height);
-        return Math.min(FIT_MAX_SCALE, Math.max(FIT_MIN_SCALE, fit));
+        const minScale = this.compact ? FIT_MIN_SCALE_NARROW : FIT_MIN_SCALE;
+        return Math.min(FIT_MAX_SCALE, Math.max(minScale, fit));
     }
 
     /** Pixels per user unit at a zoom factor. */
@@ -504,14 +670,18 @@ export class CompanyMap extends Component {
         return this.scaleFor(this.state.zoom);
     }
 
-    get view() {
+    viewAt(vx, vy) {
         const scale = this.scale;
         return {
-            x: this.state.vx,
-            y: this.state.vy,
+            x: vx,
+            y: vy,
             w: Math.max(this.state.cw, 1) / scale,
             h: Math.max(this.state.ch, 1) / scale,
         };
+    }
+
+    get view() {
+        return this.viewAt(this.state.vx, this.state.vy);
     }
 
     get viewBoxAttr() {
@@ -524,17 +694,50 @@ export class CompanyMap extends Component {
         return Math.round(this.layout.width * this.scale);
     }
 
-    /** Keep the map in view: centred when narrower than the view, top-aligned when shorter. */
-    clampView() {
+    get panelOpen() {
+        return Boolean(this.state.selectedId || this.state.phasePanelId);
+    }
+
+    /** Screen pixels the open side panel covers at the right (desktop) or bottom (phone). */
+    get panelInsets() {
+        if (!this.panelOpen) {
+            return { right: 0, bottom: 0 };
+        }
+        if (window.matchMedia(SMALL_SCREEN_MEDIA).matches) {
+            return { right: 0, bottom: this.state.ch * SHEET_SHARE };
+        }
+        return { right: Math.min(PANEL_W + 2 * PANEL_GAP, this.state.cw), bottom: 0 };
+    }
+
+    /**
+     * Keep the map in view: centred when narrower than the view, top-aligned
+     * when shorter. While the side panel is open the part it covers does not
+     * count, so the last column can still be moved out from under it.
+     */
+    clampValues(vx, vy) {
         const { w, h } = this.view;
         const layout = this.layout;
-        this.state.vx =
-            layout.width <= w ? (layout.width - w) / 2 : Math.min(Math.max(this.state.vx, 0), layout.width - w);
-        this.state.vy = layout.height <= h ? 0 : Math.min(Math.max(this.state.vy, 0), layout.height - h);
+        const insets = this.panelInsets;
+        const freeW = w - insets.right / this.scale;
+        const freeH = h - insets.bottom / this.scale;
+        return {
+            vx:
+                layout.width <= freeW
+                    ? (layout.width - freeW) / 2
+                    : Math.min(Math.max(vx, 0), layout.width - freeW),
+            vy: layout.height <= freeH ? 0 : Math.min(Math.max(vy, 0), layout.height - freeH),
+        };
+    }
+
+    clampView() {
+        const { vx, vy } = this.clampValues(this.state.vx, this.state.vy);
+        this.state.vx = vx;
+        this.state.vy = vy;
     }
 
     /** Zoom to `zoom`, keeping the map point under (px, py) (container pixels) in place. */
     zoomAt(zoom, px = this.state.cw / 2, py = this.state.ch / 2) {
+        this.commitPan();
         const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
         const from = this.layout;
         const oldScale = this.scale;
@@ -549,16 +752,31 @@ export class CompanyMap extends Component {
     }
 
     /**
+     * Zoom from the controls (slider, stop labels, keys): around the centre,
+     * and when the stop changes while a scenario or the clashes are
+     * highlighted, bring them back into view.
+     */
+    zoomTo(zoom) {
+        const before = this.stop;
+        this.zoomAt(zoom);
+        if (this.stop !== before) {
+            this.revealHighlight();
+        }
+    }
+
+    /**
      * Centre a box (user units of the current layout) in the part of the view
      * not covered by the sticky header and label column, or show its
      * top-left when it does not fit.
      */
     showBox(box) {
+        this.commitPan();
         const { w, h } = this.view;
         const layout = this.layout;
         const margin = 24;
-        const freeW = w - layout.labelW;
-        const freeH = h - layout.lanesTop;
+        const insets = this.panelInsets;
+        const freeW = w - layout.labelW - insets.right / this.scale;
+        const freeH = h - layout.lanesTop - insets.bottom / this.scale;
         this.state.vx =
             box.w + 2 * margin <= freeW
                 ? box.x + box.w / 2 - (layout.labelW + freeW / 2)
@@ -570,35 +788,268 @@ export class CompanyMap extends Component {
         this.clampView();
     }
 
+    /** The free part of the view (user units): not under the sticky bands or the panel. */
+    freeArea(vx = this.state.vx, vy = this.state.vy) {
+        const { w, h } = this.view;
+        const layout = this.layout;
+        const insets = this.panelInsets;
+        const margin = REVEAL_MARGIN_PX / this.scale;
+        return {
+            left: vx + layout.labelW + margin,
+            right: vx + w - insets.right / this.scale - margin,
+            top: vy + layout.lanesTop + margin,
+            bottom: vy + h - insets.bottom / this.scale - margin,
+        };
+    }
+
+    /** Pan as little as needed so the box sits in the free part of the view. */
+    reveal(box) {
+        this.commitPan();
+        const area = this.freeArea();
+        let { vx, vy } = this.state;
+        if (box.x < area.left || box.w > area.right - area.left) {
+            vx -= area.left - box.x;
+        } else if (box.x + box.w > area.right) {
+            vx += box.x + box.w - area.right;
+        }
+        if (box.y < area.top || box.h > area.bottom - area.top) {
+            vy -= area.top - box.y;
+        } else if (box.y + box.h > area.bottom) {
+            vy += box.y + box.h - area.bottom;
+        }
+        if (vx !== this.state.vx || vy !== this.state.vy) {
+            this.state.vx = vx;
+            this.state.vy = vy;
+            this.clampView();
+        }
+    }
+
+    boxOf(item) {
+        return { x: item.x, y: item.y, w: item.width, h: item.height };
+    }
+
+    boundingBox(items) {
+        const xs = items.flatMap((item) => [item.x, item.x + item.width]);
+        const ys = items.flatMap((item) => [item.y, item.y + item.height]);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+    }
+
     pointInContainer(ev) {
         const rect = this.bodyRef.el.getBoundingClientRect();
         return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
     }
 
+    // ------------------------------------------------------------------
+    // Pan outside the render path
+    // ------------------------------------------------------------------
+
+    /** Move the camera without a render; commits once it left the culled margin. */
+    panTo(vx, vy) {
+        const next = this.clampValues(vx, vy);
+        this.live = next;
+        if (
+            Math.abs(next.vx - this.state.vx) > CULL_MARGIN / 2 ||
+            Math.abs(next.vy - this.state.vy) > CULL_MARGIN / 2
+        ) {
+            this.commitPan();
+            return;
+        }
+        if (!this.frame) {
+            this.frame = requestAnimationFrame(() => {
+                this.frame = null;
+                this.paintLive();
+            });
+        }
+    }
+
+    get camera() {
+        return this.live || { vx: this.state.vx, vy: this.state.vy };
+    }
+
+    commitPan() {
+        clearTimeout(this.commitTimer);
+        this.commitTimer = null;
+        if (!this.live) {
+            return;
+        }
+        cancelAnimationFrame(this.frame);
+        this.frame = null;
+        const { vx, vy } = this.live;
+        this.live = null;
+        this.state.vx = vx;
+        this.state.vy = vy;
+    }
+
+    /** Paint the live camera straight onto the SVG: view box, sticky bands, lane labels. */
+    paintLive() {
+        const svg = this.svgRef.el;
+        if (!this.live || !svg) {
+            return;
+        }
+        const { vx, vy } = this.live;
+        const v = this.viewAt(vx, vy);
+        svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+        const sx = Math.max(vx, 0);
+        const sy = Math.max(vy, 0);
+        svg.querySelector(".o_pan_sl_sticky_top")?.setAttribute("transform", `translate(0,${sy})`);
+        svg.querySelector(".o_pan_sl_sticky_left")?.setAttribute("transform", `translate(${sx},0)`);
+        svg.querySelector(".o_pan_sl_sticky_corner")?.setAttribute("transform", `translate(${sx},${sy})`);
+        const lanes = this.layout.lanes;
+        for (const label of svg.querySelectorAll(".o_pan_sl_role_label_group")) {
+            const lane = lanes[parseInt(label.dataset.lane, 10)];
+            if (lane) {
+                label.setAttribute("transform", `translate(0,${this.laneLabelY(lane, vy)})`);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pointer, wheel and keyboard
+    // ------------------------------------------------------------------
+
     onZoomInput(ev) {
-        this.zoomAt(parseFloat(ev.target.value));
+        this.zoomTo(parseFloat(ev.target.value));
+    }
+
+    /** Slider keys: arrows jump to the next or previous stop, Shift+arrow fine-tunes (native). */
+    onZoomKeydown(ev) {
+        const up = ["ArrowRight", "ArrowUp"].includes(ev.key);
+        const down = ["ArrowLeft", "ArrowDown"].includes(ev.key);
+        if ((!up && !down) || ev.shiftKey || ev.altKey || ev.ctrlKey || ev.metaKey) {
+            return;
+        }
+        ev.preventDefault();
+        const zoom = this.state.zoom;
+        const target = up
+            ? STOP_THRESHOLDS.find((threshold) => threshold > zoom + 1e-6) ?? MAX_ZOOM
+            : [...STOP_THRESHOLDS].reverse().find((threshold) => threshold < zoom - 1e-6) ?? MIN_ZOOM;
+        this.zoomTo(target);
     }
 
     onWheel(ev) {
         ev.preventDefault();
         const point = this.pointInContainer(ev);
         if (!ev.ctrlKey && Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) {
-            // Sideways trackpad swipe: pan.
-            this.state.vx += ev.deltaX / this.scale;
-            this.clampView();
+            // Sideways trackpad swipe: pan, committed after a short pause.
+            const { vx, vy } = this.camera;
+            this.panTo(vx + ev.deltaX / this.scale, vy);
+            clearTimeout(this.commitTimer);
+            this.commitTimer = setTimeout(() => this.commitPan(), WHEEL_PAN_COMMIT_MS);
             return;
         }
         const pixels = ev.deltaY * (ev.deltaMode === 1 ? 20 : 1);
         const speed = ev.ctrlKey ? PINCH_WHEEL_SPEED : WHEEL_ZOOM_SPEED;
-        this.zoomAt(this.state.zoom * Math.exp(-pixels * speed), point.x, point.y);
+        // Coalesce wheel events: at most one zoom (and render) per frame.
+        const factor = Math.exp(-pixels * speed);
+        if (this.wheelZoom) {
+            this.wheelZoom.factor *= factor;
+            this.wheelZoom.point = point;
+            return;
+        }
+        this.wheelZoom = { factor, point };
+        this.wheelFrame = requestAnimationFrame(() => {
+            const pending = this.wheelZoom;
+            this.wheelZoom = null;
+            this.wheelFrame = null;
+            this.zoomAt(this.state.zoom * pending.factor, pending.point.x, pending.point.y);
+        });
     }
 
     onDoubleClick(ev) {
-        if (ev.target.closest(".o_pan_sl_chip")) {
+        if (ev.target.closest(".o_pan_sl_chip, .o_pan_sl_link")) {
             return;
         }
         const point = this.pointInContainer(ev);
         this.zoomAt(this.state.zoom + DOUBLE_CLICK_ZOOM, point.x, point.y);
+    }
+
+    /**
+     * Keyboard on the map: arrows pan (Shift: further), Page Up/Down pan a
+     * screen, + and - zoom around the centre, Home fits the whole map.
+     */
+    onMapKeydown(ev) {
+        if (ev.altKey || ev.ctrlKey || ev.metaKey) {
+            return;
+        }
+        const step = (KEY_PAN_PX * (ev.shiftKey ? 3 : 1)) / this.scale;
+        const page = (this.view.h - this.layout.lanesTop) * 0.8;
+        const moves = {
+            ArrowLeft: [-step, 0],
+            ArrowRight: [step, 0],
+            ArrowUp: [0, -step],
+            ArrowDown: [0, step],
+            PageUp: [0, -page],
+            PageDown: [0, page],
+        };
+        if (ev.key in moves) {
+            ev.preventDefault();
+            this.commitPan();
+            const [dx, dy] = moves[ev.key];
+            this.state.vx += dx;
+            this.state.vy += dy;
+            this.clampView();
+        } else if (ev.key === "+" || ev.key === "=") {
+            ev.preventDefault();
+            this.zoomTo(this.state.zoom + KEY_ZOOM_STEP);
+        } else if (ev.key === "-" || ev.key === "_") {
+            ev.preventDefault();
+            this.zoomTo(this.state.zoom - KEY_ZOOM_STEP);
+        } else if (ev.key === "Home") {
+            ev.preventDefault();
+            this.commitPan();
+            this.state.zoom = MIN_ZOOM;
+            this.state.vx = 0;
+            this.state.vy = 0;
+            this.clampView();
+        }
+    }
+
+    /** Keyboard focus on a block or chip moves the camera so it is not hidden. */
+    onMapFocusin(ev) {
+        const el = ev.target.closest && ev.target.closest("[data-item]");
+        if (!el) {
+            return;
+        }
+        this.focusedKey = el.dataset.item;
+        const item = this.layout.itemByKey.get(el.dataset.item);
+        if (item && !this.pressing) {
+            this.reveal(this.boxOf(item));
+        }
+    }
+
+    /** Focus a map item that may be culled: reveal it, then focus it after the render. */
+    focusItem(item) {
+        this.focusedKey = item.key;
+        this.reveal(this.boxOf(item));
+        const selector = `[data-item="${item.key}"]`;
+        const el = this.queryMap(selector);
+        if (el) {
+            el.focus({ preventScroll: true });
+        } else {
+            this.pendingFocus = selector;
+            this.state.revision += 1;
+        }
+    }
+
+    /**
+     * Tab and Shift+Tab walk every block or chip of the stop in map order,
+     * culled ones included; past the first or last the browser takes over.
+     */
+    onItemKeydown(ev, item, activate) {
+        if (ev.key === "Tab" && !ev.altKey && !ev.ctrlKey && !ev.metaKey) {
+            const items = this.layout.items;
+            const next = items[items.indexOf(item) + (ev.shiftKey ? -1 : 1)];
+            if (next) {
+                ev.preventDefault();
+                this.focusItem(next);
+            }
+        } else if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            activate();
+        }
     }
 
     // Drag to pan (mouse, pen and touch); two fingers pinch to zoom.
@@ -606,8 +1057,10 @@ export class CompanyMap extends Component {
         if (ev.pointerType === "mouse" && ev.button !== 0) {
             return;
         }
+        this.pressing = true;
         this.pointers.set(ev.pointerId, this.pointInContainer(ev));
         if (this.pointers.size === 2) {
+            this.commitPan();
             const [a, b] = [...this.pointers.values()];
             this.gesture = {
                 type: "pinch",
@@ -617,13 +1070,8 @@ export class CompanyMap extends Component {
             this.svgRef.el.setPointerCapture(ev.pointerId);
         } else if (this.pointers.size === 1) {
             const point = this.pointers.get(ev.pointerId);
-            this.gesture = {
-                type: "press",
-                pointerId: ev.pointerId,
-                start: point,
-                vx: this.state.vx,
-                vy: this.state.vy,
-            };
+            const { vx, vy } = this.camera;
+            this.gesture = { type: "press", pointerId: ev.pointerId, start: point, vx, vy };
         }
     }
 
@@ -650,13 +1098,12 @@ export class CompanyMap extends Component {
             this.svgRef.el.setPointerCapture(ev.pointerId);
         }
         if (gesture.type === "pan") {
-            this.state.vx = gesture.vx - dx / this.scale;
-            this.state.vy = gesture.vy - dy / this.scale;
-            this.clampView();
+            this.panTo(gesture.vx - dx / this.scale, gesture.vy - dy / this.scale);
         }
     }
 
     onPointerUp(ev) {
+        this.pressing = false;
         if (!this.pointers.has(ev.pointerId)) {
             return;
         }
@@ -669,6 +1116,7 @@ export class CompanyMap extends Component {
         }
         if (!this.pointers.size) {
             this.gesture = null;
+            this.commitPan();
         } else if (this.gesture && this.gesture.type === "pinch") {
             // One finger left after a pinch: continue as a pan from here.
             const [[pointerId, point]] = [...this.pointers.entries()];
@@ -689,22 +1137,25 @@ export class CompanyMap extends Component {
     // Culling: only what is in view (plus a margin) gets rendered
     // ------------------------------------------------------------------
 
-    intersectsView(item) {
-        const v = this.view;
-        return (
-            item.x + item.width >= v.x - CULL_MARGIN &&
-            item.x <= v.x + v.w + CULL_MARGIN &&
-            item.y + item.height >= v.y - CULL_MARGIN &&
-            item.y <= v.y + v.h + CULL_MARGIN
+    visibleItems(items) {
+        const v = this.view; // once per render, not once per item
+        const keep = new Set([this.focusedKey, this.state.selectedId && `c${this.state.selectedId}`]);
+        return items.filter(
+            (item) =>
+                keep.has(item.key) ||
+                (item.x + item.width >= v.x - CULL_MARGIN &&
+                    item.x <= v.x + v.w + CULL_MARGIN &&
+                    item.y + item.height >= v.y - CULL_MARGIN &&
+                    item.y <= v.y + v.h + CULL_MARGIN)
         );
     }
 
     get visibleChips() {
-        return this.layout.chips.filter((chip) => this.intersectsView(chip));
+        return this.visibleItems(this.layout.chips);
     }
 
     get visibleBlocks() {
-        return this.layout.blocks.filter((block) => this.intersectsView(block));
+        return this.visibleItems(this.layout.blocks);
     }
 
     /** Sticky header and label column: they follow the view like map labels. */
@@ -714,6 +1165,16 @@ export class CompanyMap extends Component {
 
     get stickyY() {
         return Math.max(this.state.vy, 0);
+    }
+
+    /**
+     * A role name stays in view inside a lane taller than the screen, like a
+     * sticky section header: below the sticky header, but never past its lane.
+     */
+    laneLabelY(lane, vy = this.state.vy) {
+        const top = lane.y + 22;
+        const bottom = lane.y + lane.height - (lane.role.is_external ? 24 : 8);
+        return Math.max(top, Math.min(Math.max(vy, 0) + this.layout.lanesTop + 22, bottom));
     }
 
     // ------------------------------------------------------------------
@@ -746,25 +1207,42 @@ export class CompanyMap extends Component {
         return [_t("Awareness"), _t("Desire"), _t("Knowledge"), _t("Ability"), _t("Reinforcement")];
     }
 
+    get intro() {
+        if (this.stop === STOP_COMPANY) {
+            return _t(
+                "Your company map: phases run left to right, roles top to bottom. The number in a block is how many activities that role has in that phase; click a block to zoom in."
+            );
+        }
+        return _t(
+            "Click an activity for its details, or a phase name to see who still needs training. Drag, scroll or use the arrow keys to move around."
+        );
+    }
+
     get legend() {
+        let items;
         if (this.state.colorBy === "choices") {
-            return CHOICE_STATES.map((key) => ({
+            items = CHOICE_STATES.map((key) => ({
                 key,
-                className: toneClass(CHOICE_TONES[key]),
+                status: CHOICE_TONES[key],
                 label: this.choiceLabels[key],
             }));
-        }
-        if (this.state.colorBy === "progress") {
-            return RUNGS.map((rung) => ({
+        } else if (this.state.colorBy === "progress") {
+            items = RUNGS.map((rung) => ({
                 key: String(rung),
-                className: toneClass(RUNG_TONES[rung]),
+                status: RUNG_TONES[rung],
                 label: `${rung} ${this.rungLabels[rung]}`,
             }));
+        } else {
+            items = PEOPLE_LEVELS.map((key) => ({
+                key,
+                status: PEOPLE_TONES[key],
+                label: this.peopleLabels[key],
+            }));
         }
-        return PEOPLE_LEVELS.map((key) => ({
-            key,
-            className: toneClass(PEOPLE_TONES[key]),
-            label: this.peopleLabels[key],
+        return items.map((item) => ({
+            ...item,
+            className: toneClass(item.status),
+            glyph: toneGlyph(item.status.tone, 9, 6, 4.5),
         }));
     }
 
@@ -808,8 +1286,37 @@ export class CompanyMap extends Component {
         return this.peopleLabels[status.key];
     }
 
-    dotClass(activity) {
-        return toneClass(this.status(activity));
+    /** The status dot of a chip: tone colour plus a glyph (check, half, cross, dashed). */
+    dotView(activity, cx, cy) {
+        const status = this.status(activity);
+        const r = 5.5;
+        return { cx, cy, r, className: toneClass(status), glyph: toneGlyph(status.tone, cx, cy, r) };
+    }
+
+    /** Accessible name of a chip: everything the chip shows, not only its colour. */
+    chipAriaLabel(chip) {
+        const activity = chip.activity;
+        const parts = [
+            activity.name,
+            this.statusLabel(this.status(activity)),
+            _t("rung %(rung)s of %(max)s, %(label)s", {
+                rung: activity.rung,
+                max: MAX_RUNG,
+                label: this.rungLabels[activity.rung],
+            }),
+        ];
+        if (isClash(activity)) {
+            parts.push(_t("clash"));
+        }
+        if (activity.open_point) {
+            parts.push(_t("open point: %s", activity.open_point));
+        }
+        parts.push(
+            chip.role.users.length
+                ? _t("users: %s", chip.role.users.join(", "))
+                : _t("nobody holds this role yet")
+        );
+        return parts.join(", ");
     }
 
     get selectedScenario() {
@@ -821,10 +1328,18 @@ export class CompanyMap extends Component {
         return !scenario || scenario.activity_ids.includes(activityId);
     }
 
+    /** Faded out: not in the selected scenario, or not a clash while clashes are shown. */
+    isDimmed(activity) {
+        return !this.inScenario(activity.id) || (this.state.highlight === "clashes" && !isClash(activity));
+    }
+
     chipClass(chip) {
         const classes = [];
-        if (!this.inScenario(chip.id)) {
+        if (this.isDimmed(chip.activity)) {
             classes.push("o_pan_sl_dim");
+        }
+        if (isClash(chip.activity)) {
+            classes.push("o_pan_sl_clash");
         }
         if (this.state.selectedId === chip.id) {
             classes.push("o_pan_sl_selected");
@@ -844,36 +1359,43 @@ export class CompanyMap extends Component {
             counts.get(status.key).count += 1;
         }
         const total = block.activities.length;
+        const clashes = block.activities.filter(isClash).length;
         let x = block.x;
         const groups = [...counts.values()].sort(
             (a, b) => order.indexOf(a.status.key) - order.indexOf(b.status.key)
         );
         const segments = groups.map(({ status, count }) => {
             const width = (block.width * count) / total;
-            const segment = { key: status.key, x, width, className: toneClass(status) };
+            const glyph = width >= 18 ? toneGlyph(status.tone, x + 9, block.y + 9, 5) : false;
+            const segment = { key: status.key, x, width, className: toneClass(status), glyph };
             x += width;
             return segment;
         });
         const summary = groups
             .map(({ status, count }) => `${count} ${this.statusLabel(status)}`)
             .join(", ");
-        const dim = Boolean(this.selectedScenario) && !block.activities.some((a) => this.inScenario(a.id));
+        const dim = block.activities.every((a) => this.isDimmed(a));
         return {
             segments,
             count: total,
+            clashes,
             dim,
             clipId: `o_pan_sl_clip_${block.key}`,
-            title: _t("%(role)s in %(phase)s: %(count)s activities (%(summary)s). Click to zoom in.", {
+            title: _t("%(role)s in %(phase)s: %(count)s activities (%(summary)s)%(clashes)s. Click to zoom in.", {
                 role: block.role.name,
                 phase: block.phase.name,
                 count: total,
                 summary,
+                clashes: clashes ? _t(", %s clash(es)", clashes) : "",
             }),
         };
     }
 
-    /** Stop 3+: what a chip shows besides its name. */
+    /** Stop 3+: what a chip shows besides its name (static per layout: computed once). */
     chipExtras(chip) {
+        if (chip.extras) {
+            return chip.extras;
+        }
         const users = chip.role.users;
         const shown = users.slice(0, MAX_INITIALS);
         const extraUsers = users.length - shown.length;
@@ -887,7 +1409,7 @@ export class CompanyMap extends Component {
         const usersW = shown.length ? shown.length * INITIAL_STEP + (extraUsers ? 16 : 0) : 22;
         const model = chip.activity.model || "";
         const modelX = 10 + MAX_RUNG * 9 + 26;
-        return {
+        chip.extras = {
             users: userItems,
             noUsers: !users.length,
             noUsersX: rightEdge,
@@ -908,10 +1430,14 @@ export class CompanyMap extends Component {
                 : _t("no model"),
             hasModel: Boolean(model),
         };
+        return chip.extras;
     }
 
-    /** Stop 4: lines under a chip (tasks, then the first step of the click path). */
+    /** Stop 4: lines under a chip (tasks, then the first step of the click path); computed once. */
     chipDetailLines(chip) {
+        if (chip.detailLines) {
+            return chip.detailLines;
+        }
         const detail = chip.detail || { tasks: [], click_path: false };
         const chars = charsFor(chip.width - 44, SMALL_CHAR_W);
         const lines = [];
@@ -950,6 +1476,7 @@ export class CompanyMap extends Component {
                 : _t("No click path yet"),
             title: detail.click_path || _t("No click path yet"),
         });
+        chip.detailLines = lines;
         return lines;
     }
 
@@ -976,6 +1503,44 @@ export class CompanyMap extends Component {
         };
     }
 
+    /** Chips that are highlighted right now, in order: the scenario route, else the clashes. */
+    get highlightedChips() {
+        if (this.stop === STOP_COMPANY) {
+            return [];
+        }
+        const route = this.route;
+        if (route) {
+            return route.stops;
+        }
+        if (this.state.highlight === "clashes") {
+            return this.layout.chips.filter((chip) => isClash(chip.activity));
+        }
+        return [];
+    }
+
+    /** When none of the highlighted chips is in view, show them all, or the first one. */
+    revealHighlight() {
+        const chips = this.highlightedChips;
+        if (!chips.length) {
+            return;
+        }
+        const area = this.freeArea();
+        const inView = chips.some(
+            (chip) =>
+                chip.x + chip.width > area.left &&
+                chip.x < area.right &&
+                chip.y + chip.height > area.top &&
+                chip.y < area.bottom
+        );
+        if (inView) {
+            return;
+        }
+        const box = this.boundingBox(chips.map(withBadgeRoom));
+        const free = this.freeArea(0, 0);
+        const fits = box.w <= free.right - free.left && box.h <= free.bottom - free.top;
+        this.showBox(fits ? box : this.boxOf(chips[0]));
+    }
+
     // ------------------------------------------------------------------
     // Controls
     // ------------------------------------------------------------------
@@ -990,15 +1555,13 @@ export class CompanyMap extends Component {
         if (!scenarioId) {
             return;
         }
+        this.state.highlight = false;
         // Jump to "Processes" and fit the route.
+        this.commitPan();
         this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
         const route = this.route;
         if (route && route.stops.length) {
-            const xs = route.stops.flatMap((chip) => [chip.x - 14, chip.x + chip.width]);
-            const ys = route.stops.flatMap((chip) => [chip.y, chip.y + chip.height]);
-            const x = Math.min(...xs);
-            const y = Math.min(...ys);
-            this.showBox({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y });
+            this.showBox(this.boundingBox(route.stops.map(withBadgeRoom)));
         }
     }
 
@@ -1006,65 +1569,144 @@ export class CompanyMap extends Component {
         this.state.colorBy = ev.target.value;
     }
 
+    /** Clicking a clash counter: fade everything else and zoom to the clashes (of one phase). */
+    showClashes(phaseId = false) {
+        const clashes = this.data.activities.filter(
+            (a) => isClash(a) && (!phaseId || a.phase_id === phaseId)
+        );
+        if (!clashes.length) {
+            return;
+        }
+        this.state.highlight = "clashes";
+        this.state.scenarioId = false;
+        this.commitPan();
+        if (this.stop === STOP_COMPANY) {
+            this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
+        }
+        const chips = clashes.map((a) => this.layout.chipById.get(a.id)).filter((chip) => chip);
+        if (chips.length) {
+            const box = this.boundingBox(chips);
+            const free = this.freeArea(0, 0);
+            const fits = box.w <= free.right - free.left && box.h <= free.bottom - free.top;
+            this.showBox(fits ? box : this.boxOf(chips[0]));
+        }
+    }
+
+    clearHighlight() {
+        this.state.highlight = false;
+    }
+
+    onLinkKeydown(ev, callback) {
+        if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            callback();
+        }
+    }
+
+    get clashCount() {
+        return this.layout.totals.clashes;
+    }
+
     /** Stop 1: clicking a cell zooms in to "Processes" on that cell. */
-    onBlockClick(block) {
+    onBlockClick(block, { focus = false } = {}) {
+        this.commitPan();
         this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
         const cellChips = this.layout.chips.filter(
             (chip) => chip.role.id === block.role.id && chip.activity.phase_id === block.phase.id
         );
-        const x = Math.min(...cellChips.map((c) => c.x));
-        const y = Math.min(...cellChips.map((c) => c.y));
-        const x2 = Math.max(...cellChips.map((c) => c.x + c.width));
-        const y2 = Math.max(...cellChips.map((c) => c.y + c.height));
-        this.showBox({ x, y, w: x2 - x, h: y2 - y });
-    }
-
-    onBlockKeydown(ev, block) {
-        if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            this.onBlockClick(block);
+        this.showBox(this.boundingBox(cellChips));
+        if (focus && cellChips.length) {
+            // Keyboard: the block is gone at this stop; focus moves to its first chip.
+            this.focusedKey = cellChips[0].key;
+            this.pendingFocus = `[data-item="${cellChips[0].key}"]`;
         }
     }
 
     // ------------------------------------------------------------------
-    // Side panel
+    // Side panel: one activity, or who still needs training in a phase
     // ------------------------------------------------------------------
+
+    rememberFocus() {
+        if (!this.panelOpen) {
+            const active = document.activeElement;
+            this.lastFocused = active;
+            this.returnKey = active && active.dataset ? active.dataset.item || null : null;
+        }
+    }
+
+    focusPanelTitle(changed) {
+        if (changed) {
+            this.pendingFocus = ".o_pan_sl_panel_title";
+        } else {
+            this.queryMap(".o_pan_sl_panel_title")?.focus({ preventScroll: true });
+        }
+    }
 
     openPanel(activityId) {
-        if (!this.state.selectedId) {
-            this.lastFocused = document.activeElement;
-        }
+        this.rememberFocus();
+        const changed = this.state.selectedId !== activityId || Boolean(this.state.phasePanelId);
+        this.state.phasePanelId = false;
         this.state.selectedId = activityId;
+        // Keep the chip visible next to the panel, not under it.
+        const chip = this.layout.chipById.get(activityId);
+        if (chip) {
+            this.reveal(this.boxOf(chip));
+        }
+        this.focusPanelTitle(changed);
     }
 
-    onChipKeydown(ev, activityId) {
-        if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            this.openPanel(activityId);
-        }
+    openPhasePanel(phaseId) {
+        this.rememberFocus();
+        const changed = this.state.phasePanelId !== phaseId || Boolean(this.state.selectedId);
+        this.state.selectedId = false;
+        this.state.phasePanelId = phaseId;
+        this.focusPanelTitle(changed);
     }
 
     closePanel() {
         this.state.selectedId = false;
-        if (this.lastFocused && this.lastFocused.isConnected) {
-            this.lastFocused.focus();
+        this.state.phasePanelId = false;
+        this.clampView();
+        const item = this.returnKey && this.layout.itemByKey.get(this.returnKey);
+        if (item) {
+            this.focusItem(item);
+        } else if (this.lastFocused && this.lastFocused.isConnected) {
+            this.lastFocused.focus({ preventScroll: true });
         }
         this.lastFocused = null;
+        this.returnKey = null;
+    }
+
+    trainingRows(training) {
+        return training.map((person) => ({
+            ...person,
+            label: person.trained ? _t("Trained") : _t("Needs training"),
+            className: toneClass(person.trained ? PEOPLE_TONES.ready : PEOPLE_TONES.partly),
+        }));
     }
 
     get panel() {
         if (!this.state.selectedId) {
             return false;
         }
-        const activity = this.data.activities.find((a) => a.id === this.state.selectedId);
+        const activity = this.activityById.get(this.state.selectedId);
         const role = this.roleById.get(activity.role_id);
         const detail = this.details.get(activity.id) || { tasks: [], click_path: false };
+        const choiceStatus = CHOICE_TONES[activity.choice_state];
         return {
             activity,
             role,
-            phase: this.data.phases.find((phase) => phase.id === activity.phase_id),
+            phase: this.phaseById.get(activity.phase_id),
             choiceLabel: this.choiceLabels[activity.choice_state],
-            choiceClass: toneClass(CHOICE_TONES[activity.choice_state]),
+            choiceDot: {
+                cx: 7,
+                cy: 7,
+                r: 5.5,
+                className: toneClass(choiceStatus),
+                glyph: toneGlyph(choiceStatus.tone, 7, 7, 5.5),
+            },
+            isClash: isClash(activity),
             rungLabel: `${activity.rung} ${this.rungLabels[activity.rung]}`,
             tasks: detail.tasks.map((task) => ({
                 ...task,
@@ -1074,12 +1716,60 @@ export class CompanyMap extends Component {
             scenarios: activity.scenario_ids
                 .map((id) => this.scenarioById.get(id))
                 .filter((scenario) => scenario),
+            training: this.trainingRows(activity.training),
+            toTrain: activity.training.filter((person) => !person.trained).length,
             adkar: role.adkar
                 ? role.adkar.map((value, index) => ({
                       label: this.adkarLabels[index],
                       value: value.toFixed(1),
                   }))
                 : false,
+        };
+    }
+
+    /** Who still needs training for the activities of one phase (trained = rung 4 or higher). */
+    get phasePanel() {
+        if (!this.state.phasePanelId) {
+            return false;
+        }
+        const phase = this.phaseById.get(this.state.phasePanelId);
+        const activities = this.data.activities.filter((a) => a.phase_id === phase.id);
+        const people = new Map();
+        const unstaffed = new Set();
+        for (const activity of activities) {
+            if (!activity.training.length) {
+                unstaffed.add(this.roleById.get(activity.role_id).name);
+            }
+            for (const person of activity.training) {
+                if (!people.has(person.id)) {
+                    people.set(person.id, { id: person.id, name: person.name, total: 0, open: [] });
+                }
+                const entry = people.get(person.id);
+                entry.total += 1;
+                if (!person.trained) {
+                    entry.open.push(activity);
+                }
+            }
+        }
+        const rows = [...people.values()]
+            .map((entry) => ({
+                ...entry,
+                trained: !entry.open.length,
+                label: entry.open.length ? _t("Needs training") : _t("Trained"),
+                className: toneClass(entry.open.length ? PEOPLE_TONES.partly : PEOPLE_TONES.ready),
+                progress: _t("%(done)s of %(total)s activities trained", {
+                    done: entry.total - entry.open.length,
+                    total: entry.total,
+                }),
+            }))
+            .sort((a, b) => b.open.length - a.open.length || a.name.localeCompare(b.name));
+        const toTrain = rows.filter((row) => !row.trained);
+        return {
+            phase,
+            count: activities.length,
+            rows,
+            toTrain: toTrain.map((row) => row.name).join(", "),
+            unstaffed: [...unstaffed].sort(),
         };
     }
 
@@ -1103,8 +1793,12 @@ export class CompanyMap extends Component {
         });
     }
 
+    /** Empty state: open the wizard on "Load a template"; reload the map when it closes. */
     async openTemplateWizard() {
-        await this.actionService.doAction("pan_self_learning_blueprint.action_blueprint_wizard");
+        await this.actionService.doAction("pan_self_learning_blueprint.action_blueprint_wizard", {
+            additionalContext: { default_mode: "template" },
+            onClose: () => this.load(),
+        });
     }
 }
 

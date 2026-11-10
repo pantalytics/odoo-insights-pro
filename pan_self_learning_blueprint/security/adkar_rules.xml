@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ADKAR scores are personal assessments: a Blueprint user reads only their own,
+         a Blueprint administrator (the change manager) reads and edits all of them.
+         Role profiles on the company map are computed with sudo and only shown as an
+         aggregate over at least three users (models/adkar.py). -->
+    <record id="rule_adkar_score_own" model="ir.rule">
+        <field name="name">ADKAR score: own scores only</field>
+        <field name="model_id" ref="model_pan_sl_adkar_score"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[Command.link(ref('group_blueprint_user'))]"/>
+    </record>
+
+    <record id="rule_adkar_score_manager_all" model="ir.rule">
+        <field name="name">ADKAR score: administrators see all scores</field>
+        <field name="model_id" ref="model_pan_sl_adkar_score"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('group_blueprint_manager'))]"/>
+    </record>
+</odoo>

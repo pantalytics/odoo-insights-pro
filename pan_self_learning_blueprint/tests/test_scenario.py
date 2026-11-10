@@ -57,3 +57,26 @@ class TestScenario(BlueprintCase):
         ours = [("code", "like", "t_act_%")]
         found = self.Activity.search(ours + [("scenario_ids", "not in", scenario.ids)])
         self.assertEqual(found, self.act_b | self.act_c)
+
+    def test_search_activity_scenario_not_set(self):
+        """("scenario_ids", "=", False): the activities in no scenario route at all."""
+        self._make_scenario("t_scen_unset", [(10, self.act_a), (20, self.act_b)])
+        ours = [("code", "like", "t_act_%")]
+        self.assertEqual(self.Activity.search(ours + [("scenario_ids", "=", False)]), self.act_c)
+        self.assertEqual(self.Activity.search(ours + [("scenario_ids", "!=", False)]), self.act_a | self.act_b)
+
+    def test_search_activity_scenario_set_counts_match(self):
+        """"Is set" and "is not set" split the activities without overlap or gap."""
+        self._make_scenario("t_scen_split", [(10, self.act_b)])
+        total = self.Activity.search_count([])
+        unset = self.Activity.search_count([("scenario_ids", "=", False)])
+        is_set = self.Activity.search_count([("scenario_ids", "!=", False)])
+        self.assertEqual(unset + is_set, total)
+        self.assertEqual(is_set, len(self.Step.search([]).activity_id))
+
+    def test_search_activity_scenario_ids_or_unset(self):
+        scenario = self._make_scenario("t_scen_mixed", [(10, self.act_a)])
+        self._make_scenario("t_scen_other", [(10, self.act_b)])
+        ours = [("code", "like", "t_act_%")]
+        found = self.Activity.search(ours + [("scenario_ids", "in", [scenario.id, False])])
+        self.assertEqual(found, self.act_a | self.act_c)

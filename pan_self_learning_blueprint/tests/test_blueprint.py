@@ -327,9 +327,133 @@ class TestBlueprint(BlueprintCase):
         self.assertEqual(self.Phase.search_count([]), phases_before)
 
     def test_wizard_template_required(self):
-        wizard = self.Wizard.create({"mode": "template"})
+        wizard = self.Wizard.create({"mode": "template", "template": False})
         with self.assertRaises(UserError):
             wizard.action_load_template()
+
+    def test_wizard_preselects_the_only_template(self):
+        templates = self.Wizard._fields["template"].get_values(self.env)
+        wizard = self.Wizard.create({"mode": "template"})
+        if len(templates) == 1:
+            self.assertEqual(wizard.template, templates[0])
+        else:
+            self.assertFalse(wizard.template)
+
+    # ------------------------------------------------------------------
+    # loading a template again never overwrites company decisions
+    # ------------------------------------------------------------------
+
+    def _load_template(self):
+        wizard = self.Wizard.create({"mode": "template", "template": self._template_key()})
+        wizard.action_load_template()
+        return wizard
+
+    def test_template_reload_keeps_company_edits(self):
+        self._load_template()
+        activity = self.Activity.search([("code", "=", "customer_create")])
+        self.assertTrue(activity)
+        scenario = self.Scenario.search([("code", "=", "S01")])
+        own_step_activity = self.act_c
+        activity.write(
+            {
+                "choice_state": "revised",
+                "click_path": "<p>Our own click path</p>",
+                "open_point": "Our own open point",
+                "name": "Our own name",
+            }
+        )
+        scenario.step_ids.unlink()
+        scenario.write({"step_ids": [Command.create({"sequence": 5, "activity_id": own_step_activity.id})]})
+        role = activity.role_id
+        role.is_external = not role.is_external
+        external = role.is_external
+
+        self._load_template()
+        self.assertEqual(activity.choice_state, "revised")
+        self.assertIn("Our own click path", activity.click_path)
+        self.assertEqual(activity.open_point, "Our own open point")
+        self.assertEqual(activity.name, "Our own name")
+        self.assertEqual(scenario.activity_ids, own_step_activity, "A company's own route must be kept.")
+        self.assertEqual(role.is_external, external)
+
+    def test_template_reload_fills_empty_fields(self):
+        self._load_template()
+        activity = self.Activity.search([("code", "=", "customer_create")])
+        self.assertEqual(activity.model_id.model, "res.partner")
+        activity.write({"model_id": False, "click_path": False})
+        phase = self.Phase.search([("code", "=", "master_data")])
+        own_model = self.env["ir.model"]._get("res.users")
+        phase.model_ids = [Command.set(own_model.ids)]
+        scenario = self.Scenario.search([("code", "=", "S01")])
+        scenario.step_ids.unlink()
+
+        self._load_template()
+        self.assertEqual(activity.model_id.model, "res.partner", "An empty model link is filled in again.")
+        self.assertIn("Contacts, New", activity.click_path)
+        self.assertIn(own_model, phase.model_ids, "Phase models the company added are kept.")
+        self.assertIn("res.partner", phase.model_ids.mapped("model"), "Installed template models are added.")
+        self.assertEqual(scenario.activity_ids, activity, "A scenario without steps gets the template route.")
+
+    def test_template_lists_missing_apps(self):
+        """On a database without e.g. Sales the wizard names the app, not only the model."""
+        Module = self.env["ir.module.module"].sudo()
+        installed = Module.search([("state", "=", "installed")]).mapped("name")
+        if "sale_management" in installed:
+            self.skipTest("Sales is installed in this database, so nothing is missing.")
+        wizard = self._load_template()
+        self.assertTrue(wizard.warning, "Missing apps must be listed in the warning.")
+        sales = Module.search([("name", "=", "sale_management")])
+        if sales:
+            self.assertIn(sales.shortdesc, wizard.warning)
+        unlinked = self.Activity.search(
+            [("model_id", "=", False), ("code", "in", self._template_codes("activities"))]
+        )
+        self.assertTrue(unlinked, "Activities of missing apps are loaded without a model link.")
+
+    def _template_codes(self, section):
+        with file_open(TEMPLATE_PATH, "rb") as handle:
+            return [item["code"] for item in json.loads(handle.read())[section]]
+
+    def test_strict_import_still_overwrites(self):
+        """A file import (not a template) stays the way to change decisions in bulk."""
+        self.Blueprint.import_blueprint(self._minimal())
+        activity = self.Activity.search([("code", "=", "t_bp_act")])
+        activity.choice_state = "fixed"
+        self.Blueprint.import_blueprint(self._minimal())
+        self.assertEqual(activity.choice_state, "proposal")
+
+    # ------------------------------------------------------------------
+    # language
+    # ------------------------------------------------------------------
+
+    def test_export_is_in_english_whatever_the_user_language(self):
+        self.env["res.lang"]._activate_lang("nl_NL")
+        self.act_a.with_context(lang="en_US").name = "English name"
+        self.act_a.with_context(lang="nl_NL").name = "Nederlandse naam"
+        data = self.Blueprint.with_context(lang="nl_NL").export_blueprint()
+        self.assertEqual(data["lang"], "en_US")
+        item = next(item for item in data["activities"] if item["code"] == "t_act_a")
+        self.assertEqual(item["name"], "English name")
+
+        self.Blueprint.with_context(lang="nl_NL").import_blueprint(data)
+        self.assertEqual(self.act_a.with_context(lang="en_US").name, "English name")
+        self.assertEqual(self.act_a.with_context(lang="nl_NL").name, "Nederlandse naam")
+
+    def test_import_writes_names_in_the_file_language(self):
+        self.env["res.lang"]._activate_lang("nl_NL")
+        self.Blueprint.import_blueprint(self._minimal())
+        data = self._minimal(lang="nl_NL")
+        data["activities"][0]["name"] = "Activiteit"
+        self.Blueprint.import_blueprint(data)
+        activity = self.Activity.search([("code", "=", "t_bp_act")])
+        self.assertEqual(activity.with_context(lang="nl_NL").name, "Activiteit")
+        self.assertEqual(activity.with_context(lang="en_US").name, "Activity")
+
+    def test_import_refuses_inactive_language(self):
+        with self.assertRaises(UserError) as caught:
+            self.Blueprint.import_blueprint(self._minimal(lang="xx_XX"))
+        self.assertIn("xx_XX", str(caught.exception))
+        self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]))
 
     def test_wizard_export_then_import(self):
         wizard = self.Wizard.create({"mode": "export"})

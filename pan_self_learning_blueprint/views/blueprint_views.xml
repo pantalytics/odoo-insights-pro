@@ -16,7 +16,7 @@
                         <field name="mode" widget="radio" options="{'horizontal': true}"/>
                         <field name="file" filename="filename" invisible="mode != 'import'" required="mode == 'import'"/>
                         <field name="filename" invisible="1"/>
-                        <field name="template" invisible="mode != 'template'" required="mode == 'template'"/>
+                        <field name="template" widget="radio" invisible="mode != 'template'" required="mode == 'template'"/>
                     </group>
                     <div class="text-muted" invisible="mode != 'import'">
                         The import is strict: a file that names an Odoo model of an app that is not
@@ -25,14 +25,22 @@
                     <div class="text-muted" invisible="mode != 'template'">
                         Templates are written for a full installation. Models of apps that are not
                         installed are skipped: the records are imported without that model link and
-                        the result lists the skipped models.
+                        the result lists the apps to install. Loading a template again only adds what
+                        is missing and fills empty links; your own choices, click paths, open points
+                        and scenario steps are kept.
                     </div>
                     <div class="text-muted" invisible="mode != 'export'">
                         Downloads the current model as blueprint.json.
                     </div>
-                    <group invisible="not result">
-                        <field name="result" nolabel="1" colspan="2"/>
-                    </group>
+                    <div class="alert alert-success mt-3 mb-2" role="status" invisible="not result">
+                        <field name="result" nolabel="1"/>
+                    </div>
+                    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert"
+                         invisible="not warning">
+                        <field name="warning" nolabel="1" class="flex-grow-1"/>
+                        <button name="%(base.open_module_tree)d" type="action" string="Open Apps"
+                                icon="fa-th-large" class="btn btn-secondary" groups="base.group_system"/>
+                    </div>
                 </sheet>
                 <footer>
                     <button name="action_import" string="Import" type="object" class="btn-primary"

@@ -1,10 +1,11 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class PanSlProcess(models.Model):
     """L2: a business process inside a value chain."""
 
     _name = "pan.sl.process"
+    _inherit = ["pan.sl.structure.mixin"]
     _description = "Blueprint Process"
     _order = "sequence, id"
 
@@ -55,16 +56,12 @@ class PanSlProcess(models.Model):
         "A process with this code already exists. Process codes must be unique.",
     )
 
+    @api.depends("activity_ids")
     def _compute_activity_count(self):
-        counts = dict(
-            self.env["pan.sl.activity"]._read_group(
-                [("process_id", "in", self.ids)],
-                groupby=["process_id"],
-                aggregates=["__count"],
-            )
-        )
-        for process in self:
-            process.activity_count = counts.get(process, 0)
+        self._compute_count_by("pan.sl.activity", "process_id", "activity_count")
+
+    def action_view_activities(self):
+        return self._action_open_activities("process_id")
 
 
 class PanSlActivity(models.Model):
@@ -72,7 +69,7 @@ class PanSlActivity(models.Model):
 
     _name = "pan.sl.activity"
     _description = "Blueprint Activity"
-    _inherit = ["mail.thread"]
+    _inherit = ["mail.thread", "pan.sl.structure.mixin"]
     _order = "sequence, id"
 
     name = fields.Char(

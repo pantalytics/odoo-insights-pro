@@ -1,12 +1,29 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+# Readiness gates of an activity, kept on its tasks (project.task.pan_rung)
+# and shown on activities and scenarios as rung_state.
+RUNG_SELECTION = [
+    ("0", "Open"),
+    ("1", "Decided"),
+    ("2", "Built"),
+    ("3", "Tested"),
+    ("4", "Trained"),
+    ("5", "Live"),
+]
+
+# Task state of a cancelled task (project). Cancelled tasks do not count for
+# the rung or the hours of an activity or scenario.
+CANCELLED_STATE = "1_canceled"
+
 
 class PanSlStructureMixin(models.AbstractModel):
-    """Shared behaviour for the structural blueprint records (chain, phase, role).
+    """Shared behaviour for every blueprint record matched on ``code``.
 
-    Every structural record is matched on its ``code`` by the blueprint
-    import/export, so the code must be present, trimmed and unique.
+    Used by chain, phase, role, process, activity and scenario. The blueprint
+    import/export matches all of them on their ``code`` (it is also the key in
+    the exported JSON), so the code must be present, trimmed and unique.
+    Also offers the count and "open activities" helpers for smart buttons.
     """
 
     _name = "pan.sl.structure.mixin"

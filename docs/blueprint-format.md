@@ -9,29 +9,72 @@ people and ADKAR scores are not part of a blueprint.
 {
   "format": "pantalytics-blueprint",
   "version": 1,
+  "lang": "en_US",
   "name": "Generic manufacturer",
-  "chains":    [{"code": "lead_to_cash", "name": "Lead to Cash", "sequence": 20}],
+  "chains":    [{"code": "lead_to_cash", "name": "Lead to Cash", "sequence": 20,
+                 "description": "From the first contact to the payment."}],
   "phases":    [{"code": "quotation", "name": "Quotation", "sequence": 30,
                  "models": ["sale.order"], "apps": ["Sales"]}],
-  "roles":     [{"code": "sales", "name": "Sales", "sequence": 30, "external": false}],
-  "processes": [{"code": "quote_approve", "name": "Quote and approve",
+  "roles":     [{"code": "sales", "name": "Sales", "sequence": 30, "external": false,
+                 "description": "Inside sales and account managers."}],
+  "processes": [{"code": "quote_approve", "name": "Quote and approve", "sequence": 10,
                  "chain": "lead_to_cash", "owner_role": "sales"}],
-  "activities":[{"code": "quote_draft", "name": "Draft the quotation",
+  "activities":[{"code": "quote_draft", "name": "Draft the quotation", "sequence": 10,
                  "process": "quote_approve", "role": "sales", "phase": "quotation",
                  "model": "sale.order", "choice_state": "fixed",
                  "open_point": "", "click_path": "<ol><li>Sales, New</li></ol>"}],
-  "scenarios": [{"code": "S13", "name": "Approve a quotation",
+  "scenarios": [{"code": "S13", "name": "Approve a quotation", "sequence": 130,
                  "description": "Internal check is not the customer's approval.",
-                 "open_point": "", "steps": ["quote_draft"]}]
+                 "open_point": "",
+                 "steps": ["quote_draft",
+                           {"activity": "quote_send", "note": "Use test customer A"}]}]
 }
 ```
 
-Rules:
+## Keys per section
+
+| Section | Required for a new record | Optional |
+|---|---|---|
+| chains | `code`, `name` | `sequence`, `description` |
+| phases | `code`, `name` | `sequence`, `models` (technical model names), `apps` (labels shown as chips in the Odoo band) |
+| roles | `code`, `name` | `sequence`, `external` (customer, supplier), `description` |
+| processes | `code`, `name`, `chain` | `sequence`, `owner_role` |
+| activities | `code`, `name`, `process`, `role`, `phase` | `sequence`, `model`, `choice_state` (`proposal`, `provisional`, `fixed`, `revised`), `open_point`, `click_path` (HTML) |
+| scenarios | `code`, `name` | `sequence`, `description`, `open_point`, `steps` |
+
+A code has no spaces. `sequence` is a whole number.
+
+## Rules
+
 - `format` and `version` are required; another value is refused.
-- Every reference (`chain`, `role`, `phase`, `process`, `steps`) must name a
-  code in the same file or already in the database. Otherwise the import
-  stops and names the missing code.
-- `model` is a technical model name; an unknown model is refused with its
-  name (the app may not be installed).
-- Import creates and updates, never deletes.
+- `lang` is the language the names are written in. An export always writes
+  the English source values with `"lang": "en_US"`, whatever the language of
+  the user who exports. An import writes the names in that language (`en_US`
+  when the key is left out). A language that is not active in the database
+  is refused.
+- Every reference (`chain`, `owner_role`, `role`, `phase`, `process`,
+  `steps`) must name a code in the same file or already in the database.
+  Otherwise the import stops and names every missing code.
+- A step is an activity code, or an object `{"activity": code, "note": text}`
+  when the step needs a note (for example the test data to use). The export
+  writes the object form only for steps with a note.
+- Keys left out of an item are not changed on update.
+- `model` (and each entry of `models`) is a technical model name. Importing a
+  file is strict: an unknown model refuses the whole file and names the model
+  (the app may not be installed).
+- Import creates and updates, never deletes. Importing a file replaces the
+  steps of every scenario that lists `steps`.
+- Loading a bundled template is lenient and never overwrites the company's
+  own work:
+  - an unknown model leaves the link empty, and the result names the apps to
+    install;
+  - missing records are created;
+  - on existing records only empty values are filled (name, description,
+    sequence, open point, click path, model link, app labels), and phase
+    models are added, never removed;
+  - choice states, the external flag, references and the steps of a
+    scenario that already has steps are kept.
+
+  So after installing a missing app, load the template again to fill in the
+  links.
 - Export writes all records in this format, ordered by sequence.

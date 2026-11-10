@@ -105,11 +105,20 @@ implementation is, per activity, on one company map.
   A **scenario** is a test route across processes.
 - **Readiness.** Project tasks get a scenario, the activities they move
   forward and a rung: 0 Open, 1 Decided, 2 Built, 3 Tested, 4 Trained,
-  5 Live. An activity is as far as its least advanced task. Choices per
-  activity go proposal → provisional → fixed → revised, with the history in
-  the chatter.
-- **People.** ADKAR scores (awareness, desire, knowledge, ability,
-  reinforcement) per user, averaged per role on the map.
+  5 Live. An activity is as far as its least advanced task, counted over all
+  its tasks (also the ones you cannot open) so everyone sees the same
+  progress; cancelled tasks are left out. Choices per activity go proposal →
+  provisional → fixed → revised, with the history in the chatter.
+- **Hours.** Planned (allocated) and spent (timesheet) hours per activity and
+  scenario, summed from the linked tasks, cancelled tasks left out. A task on
+  several activities counts for each of them, and once per scenario.
+  Estimates and timesheets stay on the tasks.
+- **People.** The map shows, per activity and per phase, which users of a
+  role still need training (an activity counts as trained from rung 4).
+  ADKAR scores (awareness, desire, knowledge, ability, reinforcement) are
+  personal: users see only their own, administrators see all of them and the
+  notes. The map shows a role's average only once at least three of its
+  users have a score.
 - **Open format.** The whole model imports and exports as one JSON blueprint
   (`docs/blueprint-format.md`). Records match on `code`, so importing again
   updates and never deletes. A blueprint holds no personal data.
@@ -122,16 +131,26 @@ concept in the model, and nothing ends at go-live.
 
 1. Put the `pan_self_learning_blueprint` folder on your Odoo 19 addons path.
 2. Update the apps list and install **Odoo Self Learning: Blueprint**. It
-   depends on `project`, `mail` and `web` only.
+   depends on `project`, `hr_timesheet` (for planned and spent hours), `mail`
+   and `web`. `hr_timesheet` also installs the Timesheets and Employees apps
+   (with analytic accounting), so on a database that does not use them yet
+   the install adds them.
 3. Give people access under **Settings, Users**: *Blueprint / User* opens the
-   map and reads the model, *Blueprint / Administrator* edits it and imports
-   or exports blueprints. System administrators get Administrator.
+   map and reads the model and their own ADKAR scores, *Blueprint /
+   Administrator* edits the model, records everyone's ADKAR scores and notes,
+   and imports or exports blueprints. System administrators get
+   Administrator.
 
 ### Load the template
 
-Open **Blueprint, Blueprint, Import / export**, choose *Load a template*,
-pick the bundled template (`data/blueprints/`) and press **Load template**.
-Models of apps that are not installed are skipped and listed in the result.
+Open **Blueprint, Import / export, Load a template, import or export**,
+choose *Load a template* (the bundled template in `data/blueprints/` is
+preselected) and press **Load template**. Models of apps that are not
+installed are skipped; the result names the apps to install, with a button
+to the Apps list. Loading the template again is safe: it only creates what is
+missing and fills empty fields and links, and keeps your own choices, click
+paths, open points and scenario steps. So install the missing apps, then load
+the template again to link them.
 To use your own blueprint, choose *Import a file*; that import is strict and
 refuses a model that is not installed. *Export* downloads the current model
 as `blueprint.json`, ready to keep in git.
@@ -146,11 +165,20 @@ phase.
 
 - **Scenario**: show all activities or one scenario; the route is drawn with
   numbered steps and the other activities are dimmed.
-- **Colour by**: choices, progress (rung) or people (ADKAR).
+- **Colour by**: choices, progress (rung) or people (ADKAR). Every colour
+  also has a shape, so status never depends on colour alone.
 - **Zoom**: more detail appears as you zoom in, from one block per role and
   phase up to the linked tasks under each activity.
-- **Side panel**: click an activity to see its role, users, scenarios, choice
-  state, rung and open point, with a button to open the activity form.
+- **Clashes**: a choice that is decided but not settled (revised, or fixed
+  with an open point) is outlined in red. Click the clash counter to show
+  only the clashes.
+- **Side panel**: click an activity to see its role, scenarios, choice
+  state, rung, open point and which users still need training, with a button
+  to open the activity form. Click a phase name to see who still needs
+  training in that phase.
+- **Keyboard**: arrow keys pan, `+`/`-` zoom, Home fits the map, Tab walks
+  the activities. Zoom, position and selection come back when you return
+  through the breadcrumb.
 
 With no activities yet, the map explains itself and offers *Load a template*.
 
@@ -159,8 +187,9 @@ With no activities yet, the map explains itself and offers *Load a template*.
 `tools/ui_check.mjs` is a Playwright script for a running local Odoo with the
 module installed and a template loaded. It logs in as admin/admin, opens the
 map, takes desktop and mobile screenshots, selects a scenario, opens the side
-panel of the first activity and exits non-zero on any page or console error
-or missing element.
+panel of the first activity, checks keyboard navigation and the state
+restore after the breadcrumb, and exits non-zero on any page or console
+error or missing element.
 
 ```bash
 DB=mydb OUT=/tmp/blueprint-ui node tools/ui_check.mjs

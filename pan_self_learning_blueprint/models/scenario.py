@@ -1,11 +1,14 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from .structure import CANCELLED_STATE, RUNG_SELECTION
+
 
 class PanSlScenario(models.Model):
     """A test route across processes: an ordered list of activities."""
 
     _name = "pan.sl.scenario"
+    _inherit = ["pan.sl.structure.mixin"]
     _description = "Blueprint Scenario"
     _order = "sequence, id"
 
@@ -49,8 +52,18 @@ class PanSlScenario(models.Model):
     rung = fields.Integer(
         string="Rung",
         compute="_compute_rung",
+        store=True,
+        compute_sudo=True,
         help="Lowest rung (0 Open to 5 Live) of the activities in this scenario; "
         "0 when the scenario has no activities.",
+    )
+    rung_state = fields.Selection(
+        selection=RUNG_SELECTION,
+        string="Progress",
+        compute="_compute_rung_state",
+        store=True,
+        help="The rung of this scenario as a name (Open, Decided, Built, "
+        "Tested, Trained, Live), for filtering, grouping and display.",
     )
     task_ids = fields.One2many(
         "project.task",
@@ -83,34 +96,46 @@ class PanSlScenario(models.Model):
             rungs = scenario.step_ids.activity_id.mapped("rung")
             scenario.rung = min(rungs) if rungs else 0
 
+    @api.depends("rung")
+    def _compute_rung_state(self):
+        for scenario in self:
+            scenario.rung_state = str(scenario.rung)
+
     planned_hours = fields.Float(
         string="Planned hours",
         compute="_compute_hours",
-        help="Sum of the allocated hours of the tasks on this scenario. Each task counts once.",
+        store=True,
+        compute_sudo=True,
+        aggregator="sum",
+        help="Sum of the allocated hours of all tasks on this scenario, cancelled "
+        "tasks left out. Each task counts once.",
     )
     spent_hours = fields.Float(
         string="Spent hours",
         compute="_compute_hours",
-        help="Sum of the timesheet hours on the tasks of this scenario. Each task counts once.",
+        store=True,
+        compute_sudo=True,
+        aggregator="sum",
+        help="Sum of the timesheet hours on all tasks of this scenario, cancelled "
+        "tasks left out. Each task counts once.",
     )
 
-    @api.depends("task_ids.allocated_hours", "task_ids.effective_hours")
+    @api.depends(
+        "task_ids.allocated_hours",
+        "task_ids.effective_hours",
+        "task_ids.state",
+        "task_ids.active",
+    )
     def _compute_hours(self):
         for scenario in self:
-            scenario.planned_hours = sum(scenario.task_ids.mapped("allocated_hours"))
-            scenario.spent_hours = sum(scenario.task_ids.mapped("effective_hours"))
+            # sudo: the same totals for every viewer, whatever tasks they may read.
+            tasks = scenario.sudo().task_ids.filtered(lambda task: task.state != CANCELLED_STATE)
+            scenario.planned_hours = sum(tasks.mapped("allocated_hours"))
+            scenario.spent_hours = sum(tasks.mapped("effective_hours"))
 
     @api.depends("task_ids")
     def _compute_task_count(self):
-        counts = dict(
-            self.env["project.task"]._read_group(
-                [("pan_scenario_id", "in", self.ids)],
-                groupby=["pan_scenario_id"],
-                aggregates=["__count"],
-            )
-        )
-        for scenario in self:
-            scenario.task_count = counts.get(scenario, 0)
+        self._compute_count_by("project.task", "pan_scenario_id", "task_count")
 
     def action_view_tasks(self):
         """Open the project tasks of this scenario."""
@@ -193,5 +218,18 @@ class PanSlActivity(models.Model):
         if operator in Domain.NEGATIVE_OPERATORS:
             # The ORM retries with the positive operator and negates the result.
             return NotImplemented
-        steps = self.env["pan.sl.scenario.step"]._search(Domain("scenario_id", operator, value))
-        return Domain("id", "in", steps.subselect("activity_id"))
+        Step = self.env["pan.sl.scenario.step"]
+        if operator != "in":
+            steps = Step._search(Domain("scenario_id", operator, value))
+            return Domain("id", "in", steps.subselect("activity_id"))
+        # "is (not) set" arrives as ("in", [False]), possibly mixed with ids.
+        # A step always has a scenario, so False means: in no step at all.
+        values = set(value)
+        scenario_ids = [scenario_id for scenario_id in values if scenario_id is not False]
+        domain = Domain.FALSE
+        if scenario_ids:
+            steps = Step._search(Domain("scenario_id", "in", scenario_ids))
+            domain |= Domain("id", "in", steps.subselect("activity_id"))
+        if False in values:
+            domain |= Domain("id", "not in", Step._search(Domain.TRUE).subselect("activity_id"))
+        return domain

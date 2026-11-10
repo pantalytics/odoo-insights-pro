@@ -10,7 +10,11 @@
                 <field name="code"/>
                 <field name="name"/>
                 <field name="description" optional="hide"/>
-                <field name="rung" optional="show"/>
+                <field name="rung_state" widget="badge" string="Rung" optional="show"
+                       decoration-muted="rung_state == '0'"
+                       decoration-warning="rung_state in ('1', '2')"
+                       decoration-success="rung_state in ('3', '4', '5')"/>
+                <field name="rung" optional="hide"/>
                 <field name="planned_hours" widget="float_time" optional="show" sum="Planned"/>
                 <field name="spent_hours" widget="float_time" optional="show" sum="Spent"/>
                 <field name="task_count" optional="show"/>
@@ -40,7 +44,14 @@
                             <field name="sequence"/>
                         </group>
                         <group>
-                            <field name="rung"/>
+                            <label for="rung_state" string="Rung"/>
+                            <div class="o_row">
+                                <field name="rung" class="fw-bold oe_inline"/>
+                                <field name="rung_state" widget="badge"
+                                       decoration-muted="rung_state == '0'"
+                                       decoration-warning="rung_state in ('1', '2')"
+                                       decoration-success="rung_state in ('3', '4', '5')"/>
+                            </div>
                             <field name="planned_hours" widget="float_time"/>
                             <field name="spent_hours" widget="float_time"/>
                         </group>
@@ -77,6 +88,10 @@
                 <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
                 <field name="step_ids" string="Activity" filter_domain="[('step_ids.activity_id', 'ilike', self)]"/>
                 <filter string="With Open Point" name="with_open_point" domain="[('open_point', '!=', False)]"/>
+                <filter string="Not live" name="filter_not_live" domain="[('rung_state', '!=', '5')]"/>
+                <group>
+                    <filter string="Rung" name="group_rung_state" context="{'group_by': 'rung_state'}"/>
+                </group>
             </search>
         </field>
     </record>

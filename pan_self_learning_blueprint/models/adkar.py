@@ -5,6 +5,9 @@ from odoo.fields import Domain
 ADKAR_FIELDS = ("awareness", "desire", "knowledge", "ability", "reinforcement")
 ADKAR_MIN = 1
 ADKAR_MAX = 5
+# A role profile is only shown when at least this many of its users have a
+# score, so the "average" on the company map never exposes one person.
+ADKAR_MIN_USERS_FOR_PROFILE = 3
 
 
 class PanSlAdkarScore(models.Model):
@@ -14,6 +17,9 @@ class PanSlAdkarScore(models.Model):
     whether people are ready for the change. Each element is scored 1 to 5.
     The company map shows the average profile per role, based on the latest
     round of each user holding that role.
+
+    Scores are personal: record rules let a Blueprint user read only their
+    own scores, managers read all of them, and the note is manager-only.
     """
 
     _name = "pan.sl.adkar.score"
@@ -82,6 +88,7 @@ class PanSlAdkarScore(models.Model):
     )
     note = fields.Text(
         string="Note",
+        groups="pan_self_learning_blueprint.group_blueprint_manager",
         help="Context for the score, for example the main blocker the person mentioned.",
     )
     role_ids = fields.Many2many(
@@ -158,26 +165,35 @@ class PanSlRole(models.Model):
 
         For each user of the role only the latest score counts (highest round,
         then latest date). Returns a list of five floats in ADKAR order, or
-        ``False`` when none of the role's users has a score.
+        ``False`` when fewer than ``ADKAR_MIN_USERS_FOR_PROFILE`` of the
+        role's users have a score (no individual profile is ever returned).
         """
         self.ensure_one()
         return self._get_adkar_profiles()[self.id]
 
     def _get_adkar_profiles(self):
-        """Batch version of :meth:`_get_adkar_profile`: ``{role_id: profile}``."""
+        """Batch version of :meth:`_get_adkar_profile`: ``{role_id: profile}``.
+
+        Scores are read with sudo, because a Blueprint user may only read their
+        own scores; only the aggregate per role leaves this method.
+        """
         users = self.user_ids
         latest = {}
         if users:
-            scores = self.env["pan.sl.adkar.score"].search(
-                [("user_id", "in", users.ids)],
-                order="round desc, date desc, id desc",
+            scores = (
+                self.env["pan.sl.adkar.score"]
+                .sudo()
+                .search(
+                    [("user_id", "in", users.ids)],
+                    order="round desc, date desc, id desc",
+                )
             )
             for score in scores:
                 latest.setdefault(score.user_id.id, score)
         profiles = {}
         for role in self:
             role_scores = [latest[user.id] for user in role.user_ids if user.id in latest]
-            if not role_scores:
+            if len(role_scores) < ADKAR_MIN_USERS_FOR_PROFILE:
                 profiles[role.id] = False
                 continue
             profiles[role.id] = [

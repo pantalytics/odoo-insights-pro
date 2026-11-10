@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="pan_self_learning_blueprint.CompanyMap">
-        <div class="o_action o_pan_sl_map d-flex flex-column h-100">
+        <div class="o_action o_pan_sl_map d-flex flex-column h-100" t-att-data-revision="state.revision">
             <t t-if="state.loaded">
                 <t t-if="!data.activities.length">
                     <div class="o_view_nocontent">
@@ -19,6 +19,9 @@
                     </div>
                 </t>
                 <t t-else="">
+                    <p class="o_pan_sl_intro px-3 pt-2 mb-0 small"
+                       t-att-class="{ 'o_pan_sl_intro_zoomed': stop !== geometry.STOP_COMPANY }"
+                       t-esc="intro"/>
                     <t t-call="pan_self_learning_blueprint.CompanyMap.Controls"/>
                     <div t-if="selectedScenario" class="o_pan_sl_scenario_info px-3 py-1 border-bottom small">
                         <span class="fw-bold" t-esc="selectedScenario.name"/>
@@ -32,14 +35,39 @@
                             <i class="fa fa-exclamation-triangle me-1"/><t t-esc="selectedScenario.open_point"/>
                         </span>
                     </div>
+                    <div t-if="state.highlight === 'clashes'"
+                         class="o_pan_sl_clash_info d-flex flex-wrap align-items-center gap-2 px-3 py-1 border-bottom small">
+                        <span class="fw-bold o_pan_sl_text_danger">
+                            <t t-esc="clashCount"/> <t t-if="clashCount === 1">clash</t><t t-else="">clashes</t>
+                        </span>
+                        <span>
+                            A clash is a choice that was decided but is not settled: it was revised, or it is
+                            fixed while it still has an open point. Settle the open point or fix the choice again.
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+                                t-on-click="clearHighlight">Show all activities</button>
+                    </div>
 
                     <div t-ref="body" class="o_pan_sl_body position-relative flex-grow-1">
                         <t t-call="pan_self_learning_blueprint.CompanyMap.Svg"/>
                         <t t-call="pan_self_learning_blueprint.CompanyMap.Panel"/>
+                        <t t-call="pan_self_learning_blueprint.CompanyMap.PhasePanel"/>
+                    </div>
+                    <div class="visually-hidden" role="status" aria-live="polite">
+                        Zoom: <t t-esc="currentStop.label"/>. <t t-esc="currentStop.hint"/>
                     </div>
                 </t>
             </t>
         </div>
+    </t>
+
+    <!-- Status dot: tone colour plus a glyph, so it does not rely on hue alone -->
+    <!-- The <g> root makes OWL create the shapes in the SVG namespace when called. -->
+    <t t-name="pan_self_learning_blueprint.CompanyMap.Dot">
+        <g class="o_pan_sl_dot_group">
+            <circle class="o_pan_sl_dot" t-att-class="dot.className" t-att-cx="dot.cx" t-att-cy="dot.cy" t-att-r="dot.r"/>
+            <path t-if="dot.glyph" t-att-class="dot.glyph.className" t-att-d="dot.glyph.d"/>
+        </g>
     </t>
 
     <!-- Controls: scenario, colour by, zoom slider, legend -->
@@ -74,16 +102,19 @@
                            t-att-value="state.zoom"
                            t-att-aria-valuetext="currentStop.label + ' (' + state.zoom.toFixed(1) + 'x)'"
                            t-att-title="currentStop.label + ': ' + currentStop.hint"
-                           t-on-input="onZoomInput"/>
-                    <div class="o_pan_sl_zoom_labels" aria-hidden="true">
+                           t-on-input="onZoomInput"
+                           t-on-keydown="onZoomKeydown"/>
+                    <div class="o_pan_sl_zoom_labels" role="group" aria-label="Zoom stops">
                         <t t-foreach="stops" t-as="tick" t-key="tick.value">
-                            <span class="o_pan_sl_zoom_tick" t-attf-style="left: {{ tick.position }}%"/>
-                            <button type="button" tabindex="-1"
+                            <span class="o_pan_sl_zoom_tick" aria-hidden="true"
+                                  t-attf-style="left: {{ tick.position }}%"/>
+                            <button type="button"
                                     class="o_pan_sl_zoom_label btn btn-link p-0"
                                     t-att-class="{ 'o_pan_sl_zoom_label_active': stop === tick.value }"
+                                    t-att-aria-pressed="stop === tick.value ? 'true' : 'false'"
                                     t-attf-style="left: {{ tick.position }}%"
                                     t-att-title="tick.hint"
-                                    t-on-click="() => this.zoomAt(tick.zoom)">
+                                    t-on-click="() => this.zoomTo(tick.zoom)">
                                 <t t-esc="tick.label"/>
                             </button>
                         </t>
@@ -95,6 +126,7 @@
                     <svg width="18" height="12" aria-hidden="true">
                         <rect class="o_pan_sl_swatch" t-att-class="item.className"
                               x="1" y="1" width="16" height="10" rx="3"/>
+                        <path t-if="item.glyph" t-att-class="item.glyph.className" t-att-d="item.glyph.d"/>
                     </svg>
                     <span t-esc="item.label"/>
                 </li>
@@ -105,7 +137,17 @@
                     </svg>
                     <span>Open point</span>
                 </li>
+                <li class="d-flex align-items-center gap-1">
+                    <svg width="18" height="12" aria-hidden="true">
+                        <rect class="o_pan_sl_swatch_clash" x="1.5" y="1.5" width="15" height="9" rx="3"/>
+                    </svg>
+                    <span>Clash</span>
+                </li>
             </ul>
+            <div t-if="state.colorBy === 'people'" class="o_pan_sl_people_hint small w-100">
+                <i class="fa fa-users me-1" aria-hidden="true"/>
+                Who still needs training? Click a phase name at the top of the map.
+            </div>
         </div>
     </t>
 
@@ -121,9 +163,12 @@
              t-att-data-scale="scale.toFixed(3)"
              t-att-data-map-width="mapPixelWidth"
              t-att-data-chip-total="layout.chips.length"
-             role="group" t-att-aria-label="'Company map, zoom: ' + currentStop.label"
+             tabindex="0" role="group"
+             t-att-aria-label="'Company map, zoom: ' + currentStop.label + '. Arrow keys move the map, plus and minus zoom, Home shows the whole map.'"
              t-on-wheel="onWheel"
              t-on-dblclick="onDoubleClick"
+             t-on-keydown="onMapKeydown"
+             t-on-focusin="onMapFocusin"
              t-on-pointerdown="onPointerDown"
              t-on-pointermove="onPointerMove"
              t-on-pointerup="onPointerUp"
@@ -174,27 +219,37 @@
                 <t t-foreach="visibleBlocks" t-as="block" t-key="block.key">
                     <t t-set="cell" t-value="blockView(block)"/>
                     <g class="o_pan_sl_block" t-att-class="{ 'o_pan_sl_dim': cell.dim }"
+                       t-att-data-item="block.key"
                        tabindex="0" role="button" t-att-aria-label="cell.title"
                        t-on-click="() => this.onBlockClick(block)"
-                       t-on-keydown="(ev) => this.onBlockKeydown(ev, block)">
+                       t-on-keydown="(ev) => this.onItemKeydown(ev, block, () => this.onBlockClick(block, { focus: true }))">
                         <title t-esc="cell.title"/>
                         <clipPath t-att-id="cell.clipId">
                             <rect t-att-x="block.x" t-att-y="block.y" t-att-width="block.width"
                                   t-att-height="block.height" rx="7"/>
                         </clipPath>
                         <g t-att-clip-path="'url(#' + cell.clipId + ')'">
-                            <rect t-foreach="cell.segments" t-as="segment" t-key="segment.key"
-                                  class="o_pan_sl_seg" t-att-class="segment.className"
-                                  t-att-x="segment.x" t-att-y="block.y"
-                                  t-att-width="segment.width" t-att-height="block.height"/>
+                            <t t-foreach="cell.segments" t-as="segment" t-key="segment.key">
+                                <rect class="o_pan_sl_seg" t-att-class="segment.className"
+                                      t-att-x="segment.x" t-att-y="block.y"
+                                      t-att-width="segment.width" t-att-height="block.height"/>
+                                <path t-if="segment.glyph" t-att-class="segment.glyph.className"
+                                      t-att-d="segment.glyph.d"/>
+                            </t>
                         </g>
-                        <rect class="o_pan_sl_block_frame" t-att-x="block.x" t-att-y="block.y"
+                        <rect class="o_pan_sl_block_frame" t-att-class="{ 'o_pan_sl_clash_frame': cell.clashes }"
+                              t-att-x="block.x" t-att-y="block.y"
                               t-att-width="block.width" t-att-height="block.height" rx="7"/>
                         <circle class="o_pan_sl_block_count_bg"
                                 t-att-cx="block.x + block.width / 2" t-att-cy="block.y + block.height / 2" r="12"/>
                         <text class="o_pan_sl_block_count" text-anchor="middle"
                               t-att-x="block.x + block.width / 2" t-att-y="block.y + block.height / 2 + 4.5"
                               t-esc="cell.count"/>
+                        <g t-if="cell.clashes" class="o_pan_sl_clash_badge">
+                            <circle t-att-cx="block.x + block.width - 4" t-att-cy="block.y + 4" r="8"/>
+                            <text t-att-x="block.x + block.width - 4" t-att-y="block.y + 7.5"
+                                  text-anchor="middle" t-esc="cell.clashes"/>
+                        </g>
                     </g>
                 </t>
             </g>
@@ -207,22 +262,27 @@
             <g t-if="stop !== geometry.STOP_COMPANY" class="o_pan_sl_chips">
                 <g t-foreach="visibleChips" t-as="chip" t-key="chip.id"
                    class="o_pan_sl_chip" t-att-class="chipClass(chip)"
+                   t-att-data-item="chip.key"
                    t-att-transform="'translate(' + chip.x + ',' + chip.y + ')'"
                    tabindex="0" role="button"
-                   t-att-aria-label="chip.activity.name"
+                   t-att-aria-label="chipAriaLabel(chip)"
                    t-att-aria-pressed="state.selectedId === chip.id ? 'true' : 'false'"
                    t-on-click="() => this.openPanel(chip.id)"
-                   t-on-keydown="(ev) => this.onChipKeydown(ev, chip.id)">
+                   t-on-keydown="(ev) => this.onItemKeydown(ev, chip, () => this.openPanel(chip.id))">
                     <title t-esc="chip.activity.name"/>
                     <rect class="o_pan_sl_chip_box" x="0" y="0"
                           t-att-width="chip.width" t-att-height="chip.height" rx="6"/>
                     <t t-if="stop === geometry.STOP_PROCESSES">
-                        <circle class="o_pan_sl_dot" t-att-class="dotClass(chip.activity)" cx="15" cy="14" r="4.5"/>
+                        <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
+                            <t t-set="dot" t-value="dotView(chip.activity, 15, 14)"/>
+                        </t>
                         <text class="o_pan_sl_chip_label" x="26" y="18" t-esc="chip.label"/>
                     </t>
                     <t t-else="">
                         <t t-set="extras" t-value="chipExtras(chip)"/>
-                        <circle class="o_pan_sl_dot" t-att-class="dotClass(chip.activity)" cx="15" cy="16" r="4.5"/>
+                        <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
+                            <t t-set="dot" t-value="dotView(chip.activity, 15, 16)"/>
+                        </t>
                         <text class="o_pan_sl_chip_label" x="26" y="20" t-esc="chip.label"/>
                         <g t-if="chip.activity.open_point" class="o_pan_sl_open">
                             <title t-esc="chip.activity.open_point"/>
@@ -299,21 +359,34 @@
                           t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
                           t-att-x="column.x" y="0"
                           t-att-width="layout.colW" t-att-height="layout.headerH"/>
-                    <text class="o_pan_sl_phase_label"
-                          t-att-x="column.x + layout.colW / 2" y="22" text-anchor="middle">
-                        <t t-esc="column.label"/>
-                        <title t-esc="column.phase.name"/>
-                    </text>
+                    <g class="o_pan_sl_link o_pan_sl_phase_link" tabindex="0" role="button"
+                       t-att-aria-label="column.phase.name + ': who still needs training'"
+                       t-on-click="() => this.openPhasePanel(column.phase.id)"
+                       t-on-keydown="(ev) => this.onLinkKeydown(ev, () => this.openPhasePanel(column.phase.id))">
+                        <title>Who still needs training in <t t-esc="column.phase.name"/>?</title>
+                        <rect class="o_pan_sl_link_hit" t-att-x="column.x + 4" y="6"
+                              t-att-width="layout.colW - 8" height="22" rx="4"/>
+                        <text class="o_pan_sl_phase_label"
+                              t-att-x="column.x + layout.colW / 2" y="22" text-anchor="middle"
+                              t-esc="column.label"/>
+                    </g>
                     <text t-if="stop === geometry.STOP_COMPANY" class="o_pan_sl_counter"
-                          t-att-x="column.x + layout.colW / 2" y="42" text-anchor="middle">
+                          t-att-x="column.x + layout.colW / 2" y="45" text-anchor="middle">
                         <tspan class="o_pan_sl_counter_open" t-esc="column.open"/>
                         <tspan> open</tspan>
-                        <tspan dx="6" class="o_pan_sl_counter_clash"
-                               t-att-class="{ 'o_pan_sl_counter_none': !column.clashes }" t-esc="column.clashes"/>
-                        <tspan t-if="column.clashes === 1"> clash</tspan>
-                        <tspan t-else=""> clashes</tspan>
-                        <title>Open choices (proposal or provisional) and clashes (revised, or fixed with an open point)</title>
+                        <title>Open choices: proposal or provisional</title>
                     </text>
+                    <g t-if="stop === geometry.STOP_COMPANY and column.clashes"
+                       class="o_pan_sl_link o_pan_sl_clash_link" tabindex="0" role="button"
+                       t-att-aria-label="column.clashes + ' clash(es) in ' + column.phase.name + ': show them'"
+                       t-on-click="() => this.showClashes(column.phase.id)"
+                       t-on-keydown="(ev) => this.onLinkKeydown(ev, () => this.showClashes(column.phase.id))">
+                        <title>Show the clashes: revised, or fixed with an open point</title>
+                        <rect class="o_pan_sl_clash_pill" t-att-x="column.x + layout.colW - 30" y="33"
+                              width="24" height="16" rx="8"/>
+                        <text class="o_pan_sl_clash_pill_text" t-att-x="column.x + layout.colW - 18" y="45"
+                              text-anchor="middle" t-esc="column.clashes"/>
+                    </g>
                 </t>
                 <rect class="o_pan_sl_band" x="0" t-att-y="layout.progressTop"
                       t-att-width="layout.width" t-att-height="geometry.PROGRESS_H"/>
@@ -331,18 +404,20 @@
                 </g>
             </g>
 
-            <!-- Sticky label column: role names and band names -->
+            <!-- Sticky label column: role names (sticky within their lane) and band names -->
             <g class="o_pan_sl_sticky_left" t-att-transform="'translate(' + stickyX + ',0)'">
                 <t t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id">
                     <rect class="o_pan_sl_lane o_pan_sl_label_cell"
                           t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
                           x="0" t-att-y="lane.y" t-att-width="layout.labelW" t-att-height="lane.height"/>
-                    <text class="o_pan_sl_role_label" x="12" t-att-y="lane.y + 22">
-                        <t t-esc="lane.label"/>
-                        <title t-esc="lane.role.name"/>
-                    </text>
-                    <text t-if="lane.role.is_external" class="o_pan_sl_role_sub"
-                          x="12" t-att-y="lane.y + 38">External</text>
+                    <g class="o_pan_sl_role_label_group" t-att-data-lane="lane_index"
+                       t-att-transform="'translate(0,' + laneLabelY(lane) + ')'">
+                        <text class="o_pan_sl_role_label" x="12" y="0">
+                            <t t-esc="lane.label"/>
+                            <title t-esc="lane.role.name"/>
+                        </text>
+                        <text t-if="lane.role.is_external" class="o_pan_sl_role_sub" x="12" y="16">External</text>
+                    </g>
                 </t>
                 <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom"
                       t-att-width="layout.labelW" t-att-height="layout.odooHeight"/>
@@ -357,13 +432,24 @@
                     <text class="o_pan_sl_counter" x="12" y="22">
                         <tspan class="o_pan_sl_counter_open" t-esc="layout.totals.open"/>
                         <tspan> open choices</tspan>
+                        <title>Open choices: proposal or provisional</title>
                     </text>
-                    <text class="o_pan_sl_counter" x="12" y="42">
-                        <tspan class="o_pan_sl_counter_clash"
-                               t-att-class="{ 'o_pan_sl_counter_none': !layout.totals.clashes }"
-                               t-esc="layout.totals.clashes"/>
-                        <tspan t-if="layout.totals.clashes === 1"> clash</tspan>
-                        <tspan t-else=""> clashes</tspan>
+                    <g t-if="layout.totals.clashes" class="o_pan_sl_link o_pan_sl_clash_link o_pan_sl_clash_total"
+                       tabindex="0" role="button"
+                       t-att-aria-label="layout.totals.clashes + ' clash(es): show them'"
+                       t-on-click="() => this.showClashes()"
+                       t-on-keydown="(ev) => this.onLinkKeydown(ev, () => this.showClashes())">
+                        <title>Show the clashes: revised, or fixed with an open point</title>
+                        <rect class="o_pan_sl_link_hit" x="6" y="30" t-att-width="layout.labelW - 12" height="18" rx="4"/>
+                        <text class="o_pan_sl_counter o_pan_sl_counter_link" x="12" y="43">
+                            <tspan class="o_pan_sl_counter_clash" t-esc="layout.totals.clashes"/>
+                            <tspan t-if="layout.totals.clashes === 1"> clash ›</tspan>
+                            <tspan t-else=""> clashes ›</tspan>
+                        </text>
+                    </g>
+                    <text t-else="" class="o_pan_sl_counter" x="12" y="43">
+                        <tspan class="o_pan_sl_counter_none">0</tspan>
+                        <tspan> clashes</tspan>
                     </text>
                 </t>
                 <rect class="o_pan_sl_band o_pan_sl_label_cell" x="0" t-att-y="layout.progressTop"
@@ -373,17 +459,18 @@
         </svg>
     </t>
 
-    <!-- Side panel ("street view") -->
+    <!-- Side panel ("street view"): a non-modal region; focus moves to its title -->
     <t t-name="pan_self_learning_blueprint.CompanyMap.Panel">
-        <aside t-if="panel" class="o_pan_sl_panel card shadow" role="dialog"
-               aria-label="Activity details">
+        <aside t-if="panel" class="o_pan_sl_panel card shadow" role="region"
+               aria-labelledby="o_pan_sl_panel_title">
             <div class="card-header d-flex align-items-start gap-2">
                 <div class="flex-grow-1 min-w-0">
                     <div class="text-muted small">
                         <t t-esc="panel.activity.code"/>
                         <t t-if="panel.phase"> · <t t-esc="panel.phase.name"/></t>
                     </div>
-                    <h5 class="mb-0" t-esc="panel.activity.name"/>
+                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1"
+                        t-esc="panel.activity.name"/>
                 </div>
                 <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
                         t-on-click="closePanel"/>
@@ -395,16 +482,31 @@
                         <t t-esc="panel.role.name"/>
                         <span t-if="panel.role.is_external" class="badge text-bg-light ms-1">External</span>
                     </dd>
-                    <dt>Users</dt>
+                    <dt>
+                        People
+                        <span t-if="panel.toTrain" class="fw-normal">
+                            · <t t-esc="panel.toTrain"/> still to train
+                        </span>
+                    </dt>
                     <dd>
-                        <t t-if="panel.role.users.length" t-esc="panel.role.users.join(', ')"/>
+                        <ul t-if="panel.training.length" class="list-unstyled mb-0 o_pan_sl_people">
+                            <li t-foreach="panel.training" t-as="person" t-key="person.id"
+                                class="d-flex align-items-center justify-content-between gap-2">
+                                <span t-esc="person.name"/>
+                                <span class="o_pan_sl_pill" t-att-class="person.className" t-esc="person.label"/>
+                            </li>
+                        </ul>
                         <span t-else="" class="text-muted">Nobody holds this role yet</span>
                     </dd>
                     <dt>Choice</dt>
-                    <dd>
-                        <span class="o_pan_sl_state_badge" t-att-class="panel.choiceClass">
-                            <t t-esc="panel.choiceLabel"/>
-                        </span>
+                    <dd class="d-flex align-items-center gap-1">
+                        <svg width="14" height="14" aria-hidden="true">
+                            <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
+                                <t t-set="dot" t-value="panel.choiceDot"/>
+                            </t>
+                        </svg>
+                        <span t-esc="panel.choiceLabel"/>
+                        <span t-if="panel.isClash" class="o_pan_sl_text_danger fw-bold ms-1">· clash</span>
                     </dd>
                     <dt>Rung</dt>
                     <dd t-esc="panel.rungLabel"/>
@@ -440,28 +542,70 @@
                         </div>
                         <span t-else="" class="text-muted">Not part of a scenario</span>
                     </dd>
-                    <t t-if="panel.adkar">
-                        <dt>ADKAR of the role</dt>
-                        <dd>
-                            <ul class="list-unstyled mb-0">
-                                <li t-foreach="panel.adkar" t-as="element" t-key="element_index">
-                                    <t t-esc="element.label"/>: <t t-esc="element.value"/>
-                                </li>
-                            </ul>
-                        </dd>
-                    </t>
                     <dt>Open point</dt>
-                    <dd class="mb-0">
+                    <dd>
                         <span t-if="panel.activity.open_point" class="o_pan_sl_open_point"
                               t-esc="panel.activity.open_point"/>
                         <span t-else="" class="text-muted">None</span>
                     </dd>
                 </dl>
+                <details t-if="panel.adkar" class="mt-2">
+                    <summary>ADKAR average of the role</summary>
+                    <ul class="list-unstyled mb-0 mt-1">
+                        <li t-foreach="panel.adkar" t-as="element" t-key="element_index">
+                            <t t-esc="element.label"/>: <t t-esc="element.value"/>
+                        </li>
+                    </ul>
+                </details>
             </div>
             <div class="card-footer">
                 <button type="button" class="btn btn-primary btn-sm" t-on-click="openActivity">
                     Open activity
                 </button>
+            </div>
+        </aside>
+    </t>
+
+    <!-- Side panel for a phase: who still needs training (trained = activity at rung 4 Trained or higher) -->
+    <t t-name="pan_self_learning_blueprint.CompanyMap.PhasePanel">
+        <aside t-if="phasePanel" class="o_pan_sl_panel o_pan_sl_phase_panel card shadow" role="region"
+               aria-labelledby="o_pan_sl_panel_title">
+            <div class="card-header d-flex align-items-start gap-2">
+                <div class="flex-grow-1 min-w-0">
+                    <div class="text-muted small">
+                        Training · <t t-esc="phasePanel.count"/> activities
+                    </div>
+                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1">
+                        Who still needs training in <t t-esc="phasePanel.phase.name"/>
+                    </h5>
+                </div>
+                <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
+                        t-on-click="closePanel"/>
+            </div>
+            <div class="card-body small">
+                <p class="fw-bold mb-2">
+                    <t t-if="phasePanel.toTrain">Still to train: <t t-esc="phasePanel.toTrain"/></t>
+                    <t t-elif="phasePanel.rows.length">Everyone in this phase is trained.</t>
+                    <t t-else="">Nobody holds the roles of this phase yet.</t>
+                </p>
+                <ul t-if="phasePanel.rows.length" class="list-unstyled mb-0 o_pan_sl_people">
+                    <li t-foreach="phasePanel.rows" t-as="row" t-key="row.id" class="mb-2">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="fw-bold" t-esc="row.name"/>
+                            <span class="o_pan_sl_pill" t-att-class="row.className" t-esc="row.label"/>
+                        </div>
+                        <div class="text-muted" t-esc="row.progress"/>
+                        <div t-if="row.open.length" class="d-flex flex-wrap gap-1 mt-1">
+                            <button t-foreach="row.open" t-as="activity" t-key="activity.id"
+                                    type="button" class="btn btn-sm btn-outline-secondary"
+                                    t-on-click="() => this.openPanel(activity.id)"
+                                    t-esc="activity.name"/>
+                        </div>
+                    </li>
+                </ul>
+                <p t-if="phasePanel.unstaffed.length" class="mb-0 mt-2 text-muted">
+                    Roles without users: <t t-esc="phasePanel.unstaffed.join(', ')"/>
+                </p>
             </div>
         </aside>
     </t>

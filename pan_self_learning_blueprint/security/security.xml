@@ -16,7 +16,7 @@
 
     <record id="group_blueprint_user" model="res.groups">
         <field name="name">User</field>
-        <field name="comment">User: can open the company map and read the blueprint model (chains, processes, activities, scenarios, ADKAR scores).</field>
+        <field name="comment">User: can open the company map, read the blueprint model (chains, processes, activities, scenarios) and read their own ADKAR scores.</field>
         <field name="sequence">10</field>
         <field name="privilege_id" ref="res_groups_privilege_blueprint"/>
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
@@ -24,7 +24,7 @@
 
     <record id="group_blueprint_manager" model="res.groups">
         <field name="name">Administrator</field>
-        <field name="comment">Administrator: can edit the blueprint model, record ADKAR scores and import or export blueprints.</field>
+        <field name="comment">Administrator: can edit the blueprint model, read and record everyone's ADKAR scores and notes, and import or export blueprints.</field>
         <field name="sequence">20</field>
         <field name="privilege_id" ref="res_groups_privilege_blueprint"/>
         <field name="implied_ids" eval="[(4, ref('group_blueprint_user'))]"/>

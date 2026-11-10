@@ -37,12 +37,13 @@
             <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" action="action_adkar_score" sequence="10"/>
         </menuitem>
 
+        <!-- Not "Blueprint" again (that is the app): name the menu after what it does. -->
         <menuitem
             id="menu_blueprint_blueprint"
-            name="Blueprint"
+            name="Import / export"
             groups="group_blueprint_manager"
             sequence="40">
-            <menuitem id="menu_blueprint_import_export" name="Import / export" action="action_blueprint_wizard" sequence="10"/>
+            <menuitem id="menu_blueprint_import_export" name="Load a template, import or export" action="action_blueprint_wizard" sequence="10"/>
         </menuitem>
 
     </menuitem>

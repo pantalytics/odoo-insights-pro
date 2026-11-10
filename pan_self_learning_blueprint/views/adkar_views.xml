@@ -15,7 +15,7 @@
                 <field name="ability"/>
                 <field name="reinforcement"/>
                 <field name="average" optional="show"/>
-                <field name="note" optional="hide"/>
+                <field name="note" optional="hide" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
             </list>
         </field>
     </record>
@@ -45,7 +45,7 @@
                             <field name="average"/>
                         </group>
                     </group>
-                    <field name="note" placeholder="Main blocker or context for this score..."/>
+                    <field name="note" placeholder="Main blocker or context for this score..." groups="pan_self_learning_blueprint.group_blueprint_manager"/>
                 </sheet>
             </form>
         </field>
@@ -101,7 +101,8 @@
             <p>
                 Score each person 1 to 5 on Awareness, Desire, Knowledge, Ability and
                 Reinforcement. The company map shows the average per role, based on
-                each person's latest round.
+                each person's latest round, once at least three people of a role
+                have a score. Blueprint users see only their own scores.
             </p>
         </field>
     </record>

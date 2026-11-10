@@ -120,3 +120,33 @@ class TestStructureActivity(BlueprintCase):
         for xmlid in ("chain_basis", "chain_lead_to_cash", "phase_master_data", "phase_invoice_pay"):
             with self.subTest(xmlid=xmlid):
                 self.assertTrue(self.env.ref(f"pan_self_learning_blueprint.{xmlid}", raise_if_not_found=False))
+
+    def test_code_with_spaces_refused(self):
+        """Process, activity and scenario use the structure mixin: no empty codes, no spaces."""
+        cases = {
+            "pan.sl.process": {"name": "Spaced", "chain_id": self.chain.id},
+            "pan.sl.activity": {
+                "name": "Spaced",
+                "process_id": self.process.id,
+                "role_id": self.role_sales.id,
+                "phase_id": self.phase_a.id,
+            },
+            "pan.sl.scenario": {"name": "Spaced"},
+            "pan.sl.chain": {"name": "Spaced"},
+        }
+        for model, vals in cases.items():
+            for code in ("t has space", " t_leading", "t_trailing ", "   "):
+                with self.subTest(model=model, code=code):
+                    with self.assertRaises(ValidationError):
+                        self.env[model].create(dict(vals, code=code))
+
+    def test_code_rename_with_space_refused(self):
+        with self.assertRaises(ValidationError):
+            self.act_a.code = "t act a"
+
+    def test_process_activity_count_and_action(self):
+        self.assertEqual(self.process.activity_count, 3)
+        action = self.process.action_view_activities()
+        self.assertEqual(action["res_model"], "pan.sl.activity")
+        self.assertEqual(self.Activity.search(action["domain"]), self.act_a | self.act_b | self.act_c)
+        self.assertEqual(action["context"], {"default_process_id": self.process.id})
