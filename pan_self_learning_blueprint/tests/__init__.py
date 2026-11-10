@@ -4,3 +4,4 @@ from . import test_scenario
 from . import test_adkar
 from . import test_blueprint
 from . import test_map_data
+from . import test_hours

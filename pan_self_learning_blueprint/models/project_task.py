@@ -59,6 +59,25 @@ class PanSlActivity(models.Model):
         "over its linked tasks, 0 when no task is linked.",
     )
 
+    planned_hours = fields.Float(
+        string="Planned hours",
+        compute="_compute_hours",
+        help="Sum of the allocated hours of the linked tasks. A task linked to "
+        "several activities counts fully for each of them.",
+    )
+    spent_hours = fields.Float(
+        string="Spent hours",
+        compute="_compute_hours",
+        help="Sum of the timesheet hours on the linked tasks. A task linked to "
+        "several activities counts fully for each of them.",
+    )
+
+    @api.depends("task_ids.allocated_hours", "task_ids.effective_hours")
+    def _compute_hours(self):
+        for activity in self:
+            activity.planned_hours = sum(activity.task_ids.mapped("allocated_hours"))
+            activity.spent_hours = sum(activity.task_ids.mapped("effective_hours"))
+
     @api.depends("task_ids.pan_rung")
     def _compute_rung(self):
         for activity in self:

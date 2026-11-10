@@ -18,7 +18,7 @@ Import and export the whole model as an open JSON blueprint.
     "category": "Services/Project",
     "version": "19.0.1.0.0",
     "license": "LGPL-3",
-    "depends": ["project", "mail", "web"],
+    "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",

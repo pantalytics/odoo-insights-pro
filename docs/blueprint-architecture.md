@@ -89,7 +89,14 @@ Step: `scenario_id` (required, cascade), `sequence`, `activity_id`
 `pan_rung` (Selection `0..5` as strings: Open, Decided, Built, Tested,
 Trained, Live; default `"0"`, tracking=True).
 On `pan.sl.activity`: `task_ids` (Many2many inverse of `pan_activity_ids`),
-`rung` (Integer, computed = min `int(pan_rung)` over `task_ids`, 0 if none).
+`rung` (Integer, computed = min `int(pan_rung)` over `task_ids`, 0 if none),
+`planned_hours` / `spent_hours` (Float, computed = sum of `allocated_hours` /
+`effective_hours` of `task_ids`; a task linked to several activities counts
+fully for each). Same two fields on `pan.sl.scenario`, summed over its own
+`task_ids`, so each task counts once there. Depends on `hr_timesheet`.
+
+Hours: estimates and timesheets stay on the tasks of whoever does the work
+(in the partner use case: the partner's own Odoo, linked by the same codes).
 
 ### `pan.sl.adkar.score` — `models/adkar.py`
 `user_id` (Many2one `res.users`, required), `date` (Date, default today),

@@ -83,6 +83,23 @@ class PanSlScenario(models.Model):
             rungs = scenario.step_ids.activity_id.mapped("rung")
             scenario.rung = min(rungs) if rungs else 0
 
+    planned_hours = fields.Float(
+        string="Planned hours",
+        compute="_compute_hours",
+        help="Sum of the allocated hours of the tasks on this scenario. Each task counts once.",
+    )
+    spent_hours = fields.Float(
+        string="Spent hours",
+        compute="_compute_hours",
+        help="Sum of the timesheet hours on the tasks of this scenario. Each task counts once.",
+    )
+
+    @api.depends("task_ids.allocated_hours", "task_ids.effective_hours")
+    def _compute_hours(self):
+        for scenario in self:
+            scenario.planned_hours = sum(scenario.task_ids.mapped("allocated_hours"))
+            scenario.spent_hours = sum(scenario.task_ids.mapped("effective_hours"))
+
     @api.depends("task_ids")
     def _compute_task_count(self):
         counts = dict(

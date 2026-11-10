@@ -11,6 +11,8 @@
                 <field name="name"/>
                 <field name="description" optional="hide"/>
                 <field name="rung" optional="show"/>
+                <field name="planned_hours" widget="float_time" optional="show" sum="Planned"/>
+                <field name="spent_hours" widget="float_time" optional="show" sum="Spent"/>
                 <field name="task_count" optional="show"/>
             </list>
         </field>
@@ -39,6 +41,8 @@
                         </group>
                         <group>
                             <field name="rung"/>
+                            <field name="planned_hours" widget="float_time"/>
+                            <field name="spent_hours" widget="float_time"/>
                         </group>
                     </group>
                     <notebook>
