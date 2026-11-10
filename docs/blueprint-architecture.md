@@ -123,6 +123,11 @@ On `pan.sl.activity`: `@api.model get_map_data()` → dict
 activities:[{id,name,code,role_id,phase_id,choice_state,rung,open_point,scenario_ids:[int],model:str|false}],
 scenarios:[{id,code,name,description,open_point,rung,activity_ids:[ordered ints]}]}`.
 One call, no N+1 (read in batches).
+`@api.model get_map_details()` → `{activity_id: {tasks:[{id,name,rung}], click_path_first_line:str}}`,
+loaded in parallel by the map for the Detail stop (one search for all tasks).
+
+**Clash** (counter on the map): an activity whose choice is `revised`, or
+`fixed` while it still has an open point. Both mean "decided, but not settled".
 
 ## XML ids (binding)
 
@@ -151,6 +156,17 @@ fixed orientation. Controls in one row: scenario select (all / one),
 colour by (Choices / Progress / People ADKAR), zoom as a slider (range input, fit
 at the left end, up to 4x; mouse wheel and pinch move the same slider; label
 "Zoom"). No +/− buttons.
+
+**Rendering choice (10-11): plain OWL + SVG, no diagram library.** The fixed
+grid is our map projection: it must be deterministic so everyone finds the
+same thing in the same place. Node-network libraries (Cytoscape, vis-network)
+use auto layouts that move things around; Mermaid and Excalidraw are static
+or hand-drawn. Interaction like a map: drag to pan, wheel/pinch/double-click
+to zoom on the cursor, continuous zoom with the four stops as thresholds,
+render only what is in view. Fallback if this ever feels too heavy:
+Leaflet with `CRS.Simple` (non-geographic map, zoom-dependent layers).
+Mermaid and Excalidraw stay possible as exports from the same data, for
+documents and workshops.
 
 **Semantic zoom (like a map: more detail appears as you zoom in, never just
 bigger text).** The slider has four marked stops; content switches at each:

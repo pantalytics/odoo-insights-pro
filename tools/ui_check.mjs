@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 // UI check for the Blueprint company map (pan_self_learning_blueprint).
 //
-// Logs in to a running Odoo at http://localhost:8069 as admin/admin, opens the
-// company map client action, takes desktop (1440x900) and mobile (390x844)
-// screenshots, selects the second option of the scenario select, clicks the
-// first activity chip and checks that the side panel opens.
+// Logs in to a running Odoo at http://localhost:8069 as admin/admin and opens
+// the company map client action. On desktop (1440x900, deviceScaleFactor 1)
+// it moves the zoom slider to each of the four stops (Company, Processes,
+// Activities, Detail) and screenshots each, checks that the stops draw what
+// they should, selects a scenario and checks the numbered route badges,
+// clicks an activity chip and checks the side panel, presses Esc and checks
+// that the panel closes. On mobile (390x844) it checks that the page does not
+// scroll sideways (the map scrolls inside its own container) and takes one
+// screenshot with the panel open as a bottom sheet.
+//
+// At every stop it also checks that no SVG shape is painted black: an
+// undefined CSS variable in an SVG fill falls back to black.
+//
+// Never waits for "networkidle": Odoo's bus long-polls, so the network is
+// never idle. It waits for the map's own elements instead.
 //
 // Exits non-zero on any page error, console error, Odoo error dialog or
-// missing element.
+// failed check.
 //
 // Usage:
 //   DB=mydb OUT=/tmp/ui node tools/ui_check.mjs
@@ -31,17 +42,31 @@ const TIMEOUT = 30000;
 
 const SEL = {
     map: ".o_pan_sl_map",
+    svg: ".o_pan_sl_map .o_pan_sl_svg",
+    body: ".o_pan_sl_map .o_pan_sl_body",
     emptyState: ".o_pan_sl_map .o_view_nocontent",
     scenarioSelect: ".o_pan_sl_scenario_select",
+    slider: ".o_pan_sl_zoom_slider",
+    block: ".o_pan_sl_block",
     chip: ".o_pan_sl_chip",
+    badge: ".o_pan_sl_badge",
+    rung: ".o_pan_sl_chip .o_pan_sl_rung",
+    detail: ".o_pan_sl_chip .o_pan_sl_detail text",
+    counter: ".o_pan_sl_counter",
     panel: ".o_pan_sl_panel",
     errorDialog: ".o_error_dialog",
 };
 
-const VIEWPORTS = [
-    { name: "desktop", width: 1440, height: 900 },
-    { name: "mobile", width: 390, height: 844 },
+// A zoom factor inside each semantic stop (thresholds 1, 1.75, 2.5, 3.25; max 4).
+const STOPS = [
+    { value: 1, zoom: 1, name: "company" },
+    { value: 2, zoom: 2, name: "processes" },
+    { value: 3, zoom: 2.8, name: "activities" },
+    { value: 4, zoom: 3.6, name: "detail" },
 ];
+
+const DESKTOP = { name: "desktop", width: 1440, height: 900 };
+const MOBILE = { name: "mobile", width: 390, height: 844 };
 
 function requireEnv(name) {
     const value = process.env[name];
@@ -53,11 +78,25 @@ function requireEnv(name) {
 
 class CheckError extends Error {}
 
+function check(condition, message) {
+    if (!condition) {
+        throw new CheckError(message);
+    }
+}
+
 async function expectVisible(page, selector, what) {
     try {
         await page.locator(selector).first().waitFor({ state: "visible", timeout: TIMEOUT });
     } catch {
         throw new CheckError(`Missing element: ${what} (${selector}) did not appear.`);
+    }
+}
+
+async function expectGone(page, selector, what) {
+    try {
+        await page.locator(selector).first().waitFor({ state: "detached", timeout: 5000 });
+    } catch {
+        throw new CheckError(`${what} (${selector}) is still there.`);
     }
 }
 
@@ -71,9 +110,245 @@ async function login(page, db) {
     ]);
 }
 
-async function checkViewport(browser, db, out, viewport, problems) {
+async function openMap(page) {
+    await page.goto(`${BASE_URL}${MAP_PATH}`);
+    await expectVisible(page, SEL.map, "company map");
+    // The map is ready when it shows either the SVG or the empty state.
+    await page.locator(`${SEL.svg}, ${SEL.emptyState}`).first().waitFor({ state: "visible", timeout: TIMEOUT });
+    if (await page.locator(SEL.emptyState).count()) {
+        throw new CheckError(
+            "The company map shows the empty state: load a template blueprint in this database first."
+        );
+    }
+}
+
+/** Move the zoom slider to a zoom factor the way a user drags it (input events). */
+async function setZoom(page, zoom) {
+    await page.locator(SEL.slider).evaluate((el, value) => {
+        el.value = String(value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, zoom);
+    await page.waitForFunction(
+        (value) => Math.abs(parseFloat(document.querySelector(".o_pan_sl_svg")?.dataset.zoom) - value) < 0.01,
+        zoom,
+        { timeout: 5000 }
+    );
+    await page.waitForTimeout(200);
+}
+
+async function svgData(page) {
+    return page.locator(SEL.svg).evaluate((el) => ({
+        stop: parseInt(el.dataset.stop, 10),
+        zoom: parseFloat(el.dataset.zoom),
+        scale: parseFloat(el.dataset.scale),
+        mapWidth: parseInt(el.dataset.mapWidth, 10),
+        chipTotal: parseInt(el.dataset.chipTotal, 10),
+        viewBox: el.getAttribute("viewBox").split(" ").map(parseFloat),
+    }));
+}
+
+/** SVG shapes whose computed fill or stroke is pure black (an undefined CSS variable). */
+async function blackShapes(page) {
+    return page.evaluate(() => {
+        const black = new Set(["rgb(0, 0, 0)", "#000000", "black"]);
+        const found = [];
+        for (const el of document.querySelectorAll(
+            ".o_pan_sl_map svg rect, .o_pan_sl_map svg circle, .o_pan_sl_map svg path, .o_pan_sl_map svg line"
+        )) {
+            if (el.closest("defs, clipPath")) {
+                continue;
+            }
+            const style = getComputedStyle(el);
+            // A line has no area: its fill is never painted.
+            const fillBlack = el.tagName !== "line" && black.has(style.fill);
+            const strokeBlack = style.stroke !== "none" && black.has(style.stroke);
+            if (fillBlack || strokeBlack) {
+                found.push(`${el.tagName}.${el.getAttribute("class") || ""} fill=${style.fill} stroke=${style.stroke}`);
+            }
+        }
+        return found;
+    });
+}
+
+async function expectNoBlack(page, label) {
+    const found = await blackShapes(page);
+    check(
+        !found.length,
+        `${label}: ${found.length} SVG shape(s) painted black (undefined colour variable?), e.g. ${found.slice(0, 3).join("; ")}`
+    );
+}
+
+/**
+ * Click the first chip matching `selector` whose centre is not covered (by
+ * the sticky header or label column, or the panel), like a user would.
+ */
+async function clickVisibleChip(page, selector, what) {
+    const point = await page.evaluate((sel) => {
+        for (const chip of document.querySelectorAll(sel)) {
+            const r = chip.getBoundingClientRect();
+            const x = r.left + Math.min(r.width / 2, 60);
+            const y = r.top + Math.min(r.height / 2, 14);
+            const hit = document.elementFromPoint(x, y);
+            if (hit && chip.contains(hit)) {
+                return { x, y };
+            }
+        }
+        return null;
+    }, selector);
+    check(point, `No ${what} is visible on screen to click.`);
+    await page.mouse.click(point.x, point.y);
+}
+
+async function expectNoErrorDialog(page) {
+    check(!(await page.locator(SEL.errorDialog).count()), "Odoo shows an error dialog.");
+}
+
+async function count(page, selector) {
+    return page.locator(selector).count();
+}
+
+async function checkDesktop(page, out) {
+    const scales = [];
+    for (const stop of STOPS) {
+        await setZoom(page, stop.zoom);
+        const label = `stop ${stop.value} (${stop.name})`;
+        const info = await svgData(page);
+        check(info.stop === stop.value, `${label}: zoom ${stop.zoom} shows stop ${info.stop}.`);
+        await expectNoBlack(page, label);
+        scales.push(info.scale);
+        const blocks = await count(page, SEL.block);
+        const chips = await count(page, SEL.chip);
+        if (stop.value === 1) {
+            check(blocks > 0, `${label}: no role x phase blocks drawn.`);
+            check(chips === 0, `${label}: activity chips are drawn, the company view shows blocks only.`);
+            check((await count(page, SEL.counter)) > 0, `${label}: open-choice and clash counters missing.`);
+        } else {
+            check(blocks === 0, `${label}: company blocks are still drawn.`);
+            check(chips > 0, `${label}: no activity chips drawn.`);
+            const rungs = await count(page, SEL.rung);
+            check(stop.value >= 3 ? rungs > 0 : rungs === 0, `${label}: rung bars ${rungs ? "shown" : "missing"}.`);
+            const detailLines = await count(page, SEL.detail);
+            check(
+                stop.value === 4 ? detailLines > 0 : detailLines === 0,
+                `${label}: task / click path lines ${detailLines ? "shown" : "missing"}.`
+            );
+            if (stop.value === 4) {
+                check(
+                    chips < info.chipTotal,
+                    `${label}: all ${info.chipTotal} chips are rendered although most are out of view (no culling).`
+                );
+            }
+        }
+        await page.screenshot({ path: join(out, `desktop_stop${stop.value}_${stop.name}.png`) });
+    }
+    check(
+        scales.every((scale, index) => !index || scale > scales[index - 1]),
+        `The map does not get physically larger with each stop (scales ${scales.join(", ")}).`
+    );
+
+    // Drag to pan.
+    const box = await page.locator(SEL.body).boundingBox();
+    const before = (await svgData(page)).viewBox;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 200, box.y + box.height / 2 - 120, { steps: 8 });
+    await page.mouse.up();
+    const after = (await svgData(page)).viewBox;
+    check(after[0] > before[0] && after[1] > before[1], `Dragging does not pan the map (${before} -> ${after}).`);
+    check(!(await count(page, SEL.panel)), "Ending a drag on a chip opened the panel.");
+
+    // Wheel zooms out, centred on the cursor; the slider follows.
+    await page.mouse.move(box.x + 300, box.y + 200);
+    const zoomBeforeWheel = (await svgData(page)).zoom;
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(200);
+    const zoomAfterWheel = (await svgData(page)).zoom;
+    check(zoomAfterWheel < zoomBeforeWheel, `Wheel down does not zoom out (${zoomBeforeWheel} -> ${zoomAfterWheel}).`);
+    const sliderValue = parseFloat(await page.locator(SEL.slider).inputValue());
+    check(Math.abs(sliderValue - zoomAfterWheel) < 0.02, `The slider (${sliderValue}) does not follow the wheel zoom.`);
+    check(
+        Math.round(zoomAfterWheel * 100) % 25 !== 0,
+        `Wheel zoom landed on ${zoomAfterWheel}: zoom should be continuous, not snap to positions.`
+    );
+
+    // Double-click on the background zooms in.
+    await setZoom(page, 1);
+    await page.mouse.dblclick(box.x + 80, box.y + box.height - 40);
+    await page.waitForTimeout(200);
+    check((await svgData(page)).zoom > 1.5, "Double-click does not zoom in.");
+
+    // Back to the company view, then select a scenario: jumps to stop 2 with a numbered route.
+    await setZoom(page, 1);
+    const select = page.locator(SEL.scenarioSelect).first();
+    const optionCount = await select.locator("option").count();
+    check(optionCount >= 2, `The scenario select has ${optionCount} option(s); at least one scenario is needed.`);
+    // The last scenario is the longest route in the generic template.
+    await select.selectOption({ index: optionCount - 1 });
+    await expectVisible(page, SEL.badge, "numbered route badges");
+    const stopAfter = (await svgData(page)).stop;
+    check(stopAfter === 2, `Selecting a scenario should jump to stop 2, the map is at stop ${stopAfter}.`);
+    const badgeTexts = await page.locator(`${SEL.badge} text`).allTextContents();
+    check(badgeTexts[0] === "1", `The first route badge reads "${badgeTexts[0]}" instead of "1".`);
+    const badgeVisible = await page.locator(SEL.badge).first().evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const body = document.querySelector(".o_pan_sl_body").getBoundingClientRect();
+        return r.left >= body.left && r.right <= body.right && r.top >= body.top && r.bottom <= body.bottom;
+    });
+    check(badgeVisible, "The first route badge is not in view (the route is not fitted).");
+    await expectNoBlack(page, "scenario route");
+    await page.screenshot({ path: join(out, "desktop_scenario.png") });
+
+    // Click an activity on the route: the panel opens; Esc closes it.
+    await clickVisibleChip(page, `${SEL.chip}:not(.o_pan_sl_dim)`, "route chip");
+    await expectVisible(page, SEL.panel, "activity side panel");
+    await page.screenshot({ path: join(out, "desktop_panel.png") });
+    await page.keyboard.press("Escape");
+    await expectGone(page, SEL.panel, "The side panel after pressing Esc");
+
+    // Keyboard: a chip is focusable and Enter opens the panel.
+    await page.locator(SEL.chip).first().focus();
+    await page.keyboard.press("Enter");
+    await expectVisible(page, SEL.panel, "activity side panel (opened with Enter)");
+    await page.keyboard.press("Escape");
+    await expectGone(page, SEL.panel, "The side panel after pressing Esc (keyboard)");
+    await expectNoErrorDialog(page);
+}
+
+async function checkMobile(page, out) {
+    await setZoom(page, 2);
+    const info = await svgData(page);
+    const sizes = await page.evaluate(() => ({
+        page: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+        body: document.querySelector(".o_pan_sl_body").clientWidth,
+    }));
+    check(
+        sizes.page <= sizes.viewport,
+        `The page scrolls sideways on mobile (${sizes.page}px wide in a ${sizes.viewport}px viewport).`
+    );
+    check(info.mapWidth > sizes.body, "On mobile the map should be wider than its container (and pan inside it).");
+    await expectNoBlack(page, "mobile");
+    await clickVisibleChip(page, SEL.chip, "activity chip");
+    await expectVisible(page, SEL.panel, "activity side panel (mobile)");
+    const sheet = await page.locator(SEL.panel).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, bottom: r.bottom, width: window.innerWidth, height: window.innerHeight };
+    });
+    check(
+        sheet.left <= 1 && sheet.right >= sheet.width - 1 && Math.abs(sheet.bottom - sheet.height) <= 2,
+        `On mobile the panel should be a bottom sheet, it sits at ${JSON.stringify(sheet)}.`
+    );
+    await page.screenshot({ path: join(out, "mobile.png") });
+    await page.keyboard.press("Escape");
+    await expectGone(page, SEL.panel, "The side panel after pressing Esc (mobile)");
+    await expectNoErrorDialog(page);
+}
+
+async function runViewport(browser, db, out, viewport, run, problems) {
     const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
+        deviceScaleFactor: 1,
+        hasTouch: viewport === MOBILE,
     });
     const page = await context.newPage();
     const label = viewport.name;
@@ -83,45 +358,12 @@ async function checkViewport(browser, db, out, viewport, problems) {
             problems.push(`[${label}] console error: ${msg.text()}`);
         }
     });
-
     try {
         await login(page, db);
-        await page.goto(`${BASE_URL}${MAP_PATH}`);
-        await expectVisible(page, SEL.map, "company map");
-        await page.waitForLoadState("networkidle");
-
-        if (await page.locator(SEL.emptyState).count()) {
-            await page.screenshot({ path: join(out, `${label}_empty.png`), fullPage: true });
-            throw new CheckError(
-                "The company map shows the empty state: load a template blueprint in this database first."
-            );
-        }
-        await page.screenshot({ path: join(out, `${label}_map.png`), fullPage: true });
-
-        await expectVisible(page, SEL.scenarioSelect, "scenario select");
-        const select = page.locator(SEL.scenarioSelect).first();
-        const optionCount = await select.locator("option").count();
-        if (optionCount < 2) {
-            throw new CheckError(
-                `The scenario select has ${optionCount} option(s); at least one scenario is needed.`
-            );
-        }
-        await select.selectOption({ index: 1 });
-        await page.waitForTimeout(500);
-        await page.screenshot({ path: join(out, `${label}_scenario.png`), fullPage: true });
-
-        await expectVisible(page, SEL.chip, "activity chip");
-        await page.locator(SEL.chip).first().click();
-        await expectVisible(page, SEL.panel, "activity side panel");
-        await page.screenshot({ path: join(out, `${label}_panel.png`), fullPage: true });
-
-        if (await page.locator(SEL.errorDialog).count()) {
-            throw new CheckError("Odoo shows an error dialog.");
-        }
+        await openMap(page);
+        await run(page, out);
     } catch (error) {
-        if (!(error instanceof CheckError)) {
-            await page.screenshot({ path: join(out, `${label}_failure.png`), fullPage: true });
-        }
+        await page.screenshot({ path: join(out, `${label}_failure.png`) }).catch(() => {});
         problems.push(`[${label}] ${error.message}`);
     } finally {
         await context.close();
@@ -136,9 +378,8 @@ async function main() {
     const problems = [];
     const browser = await chromium.launch();
     try {
-        for (const viewport of VIEWPORTS) {
-            await checkViewport(browser, db, out, viewport, problems);
-        }
+        await runViewport(browser, db, out, DESKTOP, checkDesktop, problems);
+        await runViewport(browser, db, out, MOBILE, checkMobile, problems);
     } finally {
         await browser.close();
     }
