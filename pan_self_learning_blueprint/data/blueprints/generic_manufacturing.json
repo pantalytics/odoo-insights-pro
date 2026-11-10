@@ -1,0 +1,847 @@
+{
+  "format": "pantalytics-blueprint",
+  "version": 1,
+  "name": "Generic manufacturer",
+  "chains": [
+    {
+      "code": "basis",
+      "name": "Basis",
+      "sequence": 10,
+      "description": "Master data and settings every other chain relies on: contacts, products, units and access."
+    },
+    {
+      "code": "lead_to_cash",
+      "name": "Lead to Cash",
+      "sequence": 20,
+      "description": "From the first customer request to the payment received."
+    },
+    {
+      "code": "source_to_pay",
+      "name": "Source to Pay",
+      "sequence": 30,
+      "description": "From a purchase need to the paid vendor bill."
+    },
+    {
+      "code": "plan_to_produce",
+      "name": "Plan to Produce",
+      "sequence": 40,
+      "description": "From a confirmed order to a finished, checked product."
+    },
+    {
+      "code": "record_to_report",
+      "name": "Record to Report",
+      "sequence": 50,
+      "description": "Bookkeeping, period close and management reporting."
+    },
+    {
+      "code": "hire_to_retire",
+      "name": "Hire to Retire",
+      "sequence": 60,
+      "description": "People and their time: hours, approvals and internal costs."
+    }
+  ],
+  "phases": [
+    {
+      "code": "master_data",
+      "name": "Master data",
+      "sequence": 10,
+      "models": [
+        "res.partner",
+        "product.template"
+      ],
+      "apps": [
+        "Contacts",
+        "Inventory"
+      ]
+    },
+    {
+      "code": "request",
+      "name": "Request",
+      "sequence": 20,
+      "models": [
+        "crm.lead"
+      ],
+      "apps": [
+        "CRM"
+      ]
+    },
+    {
+      "code": "quotation",
+      "name": "Quotation",
+      "sequence": 30,
+      "models": [
+        "sale.order"
+      ],
+      "apps": [
+        "Sales"
+      ]
+    },
+    {
+      "code": "order",
+      "name": "Order",
+      "sequence": 40,
+      "models": [
+        "sale.order"
+      ],
+      "apps": [
+        "Sales"
+      ]
+    },
+    {
+      "code": "plan_produce",
+      "name": "Plan and produce",
+      "sequence": 50,
+      "models": [
+        "mrp.production",
+        "mrp.bom"
+      ],
+      "apps": [
+        "Manufacturing"
+      ]
+    },
+    {
+      "code": "purchase_receive",
+      "name": "Purchase and receive",
+      "sequence": 60,
+      "models": [
+        "purchase.order",
+        "stock.picking"
+      ],
+      "apps": [
+        "Purchase",
+        "Inventory"
+      ]
+    },
+    {
+      "code": "deliver",
+      "name": "Deliver",
+      "sequence": 70,
+      "models": [
+        "stock.picking"
+      ],
+      "apps": [
+        "Inventory"
+      ]
+    },
+    {
+      "code": "invoice_pay",
+      "name": "Invoice and pay",
+      "sequence": 80,
+      "models": [
+        "account.move",
+        "account.analytic.line"
+      ],
+      "apps": [
+        "Accounting",
+        "Timesheets"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "code": "customer",
+      "name": "Customer",
+      "sequence": 10,
+      "external": true,
+      "description": "The customer: sends requests, accepts quotations, receives goods and pays."
+    },
+    {
+      "code": "management",
+      "name": "Management",
+      "sequence": 20,
+      "external": false,
+      "description": "Approves quotations above the limit, vendor bills and timesheets; reviews the figures."
+    },
+    {
+      "code": "sales",
+      "name": "Sales",
+      "sequence": 30,
+      "external": false,
+      "description": "Handles requests, quotations and sales orders."
+    },
+    {
+      "code": "engineering",
+      "name": "Engineering and planning",
+      "sequence": 40,
+      "external": false,
+      "description": "Estimates, prepares bills of materials and plans production."
+    },
+    {
+      "code": "purchasing_warehouse",
+      "name": "Purchasing and warehouse",
+      "sequence": 50,
+      "external": false,
+      "description": "Buys materials, receives, picks and ships goods."
+    },
+    {
+      "code": "production",
+      "name": "Production",
+      "sequence": 60,
+      "external": false,
+      "description": "Runs manufacturing orders on the shop floor and logs hours."
+    },
+    {
+      "code": "administration",
+      "name": "Administration",
+      "sequence": 70,
+      "external": false,
+      "description": "Keeps master data, invoices customers, books vendor bills and closes the period."
+    },
+    {
+      "code": "supplier",
+      "name": "Supplier",
+      "sequence": 80,
+      "external": true,
+      "description": "The supplier: quotes, delivers and invoices."
+    }
+  ],
+  "processes": [
+    {
+      "code": "master_data_mgmt",
+      "name": "Maintain master data",
+      "sequence": 10,
+      "chain": "basis",
+      "owner_role": "administration"
+    },
+    {
+      "code": "lead_qualify",
+      "name": "Qualify a request",
+      "sequence": 20,
+      "chain": "lead_to_cash",
+      "owner_role": "sales"
+    },
+    {
+      "code": "quote_approve",
+      "name": "Quote and approve",
+      "sequence": 30,
+      "chain": "lead_to_cash",
+      "owner_role": "sales"
+    },
+    {
+      "code": "order_fulfil",
+      "name": "Confirm and deliver the order",
+      "sequence": 40,
+      "chain": "lead_to_cash",
+      "owner_role": "sales"
+    },
+    {
+      "code": "customer_invoice",
+      "name": "Invoice and collect",
+      "sequence": 50,
+      "chain": "lead_to_cash",
+      "owner_role": "administration"
+    },
+    {
+      "code": "purchase_receive",
+      "name": "Purchase and receive",
+      "sequence": 60,
+      "chain": "source_to_pay",
+      "owner_role": "purchasing_warehouse"
+    },
+    {
+      "code": "vendor_bill",
+      "name": "Approve and pay vendor bills",
+      "sequence": 70,
+      "chain": "source_to_pay",
+      "owner_role": "administration"
+    },
+    {
+      "code": "engineer_plan",
+      "name": "Engineer and plan",
+      "sequence": 80,
+      "chain": "plan_to_produce",
+      "owner_role": "engineering"
+    },
+    {
+      "code": "produce",
+      "name": "Produce",
+      "sequence": 90,
+      "chain": "plan_to_produce",
+      "owner_role": "production"
+    },
+    {
+      "code": "period_close",
+      "name": "Close the period",
+      "sequence": 100,
+      "chain": "record_to_report",
+      "owner_role": "administration"
+    },
+    {
+      "code": "time_registration",
+      "name": "Register and approve time",
+      "sequence": 110,
+      "chain": "hire_to_retire",
+      "owner_role": "management"
+    }
+  ],
+  "activities": [
+    {
+      "code": "customer_create",
+      "name": "Create a new customer",
+      "sequence": 10,
+      "process": "master_data_mgmt",
+      "role": "administration",
+      "phase": "master_data",
+      "model": "res.partner",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Contacts, New</li><li>Set company, address, VAT and payment terms</li><li>Save</li></ol>"
+    },
+    {
+      "code": "product_create",
+      "name": "Create a manufactured product",
+      "sequence": 20,
+      "process": "master_data_mgmt",
+      "role": "engineering",
+      "phase": "master_data",
+      "model": "product.template",
+      "choice_state": "provisional",
+      "open_point": "Which product categories and routes do we need?",
+      "click_path": "<ol><li>Inventory, Products, New</li><li>Tick Manufacture as route</li><li>Set unit, category and cost method</li><li>Save</li></ol>"
+    },
+    {
+      "code": "vendor_create",
+      "name": "Create a supplier",
+      "sequence": 30,
+      "process": "master_data_mgmt",
+      "role": "purchasing_warehouse",
+      "phase": "master_data",
+      "model": "res.partner",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Purchase, Vendors, New</li><li>Set address, VAT and payment terms</li><li>Save</li></ol>"
+    },
+    {
+      "code": "customer_request",
+      "name": "Send a request for quotation",
+      "sequence": 40,
+      "process": "lead_qualify",
+      "role": "customer",
+      "phase": "request",
+      "model": "crm.lead",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Email the sales address with drawing and quantity</li></ol>"
+    },
+    {
+      "code": "lead_register",
+      "name": "Register the request as a lead",
+      "sequence": 50,
+      "process": "lead_qualify",
+      "role": "sales",
+      "phase": "request",
+      "model": "crm.lead",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>CRM, check the lead created from the email</li><li>Link the customer</li><li>Set expected revenue</li></ol>"
+    },
+    {
+      "code": "lead_qualify",
+      "name": "Qualify the lead",
+      "sequence": 60,
+      "process": "lead_qualify",
+      "role": "sales",
+      "phase": "request",
+      "model": "crm.lead",
+      "choice_state": "provisional",
+      "open_point": "Agree the qualification criteria (fit, capacity, margin).",
+      "click_path": "<ol><li>CRM, open the lead</li><li>Move it to Qualified or mark it lost with a reason</li></ol>"
+    },
+    {
+      "code": "quote_cost",
+      "name": "Estimate cost and lead time",
+      "sequence": 70,
+      "process": "quote_approve",
+      "role": "engineering",
+      "phase": "quotation",
+      "model": "sale.order",
+      "choice_state": "proposal",
+      "open_point": "Estimate from a bill of materials or from a cost sheet?",
+      "click_path": "<ol><li>Sales, open the draft quotation</li><li>Log the estimate in the chatter</li><li>Set the delivery date</li></ol>"
+    },
+    {
+      "code": "quote_draft",
+      "name": "Draft the quotation",
+      "sequence": 80,
+      "process": "quote_approve",
+      "role": "sales",
+      "phase": "quotation",
+      "model": "sale.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Sales, New</li><li>Add customer, products and quantities</li><li>Check prices and delivery date</li><li>Save</li></ol>"
+    },
+    {
+      "code": "quote_approve_internal",
+      "name": "Approve the quotation internally",
+      "sequence": 90,
+      "process": "quote_approve",
+      "role": "management",
+      "phase": "quotation",
+      "model": "sale.order",
+      "choice_state": "provisional",
+      "open_point": "Approval limit to be decided.",
+      "click_path": "<ol><li>Sales, filter To approve</li><li>Open the quotation and check the margin</li><li>Approve or send back with a note</li></ol>"
+    },
+    {
+      "code": "quote_send",
+      "name": "Send the quotation",
+      "sequence": 100,
+      "process": "quote_approve",
+      "role": "sales",
+      "phase": "quotation",
+      "model": "sale.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Open the quotation</li><li>Send by Email</li><li>Check the PDF and send</li></ol>"
+    },
+    {
+      "code": "quote_accept",
+      "name": "Accept the quotation",
+      "sequence": 110,
+      "process": "quote_approve",
+      "role": "customer",
+      "phase": "order",
+      "model": "sale.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Open the link in the email</li><li>Sign and accept online</li></ol>"
+    },
+    {
+      "code": "order_confirm",
+      "name": "Confirm the sales order",
+      "sequence": 120,
+      "process": "order_fulfil",
+      "role": "sales",
+      "phase": "order",
+      "model": "sale.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Open the signed quotation</li><li>Confirm</li><li>Check the manufacturing and delivery orders created</li></ol>"
+    },
+    {
+      "code": "bom_prepare",
+      "name": "Prepare the bill of materials",
+      "sequence": 130,
+      "process": "engineer_plan",
+      "role": "engineering",
+      "phase": "plan_produce",
+      "model": "mrp.bom",
+      "choice_state": "provisional",
+      "open_point": "One bill of materials per variant or per product?",
+      "click_path": "<ol><li>Manufacturing, Bills of Materials, New</li><li>Add components and operations</li><li>Save</li></ol>"
+    },
+    {
+      "code": "production_plan",
+      "name": "Plan the manufacturing order",
+      "sequence": 140,
+      "process": "engineer_plan",
+      "role": "engineering",
+      "phase": "plan_produce",
+      "model": "mrp.production",
+      "choice_state": "proposal",
+      "open_point": "Plan on work centres or on dates only?",
+      "click_path": "<ol><li>Manufacturing, open the order</li><li>Check component availability</li><li>Plan</li><li>Set the start date</li></ol>"
+    },
+    {
+      "code": "production_start",
+      "name": "Start the manufacturing order",
+      "sequence": 150,
+      "process": "produce",
+      "role": "production",
+      "phase": "plan_produce",
+      "model": "mrp.production",
+      "choice_state": "provisional",
+      "open_point": "",
+      "click_path": "<ol><li>Manufacturing, open the order</li><li>Start the first work order</li></ol>"
+    },
+    {
+      "code": "production_report",
+      "name": "Report output and consumption",
+      "sequence": 160,
+      "process": "produce",
+      "role": "production",
+      "phase": "plan_produce",
+      "model": "mrp.production",
+      "choice_state": "proposal",
+      "open_point": "Report per operation or only at the end?",
+      "click_path": "<ol><li>Open the manufacturing order</li><li>Set the quantity produced</li><li>Check consumed components</li><li>Mark as done</li></ol>"
+    },
+    {
+      "code": "production_quality",
+      "name": "Check the finished product",
+      "sequence": 170,
+      "process": "produce",
+      "role": "production",
+      "phase": "plan_produce",
+      "model": "mrp.production",
+      "choice_state": "revised",
+      "open_point": "Checklist changed after the first trial; confirm with the team.",
+      "click_path": "<ol><li>Open the manufacturing order</li><li>Record the check in the chatter</li><li>Mark as done or report the deviation</li></ol>"
+    },
+    {
+      "code": "purchase_rfq",
+      "name": "Request a price from the supplier",
+      "sequence": 180,
+      "process": "purchase_receive",
+      "role": "purchasing_warehouse",
+      "phase": "purchase_receive",
+      "model": "purchase.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Purchase, New</li><li>Add supplier and products</li><li>Send by Email</li></ol>"
+    },
+    {
+      "code": "supplier_quote",
+      "name": "Send a price and delivery date",
+      "sequence": 190,
+      "process": "purchase_receive",
+      "role": "supplier",
+      "phase": "purchase_receive",
+      "model": "purchase.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Reply to the request with price and date</li></ol>"
+    },
+    {
+      "code": "purchase_confirm",
+      "name": "Confirm the purchase order",
+      "sequence": 200,
+      "process": "purchase_receive",
+      "role": "purchasing_warehouse",
+      "phase": "purchase_receive",
+      "model": "purchase.order",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Open the request for quotation</li><li>Update price and date</li><li>Confirm order</li></ol>"
+    },
+    {
+      "code": "supplier_deliver",
+      "name": "Deliver the goods",
+      "sequence": 210,
+      "process": "purchase_receive",
+      "role": "supplier",
+      "phase": "purchase_receive",
+      "model": "stock.picking",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Ship the goods with a delivery note</li></ol>"
+    },
+    {
+      "code": "goods_receive",
+      "name": "Receive the goods",
+      "sequence": 220,
+      "process": "purchase_receive",
+      "role": "purchasing_warehouse",
+      "phase": "purchase_receive",
+      "model": "stock.picking",
+      "choice_state": "provisional",
+      "open_point": "Do we inspect on receipt?",
+      "click_path": "<ol><li>Inventory, Receipts, open the receipt</li><li>Check quantities</li><li>Validate</li></ol>"
+    },
+    {
+      "code": "delivery_pick",
+      "name": "Pick and pack the order",
+      "sequence": 230,
+      "process": "order_fulfil",
+      "role": "purchasing_warehouse",
+      "phase": "deliver",
+      "model": "stock.picking",
+      "choice_state": "provisional",
+      "open_point": "One step or pick, pack and ship?",
+      "click_path": "<ol><li>Inventory, Deliveries, open the order</li><li>Pick the products</li><li>Put in pack</li></ol>"
+    },
+    {
+      "code": "delivery_ship",
+      "name": "Ship the order",
+      "sequence": 240,
+      "process": "order_fulfil",
+      "role": "purchasing_warehouse",
+      "phase": "deliver",
+      "model": "stock.picking",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Open the delivery</li><li>Validate</li><li>Print the delivery slip</li></ol>"
+    },
+    {
+      "code": "delivery_receive",
+      "name": "Receive the delivery",
+      "sequence": 250,
+      "process": "order_fulfil",
+      "role": "customer",
+      "phase": "deliver",
+      "model": "stock.picking",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Sign the delivery slip</li></ol>"
+    },
+    {
+      "code": "invoice_create",
+      "name": "Create the customer invoice",
+      "sequence": 260,
+      "process": "customer_invoice",
+      "role": "administration",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Sales, To invoice</li><li>Create invoice</li><li>Check and confirm</li><li>Send</li></ol>"
+    },
+    {
+      "code": "invoice_pay",
+      "name": "Pay the invoice",
+      "sequence": 270,
+      "process": "customer_invoice",
+      "role": "customer",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Pay by bank transfer with the invoice reference</li></ol>"
+    },
+    {
+      "code": "payment_reconcile",
+      "name": "Reconcile the payment",
+      "sequence": 280,
+      "process": "customer_invoice",
+      "role": "administration",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "provisional",
+      "open_point": "Bank feed or statement import?",
+      "click_path": "<ol><li>Accounting, Bank, Reconcile</li><li>Match the payment to the invoice</li></ol>"
+    },
+    {
+      "code": "supplier_invoice_send",
+      "name": "Send the invoice",
+      "sequence": 290,
+      "process": "vendor_bill",
+      "role": "supplier",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "fixed",
+      "open_point": "",
+      "click_path": "<ol><li>Email the invoice to the bills address</li></ol>"
+    },
+    {
+      "code": "vendor_bill_register",
+      "name": "Register the vendor bill",
+      "sequence": 300,
+      "process": "vendor_bill",
+      "role": "administration",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "provisional",
+      "open_point": "",
+      "click_path": "<ol><li>Accounting, Vendor bills, check the bill from the email</li><li>Link the purchase order</li><li>Check amounts</li></ol>"
+    },
+    {
+      "code": "vendor_bill_approve",
+      "name": "Approve the vendor bill",
+      "sequence": 310,
+      "process": "vendor_bill",
+      "role": "management",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "proposal",
+      "open_point": "Who approves which amounts?",
+      "click_path": "<ol><li>Accounting, Vendor bills, filter To approve</li><li>Check against the receipt</li><li>Confirm the bill</li></ol>"
+    },
+    {
+      "code": "timesheet_log",
+      "name": "Log hours on the project",
+      "sequence": 320,
+      "process": "time_registration",
+      "role": "production",
+      "phase": "plan_produce",
+      "model": "account.analytic.line",
+      "choice_state": "proposal",
+      "open_point": "Hours on the project or on the work order?",
+      "click_path": "<ol><li>Timesheets, New</li><li>Choose project and task</li><li>Enter the hours</li></ol>"
+    },
+    {
+      "code": "timesheet_approve",
+      "name": "Approve timesheets",
+      "sequence": 330,
+      "process": "time_registration",
+      "role": "management",
+      "phase": "invoice_pay",
+      "model": "account.analytic.line",
+      "choice_state": "proposal",
+      "open_point": "",
+      "click_path": "<ol><li>Timesheets, To validate</li><li>Check the hours</li><li>Validate</li></ol>"
+    },
+    {
+      "code": "month_close",
+      "name": "Close the month",
+      "sequence": 340,
+      "process": "period_close",
+      "role": "administration",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "provisional",
+      "open_point": "Agree the close checklist and the lock date.",
+      "click_path": "<ol><li>Accounting, check open items</li><li>Post accruals</li><li>Set the lock date</li></ol>"
+    },
+    {
+      "code": "month_review",
+      "name": "Review the monthly figures",
+      "sequence": 350,
+      "process": "period_close",
+      "role": "management",
+      "phase": "invoice_pay",
+      "model": "account.move",
+      "choice_state": "proposal",
+      "open_point": "Which reports does management want?",
+      "click_path": "<ol><li>Accounting, Reporting, Profit and Loss</li><li>Compare with last month</li></ol>"
+    }
+  ],
+  "scenarios": [
+    {
+      "code": "S01",
+      "name": "New customer",
+      "sequence": 10,
+      "description": "A new customer is in Odoo with the right terms, so a quotation can be made.",
+      "open_point": "",
+      "steps": [
+        "customer_create"
+      ]
+    },
+    {
+      "code": "S02",
+      "name": "From request to quotation",
+      "sequence": 20,
+      "description": "An emailed request becomes a qualified lead and a costed draft quotation.",
+      "open_point": "",
+      "steps": [
+        "customer_request",
+        "lead_register",
+        "lead_qualify",
+        "quote_cost",
+        "quote_draft"
+      ]
+    },
+    {
+      "code": "S03",
+      "name": "Quote and approve",
+      "sequence": 30,
+      "description": "The internal approval is not the customer's acceptance: both are needed before the order.",
+      "open_point": "Approval limit still open.",
+      "steps": [
+        "quote_draft",
+        "quote_approve_internal",
+        "quote_send",
+        "quote_accept",
+        "order_confirm"
+      ]
+    },
+    {
+      "code": "S04",
+      "name": "Production order",
+      "sequence": 40,
+      "description": "A confirmed order is made: bill of materials, plan, produce, check.",
+      "open_point": "",
+      "steps": [
+        "order_confirm",
+        "bom_prepare",
+        "production_plan",
+        "production_start",
+        "production_report",
+        "production_quality"
+      ]
+    },
+    {
+      "code": "S05",
+      "name": "Purchase and receive",
+      "sequence": 50,
+      "description": "Materials are bought at the agreed price and received into stock.",
+      "open_point": "",
+      "steps": [
+        "purchase_rfq",
+        "supplier_quote",
+        "purchase_confirm",
+        "supplier_deliver",
+        "goods_receive"
+      ]
+    },
+    {
+      "code": "S06",
+      "name": "Approve a vendor bill",
+      "sequence": 60,
+      "description": "A vendor bill is matched to the order and receipt, approved and ready to pay.",
+      "open_point": "",
+      "steps": [
+        "supplier_invoice_send",
+        "vendor_bill_register",
+        "vendor_bill_approve"
+      ]
+    },
+    {
+      "code": "S07",
+      "name": "Timesheets on a project",
+      "sequence": 70,
+      "description": "Hours are logged on the right project and approved.",
+      "open_point": "",
+      "steps": [
+        "timesheet_log",
+        "timesheet_approve"
+      ]
+    },
+    {
+      "code": "S08",
+      "name": "Deliver the order",
+      "sequence": 80,
+      "description": "The finished goods leave with a delivery slip the customer signs.",
+      "open_point": "",
+      "steps": [
+        "delivery_pick",
+        "delivery_ship",
+        "delivery_receive"
+      ]
+    },
+    {
+      "code": "S09",
+      "name": "Invoice the order",
+      "sequence": 90,
+      "description": "The delivered order is invoiced, paid and reconciled.",
+      "open_point": "",
+      "steps": [
+        "invoice_create",
+        "invoice_pay",
+        "payment_reconcile"
+      ]
+    },
+    {
+      "code": "S10",
+      "name": "Close the month",
+      "sequence": 100,
+      "description": "All open items are booked and the figures are reviewed.",
+      "open_point": "",
+      "steps": [
+        "payment_reconcile",
+        "month_close",
+        "month_review"
+      ]
+    },
+    {
+      "code": "S11",
+      "name": "Make to order, end to end",
+      "sequence": 110,
+      "description": "One order from the customer's request to the payment received.",
+      "open_point": "",
+      "steps": [
+        "customer_request",
+        "lead_register",
+        "quote_draft",
+        "quote_send",
+        "quote_accept",
+        "order_confirm",
+        "production_plan",
+        "production_report",
+        "delivery_ship",
+        "invoice_create",
+        "invoice_pay"
+      ]
+    }
+  ]
+}

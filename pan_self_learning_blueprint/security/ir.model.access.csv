@@ -1,0 +1,19 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_pan_sl_chain_user,pan.sl.chain user,model_pan_sl_chain,group_blueprint_user,1,0,0,0
+access_pan_sl_chain_manager,pan.sl.chain manager,model_pan_sl_chain,group_blueprint_manager,1,1,1,1
+access_pan_sl_phase_user,pan.sl.phase user,model_pan_sl_phase,group_blueprint_user,1,0,0,0
+access_pan_sl_phase_manager,pan.sl.phase manager,model_pan_sl_phase,group_blueprint_manager,1,1,1,1
+access_pan_sl_role_user,pan.sl.role user,model_pan_sl_role,group_blueprint_user,1,0,0,0
+access_pan_sl_role_manager,pan.sl.role manager,model_pan_sl_role,group_blueprint_manager,1,1,1,1
+access_pan_sl_process_user,pan.sl.process user,model_pan_sl_process,group_blueprint_user,1,0,0,0
+access_pan_sl_process_manager,pan.sl.process manager,model_pan_sl_process,group_blueprint_manager,1,1,1,1
+access_pan_sl_activity_user,pan.sl.activity user,model_pan_sl_activity,group_blueprint_user,1,0,0,0
+access_pan_sl_activity_manager,pan.sl.activity manager,model_pan_sl_activity,group_blueprint_manager,1,1,1,1
+access_pan_sl_scenario_user,pan.sl.scenario user,model_pan_sl_scenario,group_blueprint_user,1,0,0,0
+access_pan_sl_scenario_manager,pan.sl.scenario manager,model_pan_sl_scenario,group_blueprint_manager,1,1,1,1
+access_pan_sl_scenario_step_user,pan.sl.scenario.step user,model_pan_sl_scenario_step,group_blueprint_user,1,0,0,0
+access_pan_sl_scenario_step_manager,pan.sl.scenario.step manager,model_pan_sl_scenario_step,group_blueprint_manager,1,1,1,1
+access_pan_sl_adkar_score_user,pan.sl.adkar.score user,model_pan_sl_adkar_score,group_blueprint_user,1,0,0,0
+access_pan_sl_adkar_score_manager,pan.sl.adkar.score manager,model_pan_sl_adkar_score,group_blueprint_manager,1,1,1,1
+access_pan_sl_blueprint_wizard_user,pan.sl.blueprint.wizard user,model_pan_sl_blueprint_wizard,group_blueprint_user,1,0,0,0
+access_pan_sl_blueprint_wizard_manager,pan.sl.blueprint.wizard manager,model_pan_sl_blueprint_wizard,group_blueprint_manager,1,1,1,1

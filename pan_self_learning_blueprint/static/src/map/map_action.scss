@@ -1,0 +1,273 @@
+// Company map. Colours come from Bootstrap's CSS variables, which Odoo
+// redefines for the dark theme, so the map follows light and dark mode.
+
+.o_pan_sl_map {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    overflow: hidden;
+
+    .o_pan_sl_controls select {
+        width: auto;
+        min-width: 10rem;
+    }
+
+    .o_pan_sl_body {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .o_pan_sl_svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+
+        &:active {
+            cursor: grabbing;
+        }
+
+        text {
+            fill: var(--bs-body-color);
+            font-size: 12px;
+        }
+    }
+
+    // Grid ------------------------------------------------------------
+    .o_pan_sl_column {
+        fill: transparent;
+        stroke: var(--bs-border-color);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_column_alt {
+        fill: rgba(var(--bs-emphasis-color-rgb), 0.02);
+    }
+
+    .o_pan_sl_phase_label {
+        font-weight: 600;
+        font-size: 13px !important;
+    }
+
+    .o_pan_sl_lane {
+        fill: transparent;
+        stroke: var(--bs-border-color);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_lane_external {
+        fill: rgba(var(--bs-secondary-rgb), 0.08);
+    }
+
+    .o_pan_sl_role_label {
+        font-weight: 600;
+    }
+
+    .o_pan_sl_role_sub {
+        fill: var(--bs-secondary-color) !important;
+        font-size: 11px !important;
+        font-style: italic;
+    }
+
+    .o_pan_sl_band {
+        fill: var(--bs-tertiary-bg);
+        stroke: var(--bs-border-color);
+    }
+
+    .o_pan_sl_band_label {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        fill: var(--bs-secondary-color) !important;
+    }
+
+    .o_pan_sl_progress_track {
+        fill: rgba(var(--bs-secondary-rgb), 0.25);
+    }
+
+    .o_pan_sl_progress_bar {
+        fill: var(--bs-success);
+    }
+
+    .o_pan_sl_progress_label {
+        font-size: 11px !important;
+        fill: var(--bs-secondary-color) !important;
+    }
+
+    .o_pan_sl_app {
+        rect {
+            fill: rgba(var(--bs-primary-rgb), 0.12);
+            stroke: rgba(var(--bs-primary-rgb), 0.5);
+        }
+
+        text {
+            font-size: 11px;
+        }
+    }
+
+    // Chips -----------------------------------------------------------
+    .o_pan_sl_chip {
+        cursor: pointer;
+        outline: none;
+        transition: opacity 0.15s ease-in-out;
+
+        &:hover .o_pan_sl_chip_box {
+            stroke-width: 2.5;
+        }
+
+        &:focus-visible .o_pan_sl_chip_box,
+        &.o_pan_sl_selected .o_pan_sl_chip_box {
+            stroke: var(--bs-primary);
+            stroke-width: 3;
+        }
+    }
+
+    .o_pan_sl_chip_box {
+        fill: rgba(var(--bs-secondary-rgb), 0.15);
+        stroke: var(--bs-secondary);
+        stroke-width: 1.5;
+    }
+
+    .o_pan_sl_dim {
+        opacity: 0.2;
+    }
+
+    .o_pan_sl_open_dot {
+        fill: var(--bs-danger);
+    }
+
+    // Route -----------------------------------------------------------
+    .o_pan_sl_route {
+        fill: none;
+        stroke: var(--bs-primary);
+        stroke-width: 3;
+        stroke-linejoin: round;
+        stroke-dasharray: 6 4;
+        pointer-events: none;
+    }
+
+    .o_pan_sl_route_arrow {
+        fill: var(--bs-primary);
+    }
+
+    .o_pan_sl_route_badges {
+        pointer-events: none;
+    }
+
+    .o_pan_sl_badge {
+        circle {
+            fill: var(--bs-primary);
+            stroke: var(--bs-body-bg);
+            stroke-width: 2;
+        }
+
+        text {
+            fill: var(--bs-white) !important;
+            font-size: 11px;
+            font-weight: 700;
+        }
+    }
+
+    // Side panel ------------------------------------------------------
+    .o_pan_sl_panel {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        width: 340px;
+        max-width: calc(100% - 1.5rem);
+        overflow-y: auto;
+        z-index: 2;
+
+        dt {
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        dd {
+            margin-bottom: 0;
+        }
+
+        .o_pan_sl_open_point {
+            white-space: pre-wrap;
+        }
+    }
+
+    .o_pan_sl_state_badge {
+        display: inline-block;
+        padding: 0.1rem 0.5rem;
+        border-radius: 1rem;
+        border: 1.5px solid var(--bs-secondary);
+        background-color: rgba(var(--bs-secondary-rgb), 0.15);
+    }
+}
+
+// Colour schemes, shared by chips (SVG rect), legend swatches and badges.
+@mixin o-pan-sl-colour($rgb-var, $solid-var, $alpha, $dashed: false) {
+    .o_pan_sl_chip_box {
+        fill: rgba(var(#{$rgb-var}), $alpha);
+        stroke: var(#{$solid-var});
+        @if $dashed {
+            stroke-dasharray: 4 3;
+        }
+    }
+
+    &.o_pan_sl_state_badge {
+        background-color: rgba(var(#{$rgb-var}), $alpha);
+        border-color: var(#{$solid-var});
+        @if $dashed {
+            border-style: dashed;
+        }
+    }
+}
+
+.o_pan_sl_map {
+    // Choices
+    .o_pan_sl_c_proposal {
+        @include o-pan-sl-colour(--bs-warning-rgb, --bs-warning, 0.06, true);
+    }
+    .o_pan_sl_c_provisional {
+        @include o-pan-sl-colour(--bs-warning-rgb, --bs-warning, 0.45);
+    }
+    .o_pan_sl_c_fixed {
+        @include o-pan-sl-colour(--bs-success-rgb, --bs-success, 0.4);
+    }
+    .o_pan_sl_c_revised {
+        @include o-pan-sl-colour(--bs-danger-rgb, --bs-danger, 0.4);
+    }
+
+    // Progress by rung (0 Open to 5 Live)
+    .o_pan_sl_r_0 {
+        @include o-pan-sl-colour(--bs-secondary-rgb, --bs-secondary, 0.12);
+    }
+    .o_pan_sl_r_1 {
+        @include o-pan-sl-colour(--bs-danger-rgb, --bs-danger, 0.3);
+    }
+    .o_pan_sl_r_2 {
+        @include o-pan-sl-colour(--bs-warning-rgb, --bs-warning, 0.4);
+    }
+    .o_pan_sl_r_3 {
+        @include o-pan-sl-colour(--bs-info-rgb, --bs-info, 0.4);
+    }
+    .o_pan_sl_r_4 {
+        @include o-pan-sl-colour(--bs-success-rgb, --bs-success, 0.3);
+    }
+    .o_pan_sl_r_5 {
+        @include o-pan-sl-colour(--bs-success-rgb, --bs-success, 0.65);
+    }
+
+    // People (lowest ADKAR element of the role)
+    .o_pan_sl_p_ready {
+        @include o-pan-sl-colour(--bs-success-rgb, --bs-success, 0.4);
+    }
+    .o_pan_sl_p_partly {
+        @include o-pan-sl-colour(--bs-warning-rgb, --bs-warning, 0.4);
+    }
+    .o_pan_sl_p_not_ready {
+        @include o-pan-sl-colour(--bs-danger-rgb, --bs-danger, 0.4);
+    }
+    .o_pan_sl_p_no_data {
+        @include o-pan-sl-colour(--bs-secondary-rgb, --bs-secondary, 0.12);
+    }
+}

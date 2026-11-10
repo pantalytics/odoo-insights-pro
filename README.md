@@ -89,3 +89,79 @@ database manager) are not reported. The code is `server_errors.py`.
 - Upgrading from 19.0.1.x removes the pre-filled project key; press Connect to
   Pantalytics once to resume.
 - License: LGPL-3.
+
+## Blueprint module
+
+`pan_self_learning_blueprint` is a second, independent module in this
+repository. It describes a company as one model and tracks how far the Odoo
+implementation is, per activity, on one company map.
+
+### What it does
+
+- **Three pillars, one atom.** The business (what we do), the system (what
+  Odoo must do) and the people (can they do it) meet in the **activity**: one
+  role does one thing to one Odoo document.
+- **Hierarchy.** Chain (L1) → process (L2) → activity (L3) → click path (L4).
+  A **scenario** is a test route across processes.
+- **Readiness.** Project tasks get a scenario, the activities they move
+  forward and a rung: 0 Open, 1 Decided, 2 Built, 3 Tested, 4 Trained,
+  5 Live. An activity is as far as its least advanced task. Choices per
+  activity go proposal → provisional → fixed → revised, with the history in
+  the chatter.
+- **People.** ADKAR scores (awareness, desire, knowledge, ability,
+  reinforcement) per user, averaged per role on the map.
+- **Open format.** The whole model imports and exports as one JSON blueprint
+  (`docs/blueprint-format.md`). Records match on `code`, so importing again
+  updates and never deletes. A blueprint holds no personal data.
+
+It works the same for a company on its own Odoo and for an implementation
+partner working in a client's database: there is no partner or customer
+concept in the model, and nothing ends at go-live.
+
+### Install
+
+1. Put the `pan_self_learning_blueprint` folder on your Odoo 19 addons path.
+2. Update the apps list and install **Odoo Self Learning: Blueprint**. It
+   depends on `project`, `mail` and `web` only.
+3. Give people access under **Settings, Users**: *Blueprint / User* opens the
+   map and reads the model, *Blueprint / Administrator* edits it and imports
+   or exports blueprints. System administrators get Administrator.
+
+### Load the template
+
+Open **Blueprint, Blueprint, Import / export**, choose *Load a template*,
+pick the bundled template (`data/blueprints/`) and press **Load template**.
+Models of apps that are not installed are skipped and listed in the result.
+To use your own blueprint, choose *Import a file*; that import is strict and
+refuses a model that is not installed. *Export* downloads the current model
+as `blueprint.json`, ready to keep in git.
+
+### The company map
+
+**Blueprint, Company map** shows everything in one picture with a fixed
+orientation: phases (Odoo's document chain) from left to right; from top to
+bottom a progress band, the role lanes with their activities (external roles
+such as customer and supplier at the edges) and an Odoo band with the apps per
+phase.
+
+- **Scenario**: show all activities or one scenario; the route is drawn with
+  numbered steps and the other activities are dimmed.
+- **Colour by**: choices, progress (rung) or people (ADKAR).
+- **Zoom**: more detail appears as you zoom in, from one block per role and
+  phase up to the linked tasks under each activity.
+- **Side panel**: click an activity to see its role, users, scenarios, choice
+  state, rung and open point, with a button to open the activity form.
+
+With no activities yet, the map explains itself and offers *Load a template*.
+
+### UI check
+
+`tools/ui_check.mjs` is a Playwright script for a running local Odoo with the
+module installed and a template loaded. It logs in as admin/admin, opens the
+map, takes desktop and mobile screenshots, selects a scenario, opens the side
+panel of the first activity and exits non-zero on any page or console error
+or missing element.
+
+```bash
+DB=mydb OUT=/tmp/blueprint-ui node tools/ui_check.mjs
+```

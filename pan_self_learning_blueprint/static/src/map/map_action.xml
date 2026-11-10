@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="pan_self_learning_blueprint.CompanyMap">
+        <div class="o_action o_pan_sl_map d-flex flex-column h-100">
+            <t t-if="state.loaded">
+                <t t-if="!data.activities.length">
+                    <div class="o_view_nocontent">
+                        <div class="o_nocontent_help">
+                            <p class="o_view_nocontent_smiling_face">No activities on the company map yet</p>
+                            <p>
+                                The map shows every activity of the company: phases from left to right,
+                                roles from top to bottom. Start from a template blueprint or import your own.
+                            </p>
+                            <button type="button" class="btn btn-primary" t-on-click="openTemplateWizard">
+                                Load a template
+                            </button>
+                        </div>
+                    </div>
+                </t>
+                <t t-else="">
+                    <div class="o_pan_sl_controls d-flex flex-wrap align-items-center gap-3 px-3 py-2 border-bottom">
+                        <label class="d-flex align-items-center gap-2 mb-0">
+                            <span class="fw-bold">Scenario</span>
+                            <select class="form-select form-select-sm o_pan_sl_scenario_select"
+                                    t-on-change="onScenarioChange">
+                                <option value="" t-att-selected="!state.scenarioId">All scenarios</option>
+                                <option t-foreach="data.scenarios" t-as="scenario" t-key="scenario.id"
+                                        t-att-value="scenario.id"
+                                        t-att-selected="state.scenarioId === scenario.id">
+                                    <t t-esc="scenario.code"/> · <t t-esc="scenario.name"/>
+                                </option>
+                            </select>
+                        </label>
+                        <label class="d-flex align-items-center gap-2 mb-0">
+                            <span class="fw-bold">Colour by</span>
+                            <select class="form-select form-select-sm o_pan_sl_color_select"
+                                    t-on-change="onColorByChange">
+                                <option value="choices" t-att-selected="state.colorBy === 'choices'">Choices</option>
+                                <option value="progress" t-att-selected="state.colorBy === 'progress'">Progress</option>
+                                <option value="people" t-att-selected="state.colorBy === 'people'">People (ADKAR)</option>
+                            </select>
+                        </label>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Zoom">
+                            <button type="button" class="btn btn-secondary" title="Zoom in" aria-label="Zoom in"
+                                    t-on-click="zoomIn">
+                                <i class="fa fa-plus"/>
+                            </button>
+                            <button type="button" class="btn btn-secondary" title="Zoom out" aria-label="Zoom out"
+                                    t-on-click="zoomOut">
+                                <i class="fa fa-minus"/>
+                            </button>
+                            <button type="button" class="btn btn-secondary" title="Fit the whole map"
+                                    t-on-click="fit">
+                                Fit
+                            </button>
+                        </div>
+                        <ul class="o_pan_sl_legend list-inline d-flex flex-wrap gap-3 mb-0 ms-auto small">
+                            <li t-foreach="legend" t-as="item" t-key="item.key"
+                                class="d-flex align-items-center gap-1">
+                                <svg width="18" height="12" aria-hidden="true">
+                                    <g t-att-class="item.className">
+                                        <rect class="o_pan_sl_chip_box" x="1" y="1" width="16" height="10" rx="3"/>
+                                    </g>
+                                </svg>
+                                <span t-esc="item.label"/>
+                            </li>
+                        </ul>
+                    </div>
+                    <div t-if="selectedScenario" class="o_pan_sl_scenario_info px-3 py-1 border-bottom small">
+                        <span class="fw-bold" t-esc="selectedScenario.name"/>
+                        <span t-if="selectedScenario.description" class="text-muted">
+                            — <t t-esc="selectedScenario.description"/>
+                        </span>
+                        <span class="ms-2 badge text-bg-light">
+                            Rung <t t-esc="selectedScenario.rung"/> <t t-esc="rungLabels[selectedScenario.rung]"/>
+                        </span>
+                        <span t-if="selectedScenario.open_point" class="ms-2 text-warning">
+                            <i class="fa fa-exclamation-triangle me-1"/><t t-esc="selectedScenario.open_point"/>
+                        </span>
+                    </div>
+
+                    <div class="o_pan_sl_body position-relative flex-grow-1">
+                        <svg t-ref="svg" class="o_pan_sl_svg"
+                             t-att-viewBox="viewBoxAttr"
+                             preserveAspectRatio="xMidYMin meet"
+                             role="img" aria-label="Company map"
+                             t-on-pointerdown="onPointerDown"
+                             t-on-pointermove="onPointerMove"
+                             t-on-pointerup="onPointerUp"
+                             t-on-pointercancel="onPointerUp">
+                            <defs>
+                                <marker id="o_pan_sl_arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                                        markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                    <path class="o_pan_sl_route_arrow" d="M 0 0 L 10 5 L 0 10 z"/>
+                                </marker>
+                            </defs>
+
+                            <!-- Phase columns and headers -->
+                            <g class="o_pan_sl_columns">
+                                <t t-foreach="layout.columns" t-as="column" t-key="column.phase.id">
+                                    <rect class="o_pan_sl_column"
+                                          t-att-class="column_index % 2 ? 'o_pan_sl_column_alt' : ''"
+                                          t-att-x="column.x" y="0"
+                                          t-att-width="geometry.COL_W" t-att-height="layout.height"/>
+                                    <text class="o_pan_sl_phase_label"
+                                          t-att-x="column.x + geometry.COL_W / 2" y="25" text-anchor="middle">
+                                        <t t-esc="column.label"/>
+                                        <title t-esc="column.phase.name"/>
+                                    </text>
+                                </t>
+                            </g>
+
+                            <!-- Progress band -->
+                            <g class="o_pan_sl_progress_band">
+                                <rect class="o_pan_sl_band" x="0" t-att-y="geometry.HEADER_H"
+                                      t-att-width="layout.width" t-att-height="geometry.PROGRESS_H"/>
+                                <text class="o_pan_sl_band_label" x="12" t-att-y="geometry.HEADER_H + 27">Progress</text>
+                                <t t-foreach="layout.progress" t-as="item" t-key="item.id">
+                                    <rect class="o_pan_sl_progress_track"
+                                          t-att-x="item.x + 10" t-att-y="geometry.HEADER_H + 8"
+                                          t-att-width="geometry.COL_W - 20" height="8" rx="4"/>
+                                    <rect class="o_pan_sl_progress_bar"
+                                          t-att-x="item.x + 10" t-att-y="geometry.HEADER_H + 8"
+                                          t-att-width="item.barWidth" height="8" rx="4"/>
+                                    <text class="o_pan_sl_progress_label"
+                                          t-att-x="item.x + geometry.COL_W / 2" t-att-y="geometry.HEADER_H + 34"
+                                          text-anchor="middle">
+                                        <t t-esc="item.label"/>
+                                    </text>
+                                </t>
+                            </g>
+
+                            <!-- Role lanes -->
+                            <g class="o_pan_sl_lanes">
+                                <t t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id">
+                                    <rect class="o_pan_sl_lane"
+                                          t-att-class="lane.role.is_external ? 'o_pan_sl_lane_external' : ''"
+                                          x="0" t-att-y="lane.y"
+                                          t-att-width="layout.width" t-att-height="lane.height"/>
+                                    <text class="o_pan_sl_role_label" x="12" t-att-y="lane.y + 22">
+                                        <t t-esc="lane.label"/>
+                                        <title t-esc="lane.role.name"/>
+                                    </text>
+                                    <text t-if="lane.role.is_external" class="o_pan_sl_role_sub"
+                                          x="12" t-att-y="lane.y + 38">External</text>
+                                </t>
+                            </g>
+
+                            <!-- Odoo band -->
+                            <g class="o_pan_sl_odoo_band">
+                                <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom"
+                                      t-att-width="layout.width" t-att-height="layout.odooHeight"/>
+                                <text class="o_pan_sl_band_label" x="12" t-att-y="layout.lanesBottom + 25">Odoo</text>
+                                <g t-foreach="layout.apps" t-as="app" t-key="app.key" class="o_pan_sl_app">
+                                    <rect t-att-x="app.x" t-att-y="app.y" t-att-width="app.width"
+                                          t-att-height="geometry.APP_CHIP_H" rx="10"/>
+                                    <text t-att-x="app.x + app.width / 2" t-att-y="app.y + 14"
+                                          text-anchor="middle" t-esc="app.label"/>
+                                </g>
+                            </g>
+
+                            <!-- Route of the selected scenario (under the chips) -->
+                            <path t-if="route and route.badges.length > 1" class="o_pan_sl_route"
+                                  t-att-d="route.path" marker-end="url(#o_pan_sl_arrow)"/>
+
+                            <!-- Activities -->
+                            <g class="o_pan_sl_chips">
+                                <g t-foreach="layout.chips" t-as="chip" t-key="chip.id"
+                                   class="o_pan_sl_chip" t-att-class="chipClass(chip)"
+                                   t-att-transform="'translate(' + chip.x + ',' + chip.y + ')'"
+                                   tabindex="0" role="button"
+                                   t-att-aria-label="chip.activity.name"
+                                   t-att-aria-pressed="state.selectedId === chip.id ? 'true' : 'false'"
+                                   t-on-click="() => this.openPanel(chip.id)"
+                                   t-on-keydown="(ev) => this.onChipKeydown(ev, chip.id)">
+                                    <title t-esc="chip.activity.name"/>
+                                    <rect class="o_pan_sl_chip_box" x="0" y="0"
+                                          t-att-width="geometry.CHIP_W" t-att-height="geometry.CHIP_H" rx="6"/>
+                                    <text class="o_pan_sl_chip_label" x="10" y="17" t-esc="chip.label"/>
+                                    <circle t-if="chip.activity.open_point" class="o_pan_sl_open_dot"
+                                            t-att-cx="geometry.CHIP_W - 9" cy="9" r="4"/>
+                                </g>
+                            </g>
+
+                            <!-- Numbered route badges (on top of the chips) -->
+                            <g t-if="route" class="o_pan_sl_route_badges">
+                                <g t-foreach="route.badges" t-as="badge" t-key="badge.key" class="o_pan_sl_badge">
+                                    <circle t-att-cx="badge.x" t-att-cy="badge.y" r="10"/>
+                                    <text t-att-x="badge.x" t-att-y="badge.y + 4" text-anchor="middle"
+                                          t-esc="badge.number"/>
+                                </g>
+                            </g>
+                        </svg>
+
+                        <aside t-if="panel" class="o_pan_sl_panel card shadow" role="dialog"
+                               aria-label="Activity details">
+                            <div class="card-header d-flex align-items-start gap-2">
+                                <div class="flex-grow-1">
+                                    <div class="text-muted small" t-esc="panel.activity.code"/>
+                                    <h5 class="mb-0" t-esc="panel.activity.name"/>
+                                </div>
+                                <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
+                                        t-on-click="closePanel"/>
+                            </div>
+                            <div class="card-body small">
+                                <dl class="mb-0">
+                                    <dt>Role</dt>
+                                    <dd>
+                                        <t t-esc="panel.role.name"/>
+                                        <span t-if="panel.role.is_external" class="badge text-bg-light ms-1">External</span>
+                                    </dd>
+                                    <dt>Users</dt>
+                                    <dd>
+                                        <t t-if="panel.role.users.length" t-esc="panel.role.users.join(', ')"/>
+                                        <span t-else="" class="text-muted">Nobody holds this role yet</span>
+                                    </dd>
+                                    <dt>Choice</dt>
+                                    <dd>
+                                        <span class="o_pan_sl_state_badge"
+                                              t-att-class="'o_pan_sl_c_' + panel.activity.choice_state">
+                                            <t t-esc="panel.choiceLabel"/>
+                                        </span>
+                                    </dd>
+                                    <dt>Rung</dt>
+                                    <dd t-esc="panel.rungLabel"/>
+                                    <t t-if="panel.activity.model">
+                                        <dt>Odoo model</dt>
+                                        <dd><code t-esc="panel.activity.model"/></dd>
+                                    </t>
+                                    <dt>Scenarios</dt>
+                                    <dd>
+                                        <div t-if="panel.scenarios.length" class="d-flex flex-wrap gap-1">
+                                            <button t-foreach="panel.scenarios" t-as="scenario" t-key="scenario.id"
+                                                    type="button" class="btn btn-sm"
+                                                    t-att-class="state.scenarioId === scenario.id ? 'btn-primary' : 'btn-outline-primary'"
+                                                    t-att-title="scenario.name"
+                                                    t-on-click="() => this.selectScenario(scenario.id)">
+                                                <t t-esc="scenario.code"/>
+                                            </button>
+                                        </div>
+                                        <span t-else="" class="text-muted">Not part of a scenario</span>
+                                    </dd>
+                                    <t t-if="panel.adkar">
+                                        <dt>ADKAR of the role</dt>
+                                        <dd>
+                                            <ul class="list-unstyled mb-0">
+                                                <li t-foreach="panel.adkar" t-as="element" t-key="element_index">
+                                                    <t t-esc="element.label"/>: <t t-esc="element.value"/>
+                                                </li>
+                                            </ul>
+                                        </dd>
+                                    </t>
+                                    <dt>Open point</dt>
+                                    <dd class="mb-0">
+                                        <span t-if="panel.activity.open_point" class="o_pan_sl_open_point"
+                                              t-esc="panel.activity.open_point"/>
+                                        <span t-else="" class="text-muted">None</span>
+                                    </dd>
+                                </dl>
+                            </div>
+                            <div class="card-footer">
+                                <button type="button" class="btn btn-primary btn-sm" t-on-click="openActivity">
+                                    Open activity
+                                </button>
+                            </div>
+                        </aside>
+                    </div>
+                </t>
+            </t>
+        </div>
+    </t>
+
+</templates>

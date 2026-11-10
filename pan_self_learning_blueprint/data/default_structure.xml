@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Default company structure: the value chains (L1) and the phases (map columns).
+         Codes match data/blueprints/*.json, so importing a template updates these records.
+         Only models of modules this module depends on are linked; other apps are listed in app_labels. -->
+    <data noupdate="1">
+
+        <record id="chain_basis" model="pan.sl.chain">
+            <field name="name">Basis</field>
+            <field name="code">basis</field>
+            <field name="sequence">10</field>
+            <field name="description">Master data and settings every other chain relies on: contacts, products, units and access.</field>
+        </record>
+
+        <record id="chain_lead_to_cash" model="pan.sl.chain">
+            <field name="name">Lead to Cash</field>
+            <field name="code">lead_to_cash</field>
+            <field name="sequence">20</field>
+            <field name="description">From the first customer request to the payment received.</field>
+        </record>
+
+        <record id="chain_source_to_pay" model="pan.sl.chain">
+            <field name="name">Source to Pay</field>
+            <field name="code">source_to_pay</field>
+            <field name="sequence">30</field>
+            <field name="description">From a purchase need to the paid vendor bill.</field>
+        </record>
+
+        <record id="chain_plan_to_produce" model="pan.sl.chain">
+            <field name="name">Plan to Produce</field>
+            <field name="code">plan_to_produce</field>
+            <field name="sequence">40</field>
+            <field name="description">From a confirmed order to a finished, checked product.</field>
+        </record>
+
+        <record id="chain_record_to_report" model="pan.sl.chain">
+            <field name="name">Record to Report</field>
+            <field name="code">record_to_report</field>
+            <field name="sequence">50</field>
+            <field name="description">Bookkeeping, period close and management reporting.</field>
+        </record>
+
+        <record id="chain_hire_to_retire" model="pan.sl.chain">
+            <field name="name">Hire to Retire</field>
+            <field name="code">hire_to_retire</field>
+            <field name="sequence">60</field>
+            <field name="description">People and their time: hours, approvals and internal costs.</field>
+        </record>
+
+        <record id="phase_master_data" model="pan.sl.phase">
+            <field name="name">Master data</field>
+            <field name="code">master_data</field>
+            <field name="sequence">10</field>
+            <field name="app_labels">Contacts, Inventory</field>
+            <field name="model_ids" eval="[Command.set([ref('base.model_res_partner')])]"/>
+        </record>
+
+        <record id="phase_request" model="pan.sl.phase">
+            <field name="name">Request</field>
+            <field name="code">request</field>
+            <field name="sequence">20</field>
+            <field name="app_labels">CRM</field>
+        </record>
+
+        <record id="phase_quotation" model="pan.sl.phase">
+            <field name="name">Quotation</field>
+            <field name="code">quotation</field>
+            <field name="sequence">30</field>
+            <field name="app_labels">Sales</field>
+        </record>
+
+        <record id="phase_order" model="pan.sl.phase">
+            <field name="name">Order</field>
+            <field name="code">order</field>
+            <field name="sequence">40</field>
+            <field name="app_labels">Sales</field>
+        </record>
+
+        <record id="phase_plan_produce" model="pan.sl.phase">
+            <field name="name">Plan and produce</field>
+            <field name="code">plan_produce</field>
+            <field name="sequence">50</field>
+            <field name="app_labels">Manufacturing</field>
+        </record>
+
+        <record id="phase_purchase_receive" model="pan.sl.phase">
+            <field name="name">Purchase and receive</field>
+            <field name="code">purchase_receive</field>
+            <field name="sequence">60</field>
+            <field name="app_labels">Purchase, Inventory</field>
+        </record>
+
+        <record id="phase_deliver" model="pan.sl.phase">
+            <field name="name">Deliver</field>
+            <field name="code">deliver</field>
+            <field name="sequence">70</field>
+            <field name="app_labels">Inventory</field>
+        </record>
+
+        <record id="phase_invoice_pay" model="pan.sl.phase">
+            <field name="name">Invoice and pay</field>
+            <field name="code">invoice_pay</field>
+            <field name="sequence">80</field>
+            <field name="app_labels">Accounting, Timesheets</field>
+        </record>
+
+    </data>
+</odoo>

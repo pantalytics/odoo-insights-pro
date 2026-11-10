@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_blueprint_root"
+        name="Blueprint"
+        web_icon="pan_self_learning_blueprint,static/description/icon.png"
+        action="action_blueprint_map"
+        groups="group_blueprint_user"
+        sequence="45">
+
+        <menuitem
+            id="menu_blueprint_map"
+            name="Company map"
+            action="action_blueprint_map"
+            groups="group_blueprint_user"
+            sequence="10"/>
+
+        <menuitem
+            id="menu_blueprint_model"
+            name="Model"
+            groups="group_blueprint_user"
+            sequence="20">
+            <menuitem id="menu_blueprint_chain" name="Chains" action="action_chain" sequence="10"/>
+            <menuitem id="menu_blueprint_process" name="Processes" action="action_process" sequence="20"/>
+            <menuitem id="menu_blueprint_activity" name="Activities" action="action_activity" sequence="30"/>
+            <menuitem id="menu_blueprint_scenario" name="Scenarios" action="action_scenario" sequence="40"/>
+            <menuitem id="menu_blueprint_phase" name="Phases" action="action_phase" sequence="50"/>
+            <menuitem id="menu_blueprint_role" name="Roles" action="action_role" sequence="60"/>
+        </menuitem>
+
+        <menuitem
+            id="menu_blueprint_people"
+            name="People"
+            groups="group_blueprint_user"
+            sequence="30">
+            <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" action="action_adkar_score" sequence="10"/>
+        </menuitem>
+
+        <menuitem
+            id="menu_blueprint_blueprint"
+            name="Blueprint"
+            groups="group_blueprint_manager"
+            sequence="40">
+            <menuitem id="menu_blueprint_import_export" name="Import / export" action="action_blueprint_wizard" sequence="10"/>
+        </menuitem>
+
+    </menuitem>
+
+</odoo>

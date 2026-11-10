@@ -1,0 +1,1910 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * pan_self_learning_blueprint
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-10 00:00+0000\n"
+"PO-Revision-Date: 2026-11-10 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Dutch\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/adkar.py:0
+msgid ""
+"%(element)s for %(user)s must be between %(min)s and %(max)s, not %(value)s."
+msgstr ""
+"%(element)s voor %(user)s moet tussen %(min)s en %(max)s liggen, niet "
+"%(value)s."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/structure.py:0
+msgid "%(model)s '%(name)s' needs a code."
+msgstr "%(model)s '%(name)s' heeft een code nodig."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "%(name)s is not a valid JSON file: %(error)s"
+msgstr "%(name)s is geen geldig JSON-bestand: %(error)s"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "%(percent)s tested (%(done)s/%(total)s)"
+msgstr "%(percent)s getest (%(done)s/%(total)s)"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "%(section)s: %(created)s created, %(updated)s updated."
+msgstr "%(section)s: %(created)s aangemaakt, %(updated)s bijgewerkt."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "'%(code)s' needs a '%(key)s'."
+msgstr "'%(code)s' heeft een '%(key)s' nodig."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "'apps' of phase '%(code)s' must be a list."
+msgstr "'apps' van fase '%(code)s' moet een lijst zijn."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "'models' of phase '%(code)s' must be a list."
+msgstr "'models' van fase '%(code)s' moet een lijst zijn."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "'steps' of scenario '%(code)s' must be a list."
+msgstr "'steps' van scenario '%(code)s' moet een lijst zijn."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__ability
+msgid "1-5: can this person actually do the work in Odoo, day to day?"
+msgstr "1-5: kan deze persoon het werk dagelijks echt in Odoo doen?"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__knowledge
+msgid "1-5: does this person know how to work in the new way?"
+msgstr "1-5: weet deze persoon hoe er op de nieuwe manier gewerkt wordt?"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__awareness
+msgid "1-5: does this person understand why the change is needed?"
+msgstr "1-5: begrijpt deze persoon waarom de verandering nodig is?"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__desire
+msgid "1-5: does this person want to take part in the change?"
+msgstr "1-5: wil deze persoon meedoen aan de verandering?"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__reinforcement
+msgid "1-5: is the new way of working anchored, so people do not fall back?"
+msgstr "1-5: is de nieuwe werkwijze geborgd, zodat mensen niet terugvallen?"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_kanban
+msgid "<i class=\"fa fa-question-circle\" title=\"Open point\"/> Open point"
+msgstr "<i class=\"fa fa-question-circle\" title=\"Open punt\"/> Open punt"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid ""
+"A blueprint is one open JSON file with the chains, phases, roles, processes,\n"
+"                        activities and scenarios of a company. Records are matched on their code:\n"
+"                        importing again updates them, nothing is deleted. People and ADKAR scores\n"
+"                        are not part of a blueprint."
+msgstr ""
+"Een blueprint is één open JSON-bestand met de ketens, fasen, rollen, "
+"processen, activiteiten en scenario's van een bedrijf. Records worden "
+"gekoppeld op hun code: opnieuw importeren werkt ze bij, er wordt niets "
+"verwijderd. Mensen en ADKAR-scores maken geen deel uit van een blueprint."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__file
+msgid ""
+"A blueprint JSON file (format 'pantalytics-blueprint', version 1). After an "
+"export this holds the exported file."
+msgstr ""
+"Een blueprint-JSON-bestand (formaat 'pantalytics-blueprint', versie 1). Na "
+"een export staat hier het geëxporteerde bestand."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "A blueprint must be a JSON object, not %(type)s."
+msgstr "Een blueprint moet een JSON-object zijn, geen %(type)s."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__template
+msgid ""
+"A blueprint shipped with the module (data/blueprints). Models of apps that "
+"are not installed are skipped and listed in the result."
+msgstr ""
+"Een blueprint die met de module wordt meegeleverd (data/blueprints). "
+"Modellen van apps die niet geïnstalleerd zijn worden overgeslagen en in het "
+"resultaat vermeld."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_chain
+msgid ""
+"A chain (level 1) groups the processes of one end-to-end flow, such as lead "
+"to cash or source to pay."
+msgstr ""
+"Een keten (niveau 1) groepeert de processen van één doorlopende stroom, "
+"zoals lead to cash of source to pay."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "A model name must be text, found %(value)r."
+msgstr "Een modelnaam moet tekst zijn, gevonden: %(value)r."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_process
+msgid ""
+"A process (level 2) groups the activities of one value chain, for example "
+"\"Handle a quotation\"."
+msgstr ""
+"Een proces (niveau 2) groepeert de activiteiten van één waardeketen, "
+"bijvoorbeeld \"Offerte afhandelen\"."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_scenario
+msgid ""
+"A scenario is a test route across processes: an ordered list of\n"
+"                activities that together prove one way of working end to end."
+msgstr ""
+"Een scenario is een testroute over processen heen: een geordende lijst "
+"activiteiten die samen één werkwijze van begin tot eind bewijzen."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"A step of scenario '%(code)s' must be an activity code or an object with "
+"'activity' and 'note'; found %(step)r."
+msgstr ""
+"Een stap van scenario '%(code)s' moet een activiteitcode zijn of een object "
+"met 'activity' en 'note'; gevonden: %(step)r."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__ability
+msgid "Ability"
+msgstr "Vaardigheid"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__group_ids
+msgid "Access groups"
+msgstr "Toegangsgroepen"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__mode
+msgid "Action"
+msgstr "Actie"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_activity
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__activity_ids
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__activity_ids
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__activity_ids
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__activity_ids
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_activity
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "Activities"
+msgstr "Activiteiten"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__activity_ids
+msgid "Activities (level 3) that make up this process."
+msgstr "Activiteiten (niveau 3) waaruit dit proces bestaat."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/structure.py:0
+msgid "Activities of %(name)s"
+msgstr "Activiteiten van %(name)s"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__activity_ids
+msgid "Activities of this scenario, in the order of its steps."
+msgstr "Activiteiten van dit scenario, in de volgorde van de stappen."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__activity_ids
+msgid "Activities performed by this role."
+msgstr "Activiteiten die deze rol uitvoert."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__activity_ids
+msgid "Activities that take place in this phase."
+msgstr "Activiteiten die in deze fase plaatsvinden."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_form_blueprint
+msgid "Activities this task moves forward"
+msgstr "Activiteiten die deze taak verder brengt"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__activity_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_search
+msgid "Activity"
+msgstr "Activiteit"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Activity '%(code)s' has choice state %(state)r; use one of: %(states)s."
+msgstr ""
+"Activiteit '%(code)s' heeft keuzestatus %(state)r; gebruik een van: "
+"%(states)s."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__activity_count
+msgid "Activity Count"
+msgstr "Aantal activiteiten"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__activity_count
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__activity_count
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__activity_count
+msgid "Activity count"
+msgstr "Aantal activiteiten"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Activity details"
+msgstr "Activiteitdetails"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__activity_id
+msgid "Activity performed in this step."
+msgstr "Activiteit die in deze stap wordt uitgevoerd."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_pivot
+msgid "ADKAR averages"
+msgstr "ADKAR-gemiddelden"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "ADKAR of the role"
+msgstr "ADKAR van de rol"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_adkar_score
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
+msgid "ADKAR score"
+msgstr "ADKAR-score"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_adkar_score
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_adkar_score
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "ADKAR scores"
+msgstr "ADKAR-scores"
+
+#. module: pan_self_learning_blueprint
+#: model:res.groups,name:pan_self_learning_blueprint.group_blueprint_manager
+msgid "Administrator"
+msgstr "Beheerder"
+
+#. module: pan_self_learning_blueprint
+#: model:res.groups,comment:pan_self_learning_blueprint.group_blueprint_manager
+msgid ""
+"Administrator: can edit the blueprint model, record ADKAR scores and import "
+"or export blueprints."
+msgstr ""
+"Beheerder: kan het blueprint-model bewerken, ADKAR-scores vastleggen en "
+"blueprints importeren of exporteren."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "All scenarios"
+msgstr "Alle scenario's"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_activity
+msgid ""
+"An activity is the atom of the blueprint: one role does one thing to one "
+"Odoo document, in one phase."
+msgstr ""
+"Een activiteit is het atoom van de blueprint: één rol doet één ding met één "
+"Odoo-document, in één fase."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
+msgid "Apps"
+msgstr "Apps"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__average
+msgid "Average"
+msgstr "Gemiddelde"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__average
+msgid "Average of the five ADKAR elements of this score."
+msgstr "Gemiddelde van de vijf ADKAR-elementen van deze score."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__awareness
+msgid "Awareness"
+msgstr "Bewustzijn"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_basis
+msgid "Basis"
+msgstr "Basis"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+#: model:ir.module.category,name:pan_self_learning_blueprint.module_category_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_root
+#: model:res.groups.privilege,name:pan_self_learning_blueprint.res_groups_privilege_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_form_blueprint
+msgid "Blueprint"
+msgstr "Blueprint"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_activity_ids
+msgid "Blueprint Activities"
+msgstr "Blueprint-activiteiten"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_activity_ids
+msgid ""
+"Blueprint activities this task moves forward. The lowest rung of the tasks "
+"linked to an activity is that activity's progress."
+msgstr ""
+"Blueprint-activiteiten die deze taak verder brengt. De laagste trede van de "
+"taken bij een activiteit is de voortgang van die activiteit."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_activity
+msgid "Blueprint Activity"
+msgstr "Blueprint-activiteit"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__file
+msgid "Blueprint file"
+msgstr "Blueprint-bestand"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_blueprint_wizard
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Blueprint import / export"
+msgstr "Blueprint importeren / exporteren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_blueprint
+msgid "Blueprint import and export"
+msgstr "Blueprint importeren en exporteren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_process
+msgid "Blueprint Process"
+msgstr "Blueprint-proces"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__role_ids
+msgid "Blueprint roles held by this user (from the users on each role)."
+msgstr "Blueprint-rollen van deze gebruiker (uit de gebruikers per rol)."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_scenario
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_scenario_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Blueprint Scenario"
+msgstr "Blueprint-scenario"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_scenario_id
+msgid "Blueprint scenario (test route across processes) this task works on."
+msgstr ""
+"Blueprint-scenario (testroute over processen heen) waar deze taak aan werkt."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_scenario_step
+msgid "Blueprint Scenario Step"
+msgstr "Blueprint-scenariostap"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_structure_mixin
+msgid "Blueprint structure (code handling)"
+msgstr "Blueprint-structuur (codeverwerking)"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Blueprint Task"
+msgstr "Blueprint-taak"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Blueprint version %(found)r is not supported; this module reads version "
+"%(expected)s."
+msgstr ""
+"Blueprint-versie %(found)r wordt niet ondersteund; deze module leest versie "
+"%(expected)s."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__2
+msgid "Built"
+msgstr "Gebouwd"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "Business"
+msgstr "Bedrijf"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__chain_id
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__chain_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_search
+msgid "Chain"
+msgstr "Keten"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_chain
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_chain
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_search
+msgid "Chains"
+msgstr "Ketens"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Choice"
+msgstr "Keuze"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__choice_state
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "Choice State"
+msgstr "Keuzestatus"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Choices"
+msgstr "Keuzes"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "Choose a blueprint file to import."
+msgstr "Kies een blueprint-bestand om te importeren."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "Choose a template to load."
+msgstr "Kies een sjabloon om te laden."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__click_path
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "Click Path"
+msgstr "Klikpad"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Close"
+msgstr "Sluiten"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Close (Esc)"
+msgstr "Sluiten (Esc)"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__code
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__code
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__code
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__code
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__code
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__code
+msgid "Code"
+msgstr "Code"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Colour by"
+msgstr "Kleur op"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
+msgid ""
+"Comma separated Odoo app names shown as chips in the Odoo band of the map, "
+"for example: Sales, Inventory."
+msgstr ""
+"Door komma's gescheiden namen van Odoo-apps, getoond als labels in de Odoo-"
+"band van de kaart, bijvoorbeeld: Verkoop, Voorraad."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Company"
+msgstr "Bedrijf"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.actions.client,name:pan_self_learning_blueprint.action_blueprint_map
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_map
+msgid "Company map"
+msgstr "Bedrijfskaart"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__note
+msgid ""
+"Context for the score, for example the main blocker the person mentioned."
+msgstr ""
+"Context bij de score, bijvoorbeeld het belangrijkste obstakel dat de persoon"
+" noemde."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_process
+msgid "Create a process"
+msgstr "Maak een proces aan"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_scenario
+msgid "Create a scenario"
+msgstr "Maak een scenario aan"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_activity
+msgid "Create an activity"
+msgstr "Maak een activiteit aan"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_phase
+msgid "Create the first phase"
+msgstr "Maak de eerste fase aan"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_role
+msgid "Create the first role"
+msgstr "Maak de eerste rol aan"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_chain
+msgid "Create the first value chain"
+msgstr "Maak de eerste waardeketen aan"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__date
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "Date"
+msgstr "Datum"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__date
+msgid "Date on which the score was taken."
+msgstr "Datum waarop de score is afgenomen."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__1
+msgid "Decided"
+msgstr "Besloten"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_deliver
+msgid "Deliver"
+msgstr "Leveren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__description
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__description
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "Description"
+msgstr "Omschrijving"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__desire
+msgid "Desire"
+msgstr "Bereidheid"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Detail"
+msgstr "Detail"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Downloads the current model as blueprint.json."
+msgstr "Downloadt het huidige model als blueprint.json."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "e.g. Confirm the sales order"
+msgstr "bijv. Verkooporder bevestigen"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_form
+msgid "e.g. Handle a quotation"
+msgstr "bijv. Offerte afhandelen"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+msgid "e.g. L2C"
+msgstr "bijv. L2C"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+msgid "e.g. Lead to cash"
+msgstr "bijv. Lead to cash"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "e.g. Make to order, delivered and invoiced"
+msgstr "bijv. Op order maken, geleverd en gefactureerd"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
+msgid "e.g. Quotation"
+msgstr "bijv. Offerte"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
+msgid "e.g. QUOTATION"
+msgstr "bijv. QUOTATION"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "e.g. Sales"
+msgstr "bijv. Verkoop"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "e.g. SALES"
+msgstr "bijv. SALES"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
+msgid "e.g. Sales, Inventory"
+msgstr "bijv. Verkoop, Voorraad"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_blueprint_wizard__mode__export
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Export"
+msgstr "Exporteren"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Exported %(chains)s chains, %(phases)s phases, %(roles)s roles, "
+"%(processes)s processes, %(activities)s activities and %(scenarios)s "
+"scenarios."
+msgstr ""
+"%(chains)s ketens, %(phases)s fasen, %(roles)s rollen, %(processes)s "
+"processen, %(activities)s activiteiten en %(scenarios)s scenario's "
+"geëxporteerd."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__is_external
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_search
+msgid "External"
+msgstr "Extern"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "External Role"
+msgstr "Externe rol"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__filename
+msgid "File name"
+msgstr "Bestandsnaam"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Fit"
+msgstr "Passend"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Fit the whole map"
+msgstr "Hele kaart passend maken"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_activity__choice_state__fixed
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "Fixed"
+msgstr "Vast"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__description
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "Goal"
+msgstr "Doel"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "Has a score below 3"
+msgstr "Heeft een score onder 3"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_hire_to_retire
+msgid "Hire to Retire"
+msgstr "Hire to Retire"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Import"
+msgstr "Importeren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_import_export
+msgid "Import / export"
+msgstr "Importeren / exporteren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_blueprint_wizard
+msgid "Import / export blueprint"
+msgstr "Blueprint importeren / exporteren"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__mode
+msgid ""
+"Import a blueprint file, export the current model, or load one of the "
+"bundled templates."
+msgstr ""
+"Importeer een blueprint-bestand, exporteer het huidige model of laad een van"
+" de meegeleverde sjablonen."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_blueprint_wizard__mode__import
+msgid "Import a file"
+msgstr "Een bestand importeren"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "Imported blueprint %(name)s."
+msgstr "Blueprint %(name)s geïmporteerd."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_search
+msgid "Internal"
+msgstr "Intern"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_invoice_pay
+msgid "Invoice and pay"
+msgstr "Factureren en betalen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "Item %(index)s of '%(section)s' has no code."
+msgstr "Item %(index)s van '%(section)s' heeft geen code."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "Item %(index)s of '%(section)s' must be an object."
+msgstr "Item %(index)s van '%(section)s' moet een object zijn."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__knowledge
+msgid "Knowledge"
+msgstr "Kennis"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_lead_to_cash
+msgid "Lead to Cash"
+msgstr "Lead to Cash"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__click_path
+msgid "Level 4: the steps in Odoo. Basis for the manual and the exercise."
+msgstr ""
+"Niveau 4: de stappen in Odoo. Basis voor de handleiding en de oefening."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__5
+msgid "Live"
+msgstr "Live"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_blueprint_wizard__mode__template
+msgid "Load a template"
+msgstr "Een sjabloon laden"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid "Load template"
+msgstr "Sjabloon laden"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__rung
+msgid ""
+"Lowest rung (0 Open to 5 Live) of the activities in this scenario; 0 when "
+"the scenario has no activities."
+msgstr ""
+"Laagste trede (0 Open tot 5 Live) van de activiteiten in dit scenario; 0 als"
+" het scenario geen activiteiten heeft."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
+msgid "Main blocker or context for this score..."
+msgstr "Belangrijkste obstakel of context bij deze score..."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "Map"
+msgstr "Kaart"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.module.category,description:pan_self_learning_blueprint.module_category_blueprint
+msgid ""
+"Map the business and track implementation readiness on the company map."
+msgstr ""
+"Breng het bedrijf in kaart en volg de gereedheid van de implementatie op de "
+"bedrijfskaart."
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_master_data
+msgid "Master data"
+msgstr "Stamgegevens"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_model
+msgid "Model"
+msgstr "Model"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "My scores"
+msgstr "Mijn scores"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__name
+msgid "Name"
+msgstr "Naam"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__filename
+msgid "Name of the blueprint file."
+msgstr "Naam van het blueprint-bestand."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__name
+msgid "Name of the business process, for example 'Handle a quotation'."
+msgstr "Naam van het bedrijfsproces, bijvoorbeeld 'Offerte afhandelen'."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__name
+msgid ""
+"Name of the phase, shown as a column on the company map (left to right "
+"follows Odoo's document chain)."
+msgstr ""
+"Naam van de fase, getoond als kolom op de bedrijfskaart (van links naar "
+"rechts volgt de Odoo-documentketen)."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__name
+msgid ""
+"Name of the role, shown as a lane on the company map, for example Sales or "
+"Warehouse."
+msgstr ""
+"Naam van de rol, getoond als baan op de bedrijfskaart, bijvoorbeeld Verkoop "
+"of Magazijn."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__name
+msgid ""
+"Name of the scenario, for example 'Make to order, delivered and invoiced'."
+msgstr ""
+"Naam van het scenario, bijvoorbeeld 'Op order maken, geleverd en "
+"gefactureerd'."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__name
+msgid "Name of the value chain (level 1), for example Lead to cash."
+msgstr "Naam van de waardeketen (niveau 1), bijvoorbeeld Lead to cash."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "No activities"
+msgstr "Geen activiteiten"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "No activities on the company map yet"
+msgstr "Nog geen activiteiten op de bedrijfskaart"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "No ADKAR data"
+msgstr "Geen ADKAR-gegevens"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Nobody holds this role yet"
+msgstr "Niemand vervult deze rol nog"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "None"
+msgstr "Geen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Not installed, model links left empty: %(models)s. Install these apps and "
+"load the template again to link them."
+msgstr ""
+"Niet geïnstalleerd, modelkoppelingen leeg gelaten: %(models)s. Installeer "
+"deze apps en laad het sjabloon opnieuw om ze te koppelen."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Not Live"
+msgstr "Niet live"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Not part of a scenario"
+msgstr "Geen onderdeel van een scenario"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Not ready"
+msgstr "Niet klaar"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__note
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__note
+msgid "Note"
+msgstr "Notitie"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__activity_count
+msgid "Number of activities in the processes of this chain."
+msgstr "Aantal activiteiten in de processen van deze keten."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__activity_count
+msgid "Number of activities in this phase."
+msgstr "Aantal activiteiten in deze fase."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__activity_count
+msgid "Number of activities in this process."
+msgstr "Aantal activiteiten in dit proces."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__activity_count
+msgid "Number of activities performed by this role."
+msgstr "Aantal activiteiten dat deze rol uitvoert."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__process_count
+msgid "Number of processes in this chain."
+msgstr "Aantal processen in deze keten."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__task_count
+msgid "Number of project tasks linked to this scenario."
+msgstr "Aantal projecttaken gekoppeld aan dit scenario."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Odoo"
+msgstr "Odoo"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "Odoo access"
+msgstr "Odoo-toegang"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__model_id
+msgid "Odoo Document"
+msgstr "Odoo-document"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Odoo model"
+msgstr "Odoo-model"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__model_id
+msgid "Odoo model (document) this activity acts on, for example sale.order."
+msgstr ""
+"Odoo-model (document) waarop deze activiteit werkt, bijvoorbeeld sale.order."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__model_ids
+msgid "Odoo models"
+msgstr "Odoo-modellen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__0
+msgid "Open"
+msgstr "Open"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Open activity"
+msgstr "Activiteit openen"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__open_point
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__open_point
+msgid "Open Point"
+msgstr "Open punt"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Open point"
+msgstr "Open punt"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_order
+msgid "Order"
+msgstr "Order"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__sequence
+msgid "Order of the activity within its phase and role lane."
+msgstr "Volgorde van de activiteit binnen haar fase en rolbaan."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__sequence
+msgid "Order of the chain in lists and on the company map."
+msgstr "Volgorde van de keten in lijsten en op de bedrijfskaart."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__sequence
+msgid "Order of the process within its chain."
+msgstr "Volgorde van het proces binnen de keten."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__sequence
+msgid ""
+"Order of the scenario in lists and in the scenario selector of the map."
+msgstr ""
+"Volgorde van het scenario in lijsten en in de scenariokeuze van de kaart."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__step_ids
+msgid "Ordered steps of the route; each step is one activity."
+msgstr "Geordende stappen van de route; elke stap is één activiteit."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__owner_role_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_search
+msgid "Owner Role"
+msgstr "Eigenaarsrol"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Partly ready (ADKAR 2+)"
+msgstr "Deels klaar (ADKAR 2+)"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_people
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "People"
+msgstr "Mensen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "People (ADKAR)"
+msgstr "Mensen (ADKAR)"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_phase
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__phase_id
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__phase_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
+msgid "Phase"
+msgstr "Fase"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__phase_id
+msgid ""
+"Phase (map column) in the Odoo document chain where this activity happens."
+msgstr ""
+"Fase (kolom op de kaart) in de Odoo-documentketen waarin deze activiteit "
+"plaatsvindt."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__phase_id
+msgid "Phase of the activity of this step."
+msgstr "Fase van de activiteit van deze stap."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_phase
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_phase
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_search
+msgid "Phases"
+msgstr "Fasen"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_phase
+msgid ""
+"Phases are the columns of the company map, ordered left to right along "
+"Odoo's document chain."
+msgstr ""
+"Fasen zijn de kolommen van de bedrijfskaart, van links naar rechts langs de "
+"Odoo-documentketen."
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_plan_produce
+msgid "Plan and produce"
+msgstr "Plannen en produceren"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_plan_to_produce
+msgid "Plan to Produce"
+msgstr "Plan to Produce"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__sequence
+msgid "Position of the column on the company map, from left to right."
+msgstr "Positie van de kolom op de bedrijfskaart, van links naar rechts."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__sequence
+msgid ""
+"Position of the lane on the company map, from top to bottom (external roles "
+"go to the edges)."
+msgstr ""
+"Positie van de baan op de bedrijfskaart, van boven naar beneden (externe "
+"rollen staan aan de randen)."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__sequence
+msgid "Position of the step in the scenario route."
+msgstr "Positie van de stap in de scenarioroute."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__process_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_form
+msgid "Process"
+msgstr "Proces"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__process_id
+msgid "Process (level 2) this activity belongs to."
+msgstr "Proces (niveau 2) waar deze activiteit bij hoort."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__process_count
+msgid "Process count"
+msgstr "Aantal processen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_process
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__process_ids
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_process
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_search
+msgid "Processes"
+msgstr "Processen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Progress"
+msgstr "Voortgang"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__rung
+msgid ""
+"Progress of this activity: the lowest rung (0 Open to 5 Live) over its "
+"linked tasks, 0 when no task is linked."
+msgstr ""
+"Voortgang van deze activiteit: de laagste trede (0 Open tot 5 Live) van de "
+"gekoppelde taken, 0 als er geen taak gekoppeld is."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__task_ids
+msgid "Project tasks that implement this activity."
+msgstr "Projecttaken die deze activiteit realiseren."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__task_ids
+msgid "Project tasks that work on this scenario."
+msgstr "Projecttaken die aan dit scenario werken."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_activity__choice_state__proposal
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "Proposal"
+msgstr "Voorstel"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_activity__choice_state__provisional
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "Provisional"
+msgstr "Voorlopig"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_purchase_receive
+msgid "Purchase and receive"
+msgstr "Inkopen en ontvangen"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_quotation
+msgid "Quotation"
+msgstr "Offerte"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_rung
+msgid ""
+"Readiness gate this task has reached for its activities: Open, Decided "
+"(choice made), Built (Odoo configured), Tested, Trained (people can do it), "
+"Live."
+msgstr ""
+"Gereedheidspoort die deze taak voor haar activiteiten heeft bereikt: Open, "
+"Besloten (keuze gemaakt), Gebouwd (Odoo ingericht), Getest, Getraind (mensen"
+" kunnen het), Live."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Ready (ADKAR 4+)"
+msgstr "Klaar (ADKAR 4+)"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_adkar_score
+msgid "Record the first ADKAR round"
+msgstr "Leg de eerste ADKAR-ronde vast"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_record_to_report
+msgid "Record to Report"
+msgstr "Record to Report"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__reinforcement
+msgid "Reinforcement"
+msgstr "Borging"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.phase,name:pan_self_learning_blueprint.phase_request
+msgid "Request"
+msgstr "Aanvraag"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__result
+msgid "Result"
+msgstr "Resultaat"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_activity__choice_state__revised
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+msgid "Revised"
+msgstr "Herzien"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_role
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__role_id
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__role_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "Role"
+msgstr "Rol"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__role_id
+msgid "Role (map lane) that performs this activity."
+msgstr "Rol (baan op de kaart) die deze activiteit uitvoert."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__owner_role_id
+msgid "Role that owns this process and decides on its choices."
+msgstr "Rol die eigenaar is van dit proces en over de keuzes beslist."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__role_id
+msgid "Role that performs the activity of this step."
+msgstr "Rol die de activiteit van deze stap uitvoert."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_role
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__role_ids
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_role
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_search
+msgid "Roles"
+msgstr "Rollen"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_role
+msgid ""
+"Roles are the lanes of the company map. Link the people who hold the role "
+"and the Odoo access they need."
+msgstr ""
+"Rollen zijn de banen van de bedrijfskaart. Koppel de mensen die de rol "
+"vervullen en de Odoo-toegang die ze nodig hebben."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__round
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "Round"
+msgstr "Ronde"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "Route"
+msgstr "Route"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__rung
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__rung
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_rung
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Rung"
+msgstr "Trede"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__scenario_id
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "Scenario"
+msgstr "Scenario"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__scenario_id
+msgid "Scenario this step belongs to."
+msgstr "Scenario waar deze stap bij hoort."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_scenario
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__scenario_ids
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_scenario
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_list
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_search
+msgid "Scenarios"
+msgstr "Scenario's"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__scenario_ids
+msgid "Scenarios whose route passes through this activity."
+msgstr "Scenario's waarvan de route langs deze activiteit loopt."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_adkar_score
+msgid ""
+"Score each person 1 to 5 on Awareness, Desire, Knowledge, Ability and\n"
+"                Reinforcement. The company map shows the average per role, based on\n"
+"                each person's latest round."
+msgstr ""
+"Geef elke persoon een score van 1 tot 5 op Bewustzijn, Bereidheid, Kennis, "
+"Vaardigheid en Borging. De bedrijfskaart toont het gemiddelde per rol, op "
+"basis van de laatste ronde van elke persoon."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
+msgid "Scores (1 to 5)"
+msgstr "Scores (1 tot 5)"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_chain__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__sequence
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__sequence
+msgid "Sequence"
+msgstr "Volgorde"
+
+#. module: pan_self_learning_blueprint
+#: model:pan.sl.chain,name:pan_self_learning_blueprint.chain_source_to_pay
+msgid "Source to Pay"
+msgstr "Source to Pay"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__step_ids
+msgid "Steps"
+msgstr "Stappen"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__result
+msgid "Summary of the last import or export."
+msgstr "Samenvatting van de laatste import of export."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
+msgid "Survey"
+msgstr "Meting"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__round
+msgid "Survey round. The company map uses the latest round of each user."
+msgstr ""
+"Meetronde. De bedrijfskaart gebruikt de laatste ronde van elke gebruiker."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__task_count
+msgid "Task Count"
+msgstr "Aantal taken"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__task_ids
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__task_ids
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "Tasks"
+msgstr "Taken"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/scenario.py:0
+msgid "Tasks of %s"
+msgstr "Taken van %s"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__template
+msgid "Template"
+msgstr "Sjabloon"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid ""
+"Templates are written for a full installation. Models of apps that are not\n"
+"                        installed are skipped: the records are imported without that model link and\n"
+"                        the result lists the skipped models."
+msgstr ""
+"Sjablonen zijn geschreven voor een volledige installatie. Modellen van apps "
+"die niet geïnstalleerd zijn worden overgeslagen: de records worden zonder "
+"die modelkoppeling geïmporteerd en het resultaat noemt de overgeslagen "
+"modellen."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__3
+msgid "Tested"
+msgstr "Getest"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"The blueprint refers to unknown %(section)s code(s): %(codes)s. Add them to "
+"the file or create them first."
+msgstr ""
+"De blueprint verwijst naar onbekende code(s) in %(section)s: %(codes)s. Voeg"
+" ze toe aan het bestand of maak ze eerst aan."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "The code '%(code)s' appears twice in '%(section)s'."
+msgstr "De code '%(code)s' komt twee keer voor in '%(section)s'."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/structure.py:0
+msgid "The code '%(code)s' of %(model)s '%(name)s' may not contain spaces."
+msgstr ""
+"De code '%(code)s' van %(model)s '%(name)s' mag geen spaties bevatten."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "the file"
+msgstr "het bestand"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_blueprint_wizard_form
+msgid ""
+"The import is strict: a file that names an Odoo model of an app that is not\n"
+"                        installed is refused, with the missing models listed."
+msgstr ""
+"De import is streng: een bestand dat een Odoo-model noemt van een app die "
+"niet geïnstalleerd is, wordt geweigerd, met de ontbrekende modellen erbij."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid ""
+"The map shows every activity of the company: phases from left to right,\n"
+"                                roles from top to bottom. Start from a template blueprint or import your own."
+msgstr ""
+"De kaart toont elke activiteit van het bedrijf: fasen van links naar rechts,"
+" rollen van boven naar beneden. Begin met een sjabloon-blueprint of "
+"importeer je eigen bestand."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "The new %(section)s record '%(code)s' needs a name."
+msgstr "Het nieuwe record '%(code)s' in %(section)s heeft een naam nodig."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__group_ids
+msgid ""
+"The Odoo access groups people in this role need to do their activities."
+msgstr ""
+"De Odoo-toegangsgroepen die mensen in deze rol nodig hebben voor hun "
+"activiteiten."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__model_ids
+msgid ""
+"The Odoo documents (models) handled in this phase, for example quotations or"
+" deliveries."
+msgstr ""
+"De Odoo-documenten (modellen) die in deze fase worden behandeld, "
+"bijvoorbeeld offertes of leveringen."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__user_ids
+msgid "The people who hold this role."
+msgstr "De mensen die deze rol vervullen."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__user_id
+msgid "The person this ADKAR score is about."
+msgstr "De persoon over wie deze ADKAR-score gaat."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__process_ids
+msgid "The processes (level 2) that make up this chain."
+msgstr "De processen (niveau 2) waaruit deze keten bestaat."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "The section '%(section)s' must be a list."
+msgstr "De sectie '%(section)s' moet een lijst zijn."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "The sequence of '%(code)s' must be a whole number."
+msgstr "De volgorde van '%(code)s' moet een geheel getal zijn."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "The steps in Odoo, one per line. Becomes the manual and the exercise."
+msgstr ""
+"De stappen in Odoo, één per regel. Wordt de handleiding en de oefening."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/adkar.py:0
+msgid "The survey round of %(user)s must be 1 or higher."
+msgstr "De meetronde van %(user)s moet 1 of hoger zijn."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid "The template %(name)s does not exist."
+msgstr "Het sjabloon %(name)s bestaat niet."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint refers to Odoo models that are not installed: %(models)s. "
+"Install the apps that provide them, or remove these models from the file."
+msgstr ""
+"Deze blueprint verwijst naar Odoo-modellen die niet geïnstalleerd zijn: "
+"%(models)s. Installeer de apps die ze leveren, of haal deze modellen uit het"
+" bestand."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This is not a blueprint file: 'format' is %(found)r, expected %(expected)r."
+msgstr ""
+"Dit is geen blueprint-bestand: 'format' is %(found)r, verwacht %(expected)r."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__is_external
+msgid ""
+"Tick for roles outside the company, such as the customer or the supplier. "
+"They are drawn at the edges of the map."
+msgstr ""
+"Aanvinken voor rollen buiten het bedrijf, zoals de klant of de leverancier. "
+"Ze worden aan de randen van de kaart getekend."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__4
+msgid "Trained"
+msgstr "Getraind"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__code
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__code
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__code
+msgid ""
+"Unique technical code, used to match records when importing a blueprint."
+msgstr ""
+"Unieke technische code, gebruikt om records te koppelen bij het importeren "
+"van een blueprint."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__code
+msgid ""
+"Unique, stable code of the activity. Used to match records on blueprint "
+"import."
+msgstr ""
+"Unieke, vaste code van de activiteit. Wordt gebruikt om records te koppelen "
+"bij een blueprint-import."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__code
+msgid ""
+"Unique, stable code of the process. Used to match records on blueprint "
+"import."
+msgstr ""
+"Unieke, vaste code van het proces. Wordt gebruikt om records te koppelen bij"
+" een blueprint-import."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__code
+msgid ""
+"Unique, stable code of the scenario. Used to match records on blueprint "
+"import."
+msgstr ""
+"Unieke, vaste code van het scenario. Wordt gebruikt om records te koppelen "
+"bij een blueprint-import."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__user_id
+#: model:res.groups,name:pan_self_learning_blueprint.group_blueprint_user
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
+msgid "User"
+msgstr "Gebruiker"
+
+#. module: pan_self_learning_blueprint
+#: model:res.groups,comment:pan_self_learning_blueprint.group_blueprint_user
+msgid ""
+"User: can open the company map and read the blueprint model (chains, "
+"processes, activities, scenarios, ADKAR scores)."
+msgstr ""
+"Gebruiker: kan de bedrijfskaart openen en het blueprint-model lezen (ketens,"
+" processen, activiteiten, scenario's, ADKAR-scores)."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__user_ids
+msgid "Users"
+msgstr "Gebruikers"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_chain
+msgid "Value chain"
+msgstr "Waardeketen"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__chain_id
+msgid ""
+"Value chain (level 1) of the process, stored for filtering and grouping."
+msgstr ""
+"Waardeketen (niveau 1) van het proces, opgeslagen om op te filteren en "
+"groeperen."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_process__chain_id
+msgid "Value chain (level 1) this process belongs to."
+msgstr "Waardeketen (niveau 1) waar dit proces bij hoort."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "What still has to be checked"
+msgstr "Wat er nog uitgezocht moet worden"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__open_point
+msgid "What still has to be checked or decided for this activity."
+msgstr "Wat er voor deze activiteit nog uitgezocht of besloten moet worden."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__open_point
+msgid "What still has to be checked or decided for this scenario."
+msgstr "Wat er voor dit scenario nog uitgezocht of besloten moet worden."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
+msgid "What still has to be checked or decided?"
+msgstr "Wat moet er nog uitgezocht of besloten worden?"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__name
+msgid "What the role does, for example 'Confirm the sales order'."
+msgstr "Wat de rol doet, bijvoorbeeld 'Verkooporder bevestigen'."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__description
+msgid "What this chain covers, from the first trigger to the end result."
+msgstr "Wat deze keten omvat, van de eerste aanleiding tot het eindresultaat."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_chain_form
+msgid "What this chain covers, from trigger to result."
+msgstr "Wat deze keten omvat, van aanleiding tot resultaat."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__description
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+msgid "What this role is responsible for."
+msgstr "Waar deze rol verantwoordelijk voor is."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_form
+msgid "What this scenario proves when it runs end to end"
+msgstr "Wat dit scenario bewijst als het van begin tot eind doorloopt"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__description
+msgid "What this scenario proves when it runs end to end."
+msgstr "Wat dit scenario bewijst als het van begin tot eind doorloopt."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario_step__note
+msgid "What to check or enter in this step, for example the test data to use."
+msgstr ""
+"Wat in deze stap te controleren of in te voeren is, bijvoorbeeld de "
+"testdata."
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__choice_state
+msgid ""
+"Where the choices for this activity stand: proposal, provisional, fixed or "
+"revised after being fixed. The chatter keeps the history."
+msgstr ""
+"Hoe de keuzes voor deze activiteit ervoor staan: voorstel, voorlopig, vast "
+"of herzien na vaststelling. De chatter bewaart de geschiedenis."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
+msgid "Who is this score about?"
+msgstr "Over wie gaat deze score?"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_search
+msgid "With Open Point"
+msgstr "Met open punt"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Zoom"
+msgstr "Zoom"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Zoom in"
+msgstr "Inzoomen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Zoom out"
+msgstr "Uitzoomen"
