@@ -9,9 +9,11 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { formatFloatTime } from "@web/views/fields/formatters";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/search/action_hook";
@@ -23,15 +25,15 @@ import { standardActionServiceProps } from "@web/webclient/actions/action_servic
 // ----------------------------------------------------------------------
 
 export const STOP_COMPANY = 1;
-export const STOP_PROCESSES = 2;
-export const STOP_ACTIVITIES = 3;
+export const STOP_ACTIVITIES = 2;
+export const STOP_STATUS = 3;
 export const STOP_DETAIL = 4;
-const ALL_STOPS = [STOP_COMPANY, STOP_PROCESSES, STOP_ACTIVITIES, STOP_DETAIL];
+const ALL_STOPS = [STOP_COMPANY, STOP_ACTIVITIES, STOP_STATUS, STOP_DETAIL];
 
 const STOP_GEOMETRY = {
     [STOP_COMPANY]: { labelW: 150, colW: 150, headerH: 56, chipH: 34, chipGap: 0, lanePad: 8 },
-    [STOP_PROCESSES]: { labelW: 160, colW: 186, headerH: 36, chipH: 28, chipGap: 6, lanePad: 10 },
-    [STOP_ACTIVITIES]: { labelW: 160, colW: 206, headerH: 36, chipH: 48, chipGap: 8, lanePad: 10 },
+    [STOP_ACTIVITIES]: { labelW: 160, colW: 186, headerH: 36, chipH: 28, chipGap: 6, lanePad: 10 },
+    [STOP_STATUS]: { labelW: 160, colW: 206, headerH: 36, chipH: 48, chipGap: 8, lanePad: 10 },
     [STOP_DETAIL]: { labelW: 160, colW: 226, headerH: 36, chipH: 48, chipGap: 10, lanePad: 10 },
 };
 
@@ -64,6 +66,7 @@ const PANEL_GAP = 12;
 const SHEET_SHARE = 0.65;
 const SMALL_SCREEN_MEDIA = "(max-width: 767.98px)";
 const REVEAL_MARGIN_PX = 16;
+const SHOW_BOX_MARGIN = 24; // user units around a box that showBox centres
 
 const PROGRESS_H = 40;
 const CHIP_INSET = 8; // chip inset within its column
@@ -78,6 +81,7 @@ const MAX_TASK_LINES = 3;
 const TASK_PILL_W = 46; // the rung word of a task at stop 4
 
 const TESTED_RUNG = 3;
+const TRAINED_RUNG = 4;
 const MAX_RUNG = 5;
 const WHEEL_ZOOM_SPEED = 0.0015; // zoom factor change per wheel pixel (exponential)
 const PINCH_WHEEL_SPEED = 0.01; // trackpad pinch arrives as ctrl + wheel with small deltas
@@ -86,18 +90,21 @@ const PINCH_WHEEL_SPEED = 0.01; // trackpad pinch arrives as ctrl + wheel with s
 // brand: ok green (works), warn amber (needs the user), off grey (no data or
 // not started). Red means broken and is never a status on the map.
 const SETTLED_CHOICE = "fixed";
-const CHOICE_LEVELS = ["settled", "not_settled"];
-const PROGRESS_LEVELS = ["open", "building", "tested"];
-const PEOPLE_LEVELS = ["high", "lower", "no_data"];
+export const COLOR_MODES = ["choices", "progress", "training"];
+const MODE_LEVELS = {
+    choices: ["settled", "not_settled"],
+    progress: ["open", "building", "tested"],
+    training: ["trained", "to_train", "no_people"],
+};
 const TONES = {
     settled: "ok",
     not_settled: "warn",
     open: "off",
     building: "warn",
     tested: "ok",
-    high: "ok",
-    lower: "warn",
-    no_data: "off",
+    trained: "ok",
+    to_train: "warn",
+    no_people: "off",
 };
 
 export function choiceLevel(activity) {
@@ -112,12 +119,12 @@ export function progressLevel(rung) {
     return rung > 0 ? "building" : "open";
 }
 
-/** ADKAR band of the role (lowest element): high, medium or low; false without enough scores. */
-export function peopleLevel(role) {
-    if (!role.adkar) {
-        return "no_data";
+/** Trained from rung 4; a role without people has nobody to train. */
+export function trainingLevel(activity, role) {
+    if (!role.users.length) {
+        return "no_people";
     }
-    return role.adkar === "high" ? "high" : "lower";
+    return activity.rung >= TRAINED_RUNG ? "trained" : "to_train";
 }
 
 export function toneClass(tone) {
@@ -317,7 +324,7 @@ export function computeLayout(data, details, stop, compact = false) {
                     height: chipH,
                     cx: cellX + chipW / 2,
                     cy: chipY + geo.chipH / 2,
-                    label: truncate(activity.name, charsFor(chipW - (stop === STOP_PROCESSES ? 32 : 50))),
+                    label: truncate(activity.name, charsFor(chipW - (stop === STOP_ACTIVITIES ? 32 : 50))),
                 });
                 chipY += chipH + geo.chipGap;
             }
@@ -436,28 +443,35 @@ export class CompanyMap extends Component {
             DETAIL_CHIP_H: STOP_GEOMETRY[STOP_DETAIL].chipH,
             TASK_PILL_W,
             STOP_COMPANY,
-            STOP_PROCESSES,
             STOP_ACTIVITIES,
+            STOP_STATUS,
             STOP_DETAIL,
             MIN_ZOOM,
             MAX_ZOOM,
         };
-        // Coming back to the map (breadcrumb) restores where the user was.
-        const restored = (this.props.state && this.props.state.companyMap) || {};
+        // Coming back to the map (breadcrumb) restores where the user was; a
+        // page refresh restores zoom, centre, scenario and colour mode from
+        // the session (see sessionKey).
+        this.sessionKey = `pan_sl_blueprint_map:${this.props.action.id}`;
+        const restored = (this.props.state && this.props.state.companyMap) || this.readSession();
         // The camera: zoom factor and the top-left of the view in user units
         // of the current stop's layout; cw/ch is the container size in px.
         this.state = useState({
             loaded: false,
             revision: 0, // bumped when the (non-reactive) map data is reloaded
             scenarioId: restored.scenarioId || false,
-            colorBy: restored.colorBy || "choices",
+            // A colour mode saved by an older version (e.g. "people") is not offered any more.
+            colorBy: COLOR_MODES.includes(restored.colorBy) ? restored.colorBy : "choices",
             selectedId: restored.selectedId || false,
+            selectedRoleId: restored.selectedRoleId || false,
             zoom: restored.zoom || MIN_ZOOM,
             vx: restored.vx || 0,
             vy: restored.vy || 0,
             cw: 0,
             ch: 0,
         });
+        // A centre from the session is applied once the container is measured.
+        this.pendingCentre = restored.centre || null;
         this.compact = window.innerWidth < NARROW_W;
         this.pointers = new Map(); // active pointers, for drag and pinch
         this.gesture = null;
@@ -484,6 +498,7 @@ export class CompanyMap extends Component {
                         scenarioId: this.state.scenarioId,
                         colorBy: this.state.colorBy,
                         selectedId: this.state.selectedId,
+                        selectedRoleId: this.state.selectedRoleId,
                         zoom: this.state.zoom,
                         vx: camera.vx,
                         vy: camera.vy,
@@ -554,6 +569,12 @@ export class CompanyMap extends Component {
                     }
                     this.state.cw = el.clientWidth;
                     this.state.ch = el.clientHeight;
+                    if (this.pendingCentre && this.state.cw) {
+                        const { w, h } = this.view;
+                        this.state.vx = this.pendingCentre.x - w / 2;
+                        this.state.vy = this.pendingCentre.y - h / 2;
+                        this.pendingCentre = null;
+                    }
                     this.clampView();
                 };
                 update();
@@ -563,6 +584,40 @@ export class CompanyMap extends Component {
             },
             () => [this.bodyRef.el]
         );
+
+        // Survive a page refresh: zoom, centre, scenario and colour mode.
+        useEffect(
+            () => this.writeSession(),
+            () => [this.state.zoom, this.state.vx, this.state.vy, this.state.scenarioId, this.state.colorBy]
+        );
+    }
+
+    /** Map state saved for this action in this browser tab; {} when there is none or storage is blocked. */
+    readSession() {
+        try {
+            return JSON.parse(browser.sessionStorage.getItem(this.sessionKey) || "{}");
+        } catch {
+            // Blocked storage or a damaged value: start from the whole map.
+            return {};
+        }
+    }
+
+    writeSession() {
+        if (!this.state.cw) {
+            return; // not measured yet: the centre would be wrong
+        }
+        const { w, h } = this.view;
+        const value = {
+            zoom: this.state.zoom,
+            centre: { x: this.state.vx + w / 2, y: this.state.vy + h / 2 },
+            scenarioId: this.state.scenarioId,
+            colorBy: this.state.colorBy,
+        };
+        try {
+            browser.sessionStorage.setItem(this.sessionKey, JSON.stringify(value));
+        } catch {
+            // Storage blocked (private window, quota): the map still works, it just starts fresh.
+        }
     }
 
     /** Load (or reload) the map data and drop a restored selection that no longer exists. */
@@ -577,12 +632,17 @@ export class CompanyMap extends Component {
         this.scenarioById = new Map(data.scenarios.map((s) => [s.id, s]));
         this.activityById = new Map(data.activities.map((a) => [a.id, a]));
         this.phaseById = new Map(data.phases.map((phase) => [phase.id, phase]));
+        this.processById = new Map(data.processes.map((process) => [process.id, process]));
+        this.chainById = new Map(data.chains.map((chain) => [chain.id, chain]));
         this.computeLayouts();
         if (this.state.scenarioId && !this.scenarioById.has(this.state.scenarioId)) {
             this.state.scenarioId = false;
         }
         if (this.state.selectedId && !this.activityById.has(this.state.selectedId)) {
             this.state.selectedId = false;
+        }
+        if (this.state.selectedRoleId && !this.roleById.has(this.state.selectedRoleId)) {
+            this.state.selectedRoleId = false;
         }
         this.state.loaded = true;
         this.state.revision += 1;
@@ -606,8 +666,8 @@ export class CompanyMap extends Component {
     get stops() {
         return [
             { value: STOP_COMPANY, label: _t("Company"), hint: _t("Are we on track, where is it stuck?") },
-            { value: STOP_PROCESSES, label: _t("Processes"), hint: _t("What happens where?") },
-            { value: STOP_ACTIVITIES, label: _t("Activities"), hint: _t("Who, how far, what is open?") },
+            { value: STOP_ACTIVITIES, label: _t("Activities"), hint: _t("What happens where?") },
+            { value: STOP_STATUS, label: _t("Status"), hint: _t("Who, how far, what is open?") },
             { value: STOP_DETAIL, label: _t("Detail"), hint: _t("What exactly?") },
         ].map((stop) => ({
             ...stop,
@@ -628,8 +688,9 @@ export class CompanyMap extends Component {
         return this.layouts[this.stop];
     }
 
-    get fitScale() {
-        const layout = this.layouts[STOP_COMPANY];
+    /** Scale at which a stop's whole layout fits the container, kept readable. */
+    fitOf(stop) {
+        const layout = this.layouts[stop];
         if (!this.state.cw) {
             return 1;
         }
@@ -638,11 +699,47 @@ export class CompanyMap extends Component {
         return Math.min(FIT_MAX_SCALE, Math.max(minScale, fit));
     }
 
-    /** Pixels per user unit at a zoom factor. */
-    scaleFor(zoom) {
+    get fitScale() {
+        return this.fitOf(STOP_COMPANY);
+    }
+
+    /** The linear zoom-to-scale line from the fit at MIN_ZOOM to the maximum at MAX_ZOOM. */
+    baseScale(zoom) {
         const fit = this.fitScale;
         const max = Math.max(MAX_SCALE, fit * 1.5);
         return fit + ((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * (max - fit);
+    }
+
+    /**
+     * Where the Activities stop starts: at most the scale where its whole
+     * layout fits, so a scenario route can always be shown in full there.
+     */
+    get activitiesStartScale() {
+        return Math.min(this.baseScale(STOP_THRESHOLDS[STOP_ACTIVITIES - 1]), this.fitOf(STOP_ACTIVITIES));
+    }
+
+    /**
+     * Pixels per user unit at a zoom factor: the base line, except that the
+     * Activities stop rises from activitiesStartScale to the start of Status.
+     */
+    scaleFor(zoom) {
+        if (stopForZoom(zoom) !== STOP_ACTIVITIES) {
+            return this.baseScale(zoom);
+        }
+        const from = STOP_THRESHOLDS[STOP_ACTIVITIES - 1];
+        const to = STOP_THRESHOLDS[STOP_STATUS - 1];
+        const start = this.activitiesStartScale;
+        return start + ((zoom - from) / (to - from)) * (this.baseScale(to) - start);
+    }
+
+    /** The zoom inside the Activities stop that gives `scale` (clamped to that stop). */
+    activitiesZoomFor(scale) {
+        const from = STOP_THRESHOLDS[STOP_ACTIVITIES - 1];
+        const to = STOP_THRESHOLDS[STOP_STATUS - 1];
+        const start = this.activitiesStartScale;
+        const share = (scale - start) / (this.baseScale(to) - start);
+        // Stay just below Status: the zoom slider moves in steps of 0.01.
+        return Math.min(Math.max(from + share * (to - from), from), to - 0.01);
     }
 
     get scale() {
@@ -674,7 +771,7 @@ export class CompanyMap extends Component {
     }
 
     get panelOpen() {
-        return Boolean(this.state.selectedId);
+        return Boolean(this.state.selectedId || this.state.selectedRoleId);
     }
 
     /** Screen pixels the open side panel covers at the right (desktop) or bottom (phone). */
@@ -739,8 +836,38 @@ export class CompanyMap extends Component {
         const before = this.stop;
         this.zoomAt(zoom);
         if (this.stop !== before) {
-            this.revealRoute();
+            if (this.route) {
+                this.revealRoute();
+            } else {
+                this.ensureContent();
+            }
         }
+    }
+
+    /**
+     * Never an empty screen: when no block or chip is in view, centre the
+     * one nearest the middle. On a phone a stop always lands on content,
+     * since a half chip at the edge reads as an empty screen there.
+     */
+    ensureContent() {
+        const items = this.layout.items;
+        if (!items.length) {
+            return;
+        }
+        const area = this.freeArea();
+        const overlaps = (item) =>
+            item.x + item.width > area.left &&
+            item.x < area.right &&
+            item.y + item.height > area.top &&
+            item.y < area.bottom;
+        if (!this.compact && items.some(overlaps)) {
+            return;
+        }
+        const mx = (area.left + area.right) / 2;
+        const my = (area.top + area.bottom) / 2;
+        const distance = (item) => Math.hypot(item.x + item.width / 2 - mx, item.y + item.height / 2 - my);
+        const nearest = items.reduce((best, item) => (distance(item) < distance(best) ? item : best));
+        this.showBox(this.boxOf(nearest));
     }
 
     /**
@@ -752,7 +879,7 @@ export class CompanyMap extends Component {
         this.commitPan();
         const { w, h } = this.view;
         const layout = this.layout;
-        const margin = 24;
+        const margin = SHOW_BOX_MARGIN;
         const insets = this.panelInsets;
         const freeW = w - layout.labelW - insets.right / this.scale;
         const freeH = h - layout.lanesTop - insets.bottom / this.scale;
@@ -1031,6 +1158,15 @@ export class CompanyMap extends Component {
         }
     }
 
+    /** Enter or Space on a role name opens the role panel. */
+    onRoleKeydown(ev, roleId) {
+        if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.openRolePanel(roleId);
+        }
+    }
+
     // Drag to pan (mouse, pen and touch); two fingers pinch to zoom.
     onPointerDown(ev) {
         if (ev.pointerType === "mouse" && ev.button !== 0) {
@@ -1175,7 +1311,7 @@ export class CompanyMap extends Component {
     }
 
     get adkarBandLabels() {
-        return { high: _t("high"), medium: _t("medium"), low: _t("low") };
+        return { high: _t("High"), medium: _t("Medium"), low: _t("Low") };
     }
 
     /** Legend label of each status level, per colour-by mode. */
@@ -1186,20 +1322,14 @@ export class CompanyMap extends Component {
             open: _t("Open"),
             building: _t("Decided or built"),
             tested: _t("Tested or further"),
-            high: _t("ADKAR high"),
-            lower: _t("ADKAR medium or low"),
-            no_data: _t("No ADKAR data"),
+            trained: _t("Trained"),
+            to_train: _t("Still to train"),
+            no_people: _t("Nobody in the role"),
         };
     }
 
     get levels() {
-        if (this.state.colorBy === "choices") {
-            return CHOICE_LEVELS;
-        }
-        if (this.state.colorBy === "progress") {
-            return PROGRESS_LEVELS;
-        }
-        return PEOPLE_LEVELS;
+        return MODE_LEVELS[this.state.colorBy];
     }
 
     /** Only the active colour-by mode, at most three items. */
@@ -1224,7 +1354,7 @@ export class CompanyMap extends Component {
         if (this.state.colorBy === "progress") {
             return progressLevel(activity.rung);
         }
-        return peopleLevel(this.roleById.get(activity.role_id));
+        return trainingLevel(activity, this.roleById.get(activity.role_id));
     }
 
     /** The status dot of a chip: tone colour plus a glyph (check, half). */
@@ -1234,19 +1364,32 @@ export class CompanyMap extends Component {
         return { cx, cy, r, className: toneClass(tone), glyph: toneGlyph(tone, cx, cy, r) };
     }
 
-    /** Accessible name of a chip: everything the chip shows, not only its colour. */
+    /** Accessible name of a chip: activity, phase, role and its state in the current colour mode. */
     chipAriaLabel(chip) {
         const activity = chip.activity;
         const parts = [
             activity.name,
-            this.levelLabels[this.level(activity)],
+            this.phaseById.get(activity.phase_id).name,
+            chip.role.name,
             this.rungLabels[activity.rung],
+            this.levelLabels[this.level(activity)],
         ];
         if (activity.open_point) {
             parts.push(_t("open point: %s", activity.open_point));
         }
-        parts.push(chip.role.name);
         return parts.join(", ");
+    }
+
+    /** Spoken when the scenario filter changes (aria-live). */
+    get scenarioAnnouncement() {
+        const scenario = this.selectedScenario;
+        if (!scenario) {
+            return _t("Showing all activities");
+        }
+        return _t("Showing scenario %(name)s, %(count)s steps", {
+            name: scenario.name,
+            count: scenario.activity_ids.length,
+        });
     }
 
     get selectedScenario() {
@@ -1315,11 +1458,13 @@ export class CompanyMap extends Component {
         if (chip.extras) {
             return chip.extras;
         }
+        // Filled segments take the progress tone, like the task pills and list badges.
+        const filledClass = `o_pan_sl_rung_on ${toneClass(TONES[progressLevel(chip.activity.rung)])}`;
         chip.extras = {
             rungSegments: Array.from({ length: MAX_RUNG }, (_, index) => ({
                 key: index,
                 x: 10 + index * 9,
-                filled: index < chip.activity.rung,
+                className: index < chip.activity.rung ? filledClass : "",
             })),
             rungLabel: this.rungLabels[chip.activity.rung],
             rungLabelX: 10 + MAX_RUNG * 9 + 2,
@@ -1435,23 +1580,40 @@ export class CompanyMap extends Component {
         if (!scenarioId) {
             return;
         }
-        // Jump to "Processes" and fit the route.
+        // Jump to "Activities", zoomed so the whole route (all steps) is in view.
         this.commitPan();
-        this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
-        const route = this.route;
-        if (route && route.stops.length) {
-            this.showBox(this.boundingBox(route.stops.map(withBadgeRoom)));
+        const layout = this.layouts[STOP_ACTIVITIES];
+        const chips = this.selectedScenario.activity_ids
+            .map((id) => layout.chipById.get(id))
+            .filter((chip) => chip);
+        if (!chips.length) {
+            this.state.zoom = STOP_THRESHOLDS[STOP_ACTIVITIES - 1];
+            this.clampView();
+            return;
         }
+        const box = this.boundingBox(chips.map(withBadgeRoom));
+        const insets = this.panelInsets;
+        // Pixels per user unit at which the box fits next to the sticky header
+        // and label column, with showBox's margin on both sides.
+        const margin = 2 * SHOW_BOX_MARGIN;
+        const fit = Math.min(
+            (this.state.cw - insets.right) / (box.w + layout.labelW + margin),
+            (this.state.ch - insets.bottom) / (box.h + layout.lanesTop + margin)
+        );
+        this.state.zoom = this.activitiesZoomFor(fit);
+        // Too long for this screen even at the start of the stop (a phone): begin at step 1.
+        this.showBox(fit >= this.activitiesStartScale ? box : this.boxOf(chips[0]));
     }
 
     onColorByChange(ev) {
         this.state.colorBy = ev.target.value;
     }
 
-    /** Stop 1: clicking a cell zooms in to "Processes" on that cell. */
+    /** Stop 1: clicking a cell zooms in to "Activities" on that cell. */
     onBlockClick(block, { focus = false } = {}) {
         this.commitPan();
-        this.state.zoom = STOP_THRESHOLDS[STOP_PROCESSES - 1];
+        // A real step in: the scale the base line has at the Activities threshold.
+        this.state.zoom = this.activitiesZoomFor(this.baseScale(STOP_THRESHOLDS[STOP_ACTIVITIES - 1]));
         const cellChips = this.layout.chips.filter(
             (chip) => chip.role.id === block.role.id && chip.activity.phase_id === block.phase.id
         );
@@ -1487,6 +1649,7 @@ export class CompanyMap extends Component {
         this.rememberFocus();
         const changed = this.state.selectedId !== activityId;
         this.state.selectedId = activityId;
+        this.state.selectedRoleId = false;
         // Keep the chip visible next to the panel, not under it.
         const chip = this.layout.chipById.get(activityId);
         if (chip) {
@@ -1495,8 +1658,18 @@ export class CompanyMap extends Component {
         this.focusPanelTitle(changed);
     }
 
+    /** The role panel: its people, ADKAR band and activities (from a lane label or the activity panel). */
+    openRolePanel(roleId) {
+        this.rememberFocus();
+        const changed = this.state.selectedRoleId !== roleId;
+        this.state.selectedRoleId = roleId;
+        this.state.selectedId = false;
+        this.focusPanelTitle(changed);
+    }
+
     closePanel() {
         this.state.selectedId = false;
+        this.state.selectedRoleId = false;
         this.clampView();
         const item = this.returnKey && this.layout.itemByKey.get(this.returnKey);
         if (item) {
@@ -1514,21 +1687,41 @@ export class CompanyMap extends Component {
         }
         const activity = this.activityById.get(this.state.selectedId);
         const role = this.roleById.get(activity.role_id);
+        const process = this.processById.get(activity.process_id);
         const detail = this.details.get(activity.id) || { tasks: [], click_path: false };
-        const tone = TONES[choiceLevel(activity)];
+        const dot = (tone) => ({ cx: 7, cy: 7, r: 5.5, className: toneClass(tone), glyph: toneGlyph(tone, 7, 7, 5.5) });
         return {
             activity,
             role,
             phase: this.phaseById.get(activity.phase_id),
+            process,
+            chain: this.chainById.get(activity.chain_id),
             choiceLabel: this.choiceLabels[activity.choice_state],
-            choiceDot: { cx: 7, cy: 7, r: 5.5, className: toneClass(tone), glyph: toneGlyph(tone, 7, 7, 5.5) },
+            choiceDot: dot(TONES[choiceLevel(activity)]),
             rungLabel: this.rungLabels[activity.rung],
+            rungDot: dot(TONES[progressLevel(activity.rung)]),
+            trained: activity.rung >= TRAINED_RUNG,
+            hours: _t("%(planned)s planned · %(spent)s spent", {
+                planned: formatFloatTime(activity.planned_hours),
+                spent: formatFloatTime(activity.spent_hours),
+            }),
             tasks: detail.tasks.map((task) => ({ ...task, rungLabel: this.rungLabels[task.rung] })),
             clickPath: detail.click_path,
             scenarios: activity.scenario_ids
                 .map((id) => this.scenarioById.get(id))
                 .filter((scenario) => scenario),
+        };
+    }
+
+    get rolePanel() {
+        if (!this.state.selectedRoleId) {
+            return false;
+        }
+        const role = this.roleById.get(this.state.selectedRoleId);
+        return {
+            role,
             adkarBand: role.adkar ? this.adkarBandLabels[role.adkar] : false,
+            activityCount: this.data.activities.filter((activity) => activity.role_id === role.id).length,
         };
     }
 
@@ -1552,9 +1745,15 @@ export class CompanyMap extends Component {
         });
     }
 
-    /** Empty state (managers): load the bundled template; its action reloads the map. */
+    /**
+     * Empty state (managers): load the bundled template and reload this map
+     * in place. The summary is shown without its "next" action, which would
+     * open the map a second time (a second breadcrumb).
+     */
     async loadTemplate() {
-        await this.actionService.doAction("pan_self_learning_blueprint.action_blueprint_load_template");
+        const action = await this.orm.call("pan.sl.blueprint", "action_load_template", []);
+        await this.actionService.doAction({ ...action, params: { ...action.params, next: false } });
+        await this.load();
     }
 }
 

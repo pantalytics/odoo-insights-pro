@@ -149,3 +149,76 @@ class TestRung(BlueprintCase):
         self.assertEqual(scenario.rung_state, "5")
         labels = dict(self.Activity._fields["rung_state"]._description_selection(self.env))
         self.assertEqual(labels[self.act_a.rung_state], "Live")
+
+    # ------------------------------------------------------------------
+    # E5: archived tasks still count; only cancelled ones are left out
+    # ------------------------------------------------------------------
+
+    def test_archived_task_still_counts(self):
+        scenario = self._make_scenario("t_scen_archive", [(10, self.act_a)])
+        task = self._make_task(self.act_a, rung="2", scenario=scenario)
+        task.allocated_hours = 4
+        self._make_task(self.act_a, rung="5")
+        self.assertEqual(self.act_a.rung, 2)
+        task.active = False
+        self.assertEqual(self.act_a.rung, 2, "An archived task still holds the rung.")
+        self.assertEqual(self.act_a.planned_hours, 4)
+        self.assertEqual(scenario.rung, 2)
+        self.assertEqual(scenario.planned_hours, 4)
+        task.pan_rung = "3"
+        self.assertEqual(self.act_a.rung, 3, "A change on an archived task still recomputes the activity.")
+        self.assertEqual(scenario.rung, 3)
+
+    def test_archived_project_keeps_progress(self):
+        """Archiving the implementation project (Odoo archives its tasks too) keeps rung, hours and details."""
+        scenario = self._make_scenario("t_scen_project", [(10, self.act_a), (20, self.act_b)])
+        task_a = self._make_task(self.act_a, rung="4", scenario=scenario)
+        task_b = self._make_task(self.act_b, rung="3", scenario=scenario)
+        task_a.allocated_hours = 5
+        task_b.allocated_hours = 2
+        before = {
+            "activity": (self.act_a.rung, self.act_a.rung_state, self.act_a.planned_hours),
+            "scenario": (scenario.rung, scenario.progress, scenario.planned_hours),
+        }
+        self.assertEqual(before["activity"], (4, "4", 5))
+        self.assertEqual(before["scenario"], (3, 100, 7))
+
+        self.project.active = False
+        self.assertFalse(task_a.active, "Fixture: Odoo archives the tasks of an archived project.")
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(
+            (self.act_a.rung, self.act_a.rung_state, self.act_a.planned_hours), before["activity"]
+        )
+        self.assertEqual(
+            (scenario.rung, scenario.progress, scenario.planned_hours), before["scenario"]
+        )
+        item = next(item for item in self.Activity.get_map_data()["activities"] if item["id"] == self.act_a.id)
+        self.assertEqual((item["rung"], item["planned_hours"]), (4, 5))
+        details = {item["id"]: item for item in self.Activity.get_map_details()}
+        self.assertEqual([task["id"] for task in details[self.act_a.id]["tasks"]], [task_a.id])
+
+    def test_archived_cancelled_task_is_left_out(self):
+        task = self._make_task(self.act_a, rung="1")
+        self._make_task(self.act_a, rung="4")
+        task.write({"active": False, "state": CANCELLED_STATE})
+        self.assertEqual(self.act_a.rung, 4)
+
+    # ------------------------------------------------------------------
+    # E13: one word per meaning
+    # ------------------------------------------------------------------
+
+    def test_progress_words(self):
+        """Progress is the Open..Live word; the scenario share is "Tested %"; phases name "Odoo apps"."""
+        fields = self.env["ir.model.fields"]
+        cases = (
+            ("pan.sl.activity", "rung_state", "Progress"),
+            ("pan.sl.activity", "rung", "Progress level"),
+            ("pan.sl.scenario", "progress", "Tested %"),
+            ("pan.sl.phase", "app_labels", "Odoo apps"),
+            ("project.task", "pan_rung", "Blueprint progress"),
+        )
+        for model, name, label in cases:
+            with self.subTest(model=model, field=name):
+                self.assertEqual(self.env[model]._fields[name].string, label)
+                self.assertTrue(fields._get(model, name).help, f"{model}.{name} needs a help text.")

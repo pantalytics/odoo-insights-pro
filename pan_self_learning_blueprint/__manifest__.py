@@ -9,16 +9,16 @@ Describe a company as one model (value chain, process, activity, click path),
 put Odoo over it (apps and models) and track readiness per activity: choices
 made, Odoo ready, people ready (ADKAR), live.
 
-Project tasks get three fields (scenario, activities, rung). An activity is
+Project tasks get three fields (scenario, activities, progress). An activity is
 as far as its least advanced task, the same for every user; cancelled tasks
 do not count. Planned and spent hours per activity and scenario are summed
 from the linked tasks (allocated hours and timesheets stay on the tasks; that
 is why the module depends on Timesheets).
 
 One company map shows it all, filtered by scenario and coloured by choices,
-progress or people. People are contacts, so someone without a login can hold
+progress or training (who still has to be trained). People are contacts, so someone without a login can hold
 a role and be scored. ADKAR scores are personal: users see their own,
-administrators see all; the map shows per role only a band for the weakest
+administrators see all; the panel of a role shows only a band for the weakest
 element, and only when at least three people of the role have a score.
 
 Chains, phases, roles and activities come from the bundled template or an

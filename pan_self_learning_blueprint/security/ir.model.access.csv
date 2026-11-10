@@ -15,6 +15,6 @@ access_pan_sl_scenario_step_user,pan.sl.scenario.step user,model_pan_sl_scenario
 access_pan_sl_scenario_step_manager,pan.sl.scenario.step manager,model_pan_sl_scenario_step,group_blueprint_manager,1,1,1,1
 access_pan_sl_adkar_score_user,pan.sl.adkar.score user,model_pan_sl_adkar_score,group_blueprint_user,1,0,0,0
 access_pan_sl_adkar_score_manager,pan.sl.adkar.score manager,model_pan_sl_adkar_score,group_blueprint_manager,1,1,1,1
-access_pan_sl_blueprint_wizard_user,pan.sl.blueprint.wizard user,model_pan_sl_blueprint_wizard,group_blueprint_user,1,0,0,0
+access_pan_sl_blueprint_manager,pan.sl.blueprint manager,model_pan_sl_blueprint,group_blueprint_manager,1,0,0,0
 access_pan_sl_blueprint_wizard_manager,pan.sl.blueprint.wizard manager,model_pan_sl_blueprint_wizard,group_blueprint_manager,1,1,1,1
 access_ir_model_blueprint_manager,ir.model read for blueprint administrators,base.model_ir_model,group_blueprint_manager,1,0,0,0

@@ -14,7 +14,7 @@ people and ADKAR scores are not part of a blueprint.
   "chains":    [{"code": "lead_to_cash", "name": "Lead to Cash", "sequence": 20,
                  "description": "From the first contact to the payment."}],
   "phases":    [{"code": "quotation", "name": "Quotation", "sequence": 30,
-                 "apps": ["Sales"]}],
+                 "apps": ["sale_management"]}],
   "roles":     [{"code": "sales", "name": "Sales", "sequence": 30, "external": false,
                  "description": "Inside sales and account managers."}],
   "processes": [{"code": "quote_approve", "name": "Quote and approve", "sequence": 10,
@@ -36,13 +36,15 @@ people and ADKAR scores are not part of a blueprint.
 | Section | Required for a new record | Optional |
 |---|---|---|
 | chains | `code`, `name` | `sequence`, `description` |
-| phases | `code`, `name` | `sequence`, `apps` (app names shown as chips in the Odoo band) |
+| phases | `code`, `name` | `sequence`, `apps` (technical module names, shown as chips in the Odoo band) |
 | roles | `code`, `name` | `sequence`, `external` (customer, supplier), `description` |
 | processes | `code`, `name`, `chain` | `sequence`, `owner_role` |
 | activities | `code`, `name`, `process`, `role`, `phase` | `sequence`, `model`, `choice_state` (`proposal`, `provisional`, `fixed`, `revised`), `open_point`, `click_path` (HTML) |
 | scenarios | `code`, `name` | `sequence`, `description`, `open_point`, `steps` |
 
-A code has no spaces. `sequence` is a whole number.
+A code has no spaces. `sequence` is a whole number. Names, descriptions,
+open points, click paths, notes, codes and apps are text; `external` is
+`true` or `false`, without quotes.
 
 ## Rules
 
@@ -62,9 +64,15 @@ A code has no spaces. `sequence` is a whole number.
 - `model` is a technical model name. Importing a file is strict: an unknown
   model refuses the whole file and names the model (the app may not be
   installed).
+- `apps` lists technical module names (`sale_management`, `account`). The
+  map shows each module's name in the user's language. An older file with
+  app names ("Sales") still works: a value that is no module name is matched
+  on the app's name.
 - A phase `models` key (older files) is accepted and ignored.
 - A file above 5 MB, or with more than 5,000 records in total (all sections
-  plus scenario steps), is refused.
+  plus scenario steps), is refused. The same limits apply when
+  `import_blueprint` is called directly.
+- Every refusal says what is wrong and what to do, and nothing is imported.
 - Import creates and updates, never deletes. Importing a file replaces the
   steps of every scenario that lists `steps`.
 - Loading the bundled template is lenient and never overwrites the

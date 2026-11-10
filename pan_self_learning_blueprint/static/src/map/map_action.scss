@@ -218,8 +218,19 @@ $o-pan-sl-surface: #ffffff;
         font-weight: 600;
     }
 
+    // A role name opens the role panel.
     .o_pan_sl_role_label_group {
-        pointer-events: none;
+        cursor: pointer;
+        outline: none;
+
+        &:hover .o_pan_sl_role_label {
+            text-decoration: underline;
+        }
+
+        // Accent as a focus mark only, never as text colour.
+        &:focus-visible .o_pan_sl_role_label {
+            text-decoration: underline 2px var(--pan-accent);
+        }
     }
 
     .o_pan_sl_role_sub {
@@ -400,8 +411,11 @@ $o-pan-sl-surface: #ffffff;
         fill: var(--pan-track);
     }
 
+    // Filled rung segments carry the progress tone (set with a tone class).
     .o_pan_sl_rung_on {
-        fill: var(--pan-ok);
+        fill: color-mix(in srgb, var(--pan-tone) 60%, var(--pan-surface));
+        stroke: var(--pan-tone);
+        stroke-width: 1;
     }
 
     .o_pan_sl_open_marker {

@@ -64,31 +64,30 @@ class PanSlStructureMixin(models.AbstractModel):
 
     def _compute_count_by(self, comodel, field_name, target_field):
         counts = dict(
-            self.env[comodel]._read_group([(field_name, "in", self.ids)], [field_name], ["__count"])
+            self.env[comodel].with_context(active_test=False)._read_group([(field_name, "in", self.ids)], [field_name], ["__count"])
         )
         for record in self:
             record[target_field] = counts.get(record, 0)
 
 
 class PanSlProgressMixin(models.AbstractModel):
-    """Rung and hours of an activity or a scenario, computed in one place.
+    """Shared progress fields (rung and hours) of an activity or a scenario.
 
-    A model using it implements ``_progress_tasks()`` (the tasks that count
-    for its hours) and ``_progress_rungs()`` (the rungs its rung is the lowest
-    of), and overrides ``_compute_rung`` and ``_compute_hours`` only to declare
-    its own ``@api.depends``. Stored and computed as sudo, so progress is the
-    same for every viewer.
+    Holds only the field definitions and the ``_counted`` helper. Each model
+    using it defines its own ``_compute_rung`` and ``_compute_hours`` with its
+    own ``@api.depends``. Stored and computed as sudo, so progress is the same
+    for every viewer.
     """
 
     _name = "pan.sl.progress.mixin"
     _description = "Blueprint progress (rung and hours)"
 
     rung = fields.Integer(
-        string="Rung",
+        string="Progress level",
         compute="_compute_rung",
         store=True,
         compute_sudo=True,
-        help="Technical: the rung as a number (0 Open to 5 Live). Shown as Progress.",
+        help="Technical: the progress as a number (0 Open to 5 Live). Shown as Progress.",
     )
     rung_state = fields.Selection(
         selection=RUNG_SELECTION,
@@ -114,35 +113,20 @@ class PanSlProgressMixin(models.AbstractModel):
         help="Sum of the timesheet hours on the counted tasks, cancelled tasks left out.",
     )
 
-    def _progress_tasks(self):
-        """The project tasks that count for the hours of this record."""
-        raise NotImplementedError()
-
-    def _progress_rungs(self):
-        """The rungs (ints) this record's rung is the lowest of."""
-        raise NotImplementedError()
-
     @staticmethod
     def _counted(tasks):
-        """The tasks that count: all but the cancelled ones. Pass them as sudo,
-        so the result is the same for every viewer."""
-        return tasks.filtered(lambda task: task.state != CANCELLED_STATE)
+        """The tasks that count: all but the cancelled ones.
 
-    def _compute_rung(self):
-        for record in self:
-            rungs = record._progress_rungs()
-            record.rung = min(rungs) if rungs else 0
+        Pass them as sudo and read with ``active_test=False``: archived tasks
+        count (archiving a project archives its tasks, and that must not wipe
+        the progress), so the result is the same for every viewer.
+        """
+        return tasks.filtered(lambda task: task.state != CANCELLED_STATE)
 
     @api.depends("rung")
     def _compute_rung_state(self):
         for record in self:
             record.rung_state = str(record.rung)
-
-    def _compute_hours(self):
-        for record in self:
-            tasks = record._progress_tasks()
-            record.planned_hours = sum(tasks.mapped("allocated_hours"))
-            record.spent_hours = sum(tasks.mapped("effective_hours"))
 
 
 class PanSlChain(models.Model):
@@ -227,8 +211,8 @@ class PanSlPhase(models.Model):
         help="Position of the column on the company map, from left to right.",
     )
     app_labels = fields.Char(
-        string="Apps",
-        help="Comma separated Odoo app names as in the Apps menu, for example: Sales, Inventory.",
+        string="Odoo apps",
+        help="Technical module names, comma separated, e.g. sale_management, account.",
     )
     activity_ids = fields.One2many(
         "pan.sl.activity",

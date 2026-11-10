@@ -386,3 +386,29 @@ class TestSecurity(BlueprintCase):
 
         views = self.Task.with_user(self.project_user).get_views([(False, "form")])
         self.assertIn("pan_blueprint_page", views["views"]["form"]["arch"], "Blueprint users keep the page.")
+
+    # ------------------------------------------------------------------
+    # E15: Blueprint task fields carry the Blueprint user group
+    # ------------------------------------------------------------------
+
+    def test_task_blueprint_fields_have_the_user_group(self):
+        """The pan_* task fields are restricted on the model, not only hidden in the views."""
+        for name in ("pan_scenario_id", "pan_activity_ids", "pan_rung"):
+            with self.subTest(field=name):
+                self.assertEqual(self.Task._fields[name].groups, USER_GROUP)
+        project_only = new_test_user(
+            self.env, login="pan_sl_sec_fields", name="Fields project only", groups="project.group_project_user"
+        )
+        task = self._make_task(self.act_a, rung="2")
+        Task = self.Task.with_user(project_only)
+        self.assertFalse({"pan_scenario_id", "pan_activity_ids", "pan_rung"} & set(Task.fields_get()))
+        with self.assertRaises(AccessError), mute_logger("odoo.models"):
+            task.with_user(project_only).read(["pan_rung"])
+        self.assertEqual(task.with_user(self.project_user).read(["pan_rung"])[0]["pan_rung"], "2")
+
+    def test_users_have_no_access_to_the_import_wizard(self):
+        """E15: only managers have an access line on the import wizard; users have none at all."""
+        Access = self.env["ir.model.access"]
+        lines = Access.search([("model_id.model", "=", "pan.sl.blueprint.wizard")])
+        self.assertEqual(lines.group_id, self.env.ref(MANAGER_GROUP))
+        self.assertFalse(Access.with_user(self.bp_user).check("pan.sl.blueprint.wizard", "read", False))

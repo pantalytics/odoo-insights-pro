@@ -14,8 +14,10 @@ template") imports every record but leaves the model link empty for models
 that are not installed, and lists those models in the result so the user
 knows which apps to install and which links to set later.
 
-Phases name their Odoo apps (``apps``). Older files also list phase
-``models``; import accepts that key and ignores it.
+Phases name their Odoo apps (``apps``) by technical module name
+(``sale_management``); the map shows the module's name in the user's
+language. Older files also list phase ``models``; import accepts that key and
+ignores it.
 
 Loading a template never overwrites the company's own work
 -----------------------------------------------------------
@@ -29,9 +31,14 @@ models without undoing any decision.
 
 Limits
 ------
-A file import refuses files above ``MAX_FILE_BYTES`` and blueprints with more
-than ``MAX_RECORDS`` records (all sections plus scenario steps), so one wrong
-file cannot flood a production database.
+Every import (file or direct call over RPC) refuses blueprints above
+``MAX_FILE_BYTES`` and with more than ``MAX_RECORDS`` records (all sections
+plus scenario steps), so one wrong file cannot flood a production database.
+
+Errors
+------
+Every refusal is a ``UserError`` in plain language: what is wrong and what to
+do. A refusal rolls the whole import back, so nothing is half written.
 
 Language
 --------
@@ -129,7 +136,7 @@ class PanSlBlueprint(models.AbstractModel):
                     "code": phase.code,
                     "name": phase.name,
                     "sequence": phase.sequence,
-                    "apps": self._split_labels(phase.app_labels),
+                    "apps": self.env["pan.sl.activity"]._map_split_app_labels(phase.app_labels),
                 }
                 for phase in phases
             ],
@@ -186,10 +193,6 @@ class PanSlBlueprint(models.AbstractModel):
             ],
         }
 
-    @api.model
-    def _split_labels(self, labels):
-        return [label.strip() for label in (labels or "").split(",") if label.strip()]
-
     # ------------------------------------------------------------------
     # Import
     # ------------------------------------------------------------------
@@ -208,9 +211,10 @@ class PanSlBlueprint(models.AbstractModel):
         :return: summary dict ``{"name", "chains": {"created", "updated"}, ...,
             "skipped_models": [str]}``
         :raise UserError: on a wrong format, version or language, more than
-            ``MAX_RECORDS`` records, a malformed record, a reference to an
-            unknown code, or (strict) an unknown model.
+            ``MAX_FILE_BYTES`` or ``MAX_RECORDS`` records, a malformed record,
+            a reference to an unknown code, or (strict) an unknown model.
         """
+        self._check_size(self._serialized_size(data))
         self._check_header(data)
         self = self.with_context(lang=self._get_import_lang(data))
         sections = {key: self._get_section(data, key) for key in SECTIONS}
@@ -219,8 +223,8 @@ class PanSlBlueprint(models.AbstractModel):
         if missing_models and strict:
             raise UserError(
                 self.env._(
-                    "This blueprint refers to Odoo models that are not installed: %(models)s. "
-                    "Install the apps that provide them, or remove these models from the file.",
+                    "This blueprint uses Odoo models that are not installed here: %(models)s. "
+                    "Install the apps that provide them and import again, or remove these models from the file.",
                     models=", ".join(missing_models),
                 )
             )
@@ -274,29 +278,56 @@ class PanSlBlueprint(models.AbstractModel):
         if not isinstance(lang, str) or lang not in installed:
             raise UserError(
                 self.env._(
-                    "The blueprint is written in language %(lang)r, which is not active in this "
-                    "database. Activate it first, or export the file again in English.",
+                    "This blueprint is written in language %(lang)s, which is not active here. "
+                    "Activate the language and import again, or export the file again in English.",
                     lang=lang,
                 )
             )
         return lang
 
     @api.model
-    def _check_header(self, data):
-        if not isinstance(data, dict):
-            raise UserError(self.env._("A blueprint must be a JSON object, not %(type)s.", type=type(data).__name__))
-        if data.get("format") != BLUEPRINT_FORMAT:
+    def _serialized_size(self, data):
+        """The size in bytes of ``data`` written as JSON, the same measure as a file."""
+        try:
+            return len(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        except RecursionError as error:
+            raise UserError(
+                self.env._("This blueprint is nested too deeply to read. Export the file again and import that.")
+            ) from error
+        except (TypeError, ValueError) as error:
             raise UserError(
                 self.env._(
-                    "This is not a blueprint file: 'format' is %(found)r, expected %(expected)r.",
-                    found=data.get("format"),
-                    expected=BLUEPRINT_FORMAT,
+                    "This blueprint holds values that are not JSON (text, numbers, true/false, lists, objects). "
+                    "Export the file again and import that."
+                )
+            ) from error
+
+    @api.model
+    def _check_size(self, size):
+        if size > MAX_FILE_BYTES:
+            raise UserError(
+                self.env._(
+                    "This blueprint is %(size)s MB; at most %(max)s MB can be imported at once. "
+                    "Split the file or remove records.",
+                    size=round(size / 1024 / 1024, 1),
+                    max=MAX_FILE_BYTES // 1024 // 1024,
+                )
+            )
+
+    @api.model
+    def _check_header(self, data):
+        if not isinstance(data, dict) or data.get("format") != BLUEPRINT_FORMAT:
+            raise UserError(
+                self.env._(
+                    "This is not a blueprint file. Choose a file exported from Blueprint, "
+                    "or load the template."
                 )
             )
         if data.get("version") != BLUEPRINT_VERSION:
             raise UserError(
                 self.env._(
-                    "Blueprint version %(found)r is not supported; this module reads version %(expected)s.",
+                    "This blueprint file has version %(found)s; this app reads version %(expected)s. "
+                    "Export the file again with this app and import that.",
                     found=data.get("version"),
                     expected=BLUEPRINT_VERSION,
                 )
@@ -321,21 +352,42 @@ class PanSlBlueprint(models.AbstractModel):
     def _get_section(self, data, key):
         items = data.get(key, [])
         if not isinstance(items, list):
-            raise UserError(self.env._("The section '%(section)s' must be a list.", section=key))
+            raise UserError(
+                self.env._(
+                    "In this blueprint, '%(section)s' must be a list of records between [ ]. "
+                    "Fix the file and import it again.",
+                    section=key,
+                )
+            )
         seen = set()
         for index, item in enumerate(items, start=1):
             if not isinstance(item, dict):
                 raise UserError(
-                    self.env._("Item %(index)s of '%(section)s' must be an object.", index=index, section=key)
+                    self.env._(
+                        "Record %(index)s in '%(section)s' is not a record between { }. "
+                        "Fix the file and import it again.",
+                        index=index,
+                        section=key,
+                    )
                 )
             code = item.get("code")
             if not isinstance(code, str) or not code.strip():
                 raise UserError(
-                    self.env._("Item %(index)s of '%(section)s' has no code.", index=index, section=key)
+                    self.env._(
+                        "Record %(index)s in '%(section)s' has no code. "
+                        "Give it a unique code as text and import again.",
+                        index=index,
+                        section=key,
+                    )
                 )
             if code in seen:
                 raise UserError(
-                    self.env._("The code '%(code)s' appears twice in '%(section)s'.", code=code, section=key)
+                    self.env._(
+                        "The code '%(code)s' is used twice in '%(section)s'. "
+                        "Give every record its own code and import again.",
+                        code=code,
+                        section=key,
+                    )
                 )
             seen.add(code)
         return items
@@ -346,11 +398,18 @@ class PanSlBlueprint(models.AbstractModel):
 
         :return: (dict name -> id, sorted list of names that are not installed)
         """
-        names = {activity["model"] for activity in sections["activities"] if activity.get("model")}
+        names = [activity["model"] for activity in sections["activities"] if activity.get("model")]
         for name in names:
             if not isinstance(name, str):
-                raise UserError(self.env._("A model name must be text, found %(value)r.", value=name))
+                raise UserError(
+                    self.env._(
+                        "A model in this blueprint is not text: %(value)s. "
+                        "Write the technical model name between quotes, e.g. \"sale.order\".",
+                        value=name,
+                    )
+                )
         # ir.model is technical metadata; reading it does not expose business data.
+        names = set(names)
         found = self.env["ir.model"].sudo().search_read([("model", "in", list(names))], ["model"])
         model_map = {row["model"]: row["id"] for row in found}
         return model_map, sorted(names - set(model_map))
@@ -367,8 +426,8 @@ class PanSlBlueprint(models.AbstractModel):
         if missing:
             raise UserError(
                 self.env._(
-                    "The blueprint refers to unknown %(section)s code(s): %(codes)s. "
-                    "Add them to the file or create them first.",
+                    "This blueprint refers to %(section)s that do not exist: %(codes)s. "
+                    "Add them to the file, or correct the codes, and import again.",
                     section=section,
                     codes=", ".join(missing),
                 )
@@ -383,6 +442,16 @@ class PanSlBlueprint(models.AbstractModel):
         ``refs[section]``; an unknown code raises, naming all unknown codes.
         """
         for key, section in keys:
+            for item in items:
+                if item.get(key) and not isinstance(item[key], str):
+                    raise UserError(
+                        self.env._(
+                            "The %(key)s of '%(code)s' must be a code as text. "
+                            "Put it between quotes and import again.",
+                            key=key,
+                            code=item["code"],
+                        )
+                    )
             codes = {item[key] for item in items if item.get(key)} - set(refs.get(section, {}))
             refs.setdefault(section, {}).update(self._codes_to_ids(section, codes))
 
@@ -392,15 +461,19 @@ class PanSlBlueprint(models.AbstractModel):
         if not code:
             if required:
                 raise UserError(
-                    self.env._("'%(code)s' needs a '%(key)s'.", code=item["code"], key=key)
+                    self.env._(
+                        "'%(code)s' has no %(key)s. Add the code of its %(key)s and import again.",
+                        code=item["code"],
+                        key=key,
+                    )
                 )
             return False
         if code not in refs.get(section, {}):
             # Codes are resolved up front by _load_refs; reaching this is a bug.
             raise UserError(
                 self.env._(
-                    "The blueprint refers to unknown %(section)s code(s): %(codes)s. "
-                    "Add them to the file or create them first.",
+                    "This blueprint refers to %(section)s that do not exist: %(codes)s. "
+                    "Add them to the file, or correct the codes, and import again.",
                     section=section,
                     codes=code,
                 )
@@ -438,7 +511,7 @@ class PanSlBlueprint(models.AbstractModel):
                 if not item.get("name"):
                     raise UserError(
                         self.env._(
-                            "The new %(section)s record '%(code)s' needs a name.",
+                            "The new record '%(code)s' in '%(section)s' has no name. Add a name and import again.",
                             section=section,
                             code=item["code"],
                         )
@@ -472,11 +545,23 @@ class PanSlBlueprint(models.AbstractModel):
         vals = {}
         for key in keys:
             if key in item:
+                if item[key] is not None and not isinstance(item[key], str):
+                    raise UserError(
+                        self.env._(
+                            "The %(key)s of '%(code)s' must be text. Put it between quotes and import again.",
+                            key=key,
+                            code=item["code"],
+                        )
+                    )
                 vals[key] = item[key] or False
         if "sequence" in item:
-            if not isinstance(item["sequence"], int):
+            # bool is a subclass of int; true/false is no position.
+            if not isinstance(item["sequence"], int) or isinstance(item["sequence"], bool):
                 raise UserError(
-                    self.env._("The sequence of '%(code)s' must be a whole number.", code=item["code"])
+                    self.env._(
+                        "The sequence of '%(code)s' must be a whole number, e.g. 10. Fix it and import again.",
+                        code=item["code"],
+                    )
                 )
             vals["sequence"] = item["sequence"]
         return vals
@@ -490,16 +575,31 @@ class PanSlBlueprint(models.AbstractModel):
         # A legacy "models" key is accepted and ignored: phases name apps, activities models.
         vals = self._common_vals(item, ("name",))
         if "apps" in item:
-            if not isinstance(item["apps"], list):
-                raise UserError(self.env._("'apps' of phase '%(code)s' must be a list.", code=item["code"]))
-            vals["app_labels"] = ", ".join(str(app).strip() for app in item["apps"] if str(app).strip()) or False
+            apps = item["apps"]
+            if not isinstance(apps, list) or not all(isinstance(app, str) for app in apps):
+                raise UserError(
+                    self.env._(
+                        "The apps of phase '%(code)s' must be a list of module names as text, "
+                        "e.g. [\"sale_management\", \"account\"]. Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            vals["app_labels"] = ", ".join(app.strip() for app in apps if app.strip()) or False
         return vals
 
     @api.model
     def _role_vals(self, item):
         vals = self._common_vals(item, ("name", "description"))
         if "external" in item:
-            vals["is_external"] = bool(item["external"])
+            if not isinstance(item["external"], bool):
+                raise UserError(
+                    self.env._(
+                        "'external' of role '%(code)s' must be true or false, without quotes. "
+                        "Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            vals["is_external"] = item["external"]
         return vals
 
     @api.model
@@ -529,7 +629,8 @@ class PanSlBlueprint(models.AbstractModel):
             if item["choice_state"] not in states:
                 raise UserError(
                     self.env._(
-                        "Activity '%(code)s' has choice state %(state)r; use one of: %(states)s.",
+                        "Activity '%(code)s' has choice state %(state)s, which does not exist. "
+                        "Use one of %(states)s and import again.",
                         code=item["code"],
                         state=item["choice_state"],
                         states=", ".join(states),
@@ -555,21 +656,28 @@ class PanSlBlueprint(models.AbstractModel):
                 continue
             if not isinstance(item["steps"], list):
                 raise UserError(
-                    self.env._("'steps' of scenario '%(code)s' must be a list.", code=item["code"])
+                    self.env._(
+                        "The steps of scenario '%(code)s' must be a list of activity codes between [ ]. "
+                        "Fix it and import again.",
+                        code=item["code"],
+                    )
                 )
             steps = []
             for step in item["steps"]:
                 if isinstance(step, str):
                     steps.append((step, False))
-                elif isinstance(step, dict) and isinstance(step.get("activity"), str):
+                elif (
+                    isinstance(step, dict)
+                    and isinstance(step.get("activity"), str)
+                    and isinstance(step.get("note") or "", str)
+                ):
                     steps.append((step["activity"], step.get("note") or False))
                 else:
                     raise UserError(
                         self.env._(
-                            "A step of scenario '%(code)s' must be an activity code or "
-                            "an object with 'activity' and 'note'; found %(step)r.",
+                            "A step of scenario '%(code)s' is not an activity code. Write each step as "
+                            "an activity code, or as {\"activity\": code, \"note\": text}, and import again.",
                             code=item["code"],
-                            step=step,
                         )
                     )
             parsed[item["code"]] = steps
@@ -628,9 +736,22 @@ class PanSlBlueprint(models.AbstractModel):
     def _parse_json(self, raw, label):
         try:
             return json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
-        except (UnicodeDecodeError, ValueError) as error:
+        except json.JSONDecodeError as error:
             raise UserError(
-                self.env._("%(name)s is not a valid JSON file: %(error)s", name=label, error=error)
+                self.env._(
+                    "%(name)s is not a blueprint file: it breaks off or has a typo near line %(line)s. "
+                    "Choose a file exported from Blueprint, or load the template.",
+                    name=label,
+                    line=error.lineno,
+                )
+            ) from error
+        except (UnicodeDecodeError, ValueError, RecursionError) as error:
+            raise UserError(
+                self.env._(
+                    "%(name)s is not a blueprint file. Choose a file exported from Blueprint, "
+                    "or load the template.",
+                    name=label,
+                )
             ) from error
 
     @api.model
@@ -648,8 +769,11 @@ class PanSlBlueprint(models.AbstractModel):
                 "message": message,
                 "type": "warning" if missing_apps else "success",
                 "sticky": bool(missing_apps),
-                "next": self.env["ir.actions.actions"]._for_xml_id(
-                    "pan_self_learning_blueprint.action_blueprint_map"
+                # target "main": the map replaces the breadcrumbs, so loading
+                # from the (empty) map never stacks a second "Company map".
+                "next": dict(
+                    self.env["ir.actions.actions"]._for_xml_id("pan_self_learning_blueprint.action_blueprint_map"),
+                    target="main",
                 ),
             },
         }
@@ -720,15 +844,9 @@ class PanSlBlueprintWizard(models.TransientModel):
         if not self.file:
             raise UserError(self.env._("Choose a blueprint file to import."))
         raw = base64.b64decode(self.file)
-        if len(raw) > MAX_FILE_BYTES:
-            raise UserError(
-                self.env._(
-                    "The file is %(size)s MB; at most %(max)s MB can be imported. Split the file or remove records.",
-                    size=round(len(raw) / 1024 / 1024, 1),
-                    max=MAX_FILE_BYTES // 1024 // 1024,
-                )
-            )
         Blueprint = self.env["pan.sl.blueprint"]
+        # Checked before parsing, so a huge file is never read into memory twice.
+        Blueprint._check_size(len(raw))
         data = Blueprint._parse_json(raw, self.filename or self.env._("The file"))
         summary = Blueprint.import_blueprint(data, strict=True)
         return Blueprint._open_map_with_summary(self.env._("Blueprint imported"), summary)

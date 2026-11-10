@@ -1,9 +1,12 @@
 """Smoke test of the company map client action in a real browser.
 
-The detailed UI checks (zoom stops, scenario route, side panel, mobile) live in
-``tools/ui_check.mjs``; this test only proves, inside the module suite, that the
-map loads for a plain Blueprint user without a JS or template error, and that
-the empty state offers "Load template" to managers and only a line to users.
+The detailed UI checks (zoom stops, scenario route and fit, side and role
+panels, Training colours, refresh, mobile) live in ``tools/ui_check.mjs``,
+which is run by hand and is not part of this suite. This test only proves,
+inside the module suite, that the map loads for a plain Blueprint user without
+a JS or template error, that "Colour by" offers exactly Choices, Progress and
+Training (E1), and that the empty state offers "Load template" to managers,
+which reloads the open map in place (E3), and only a line to users.
 """
 
 from odoo.tests import HttpCase, new_test_user, tagged
@@ -71,6 +74,11 @@ class TestMapUi(HttpCase):
     if (document.querySelector(".o_pan_sl_map .o_pan_sl_empty")) {
         throw new Error("Company map: empty state shown although there are activities");
     }
+    // E1: colour by is exactly Choices, Progress, Training (no People / ADKAR).
+    const modes = [...document.querySelectorAll(".o_pan_sl_color_select option")].map((el) => el.value);
+    if (modes.join(",") !== "choices,progress,training") {
+        throw new Error("Company map: colour by offers " + modes.join(",") + ", not choices,progress,training");
+    }
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
@@ -91,12 +99,22 @@ class TestMapUi(HttpCase):
     if (!expectButton && !empty.textContent.includes("Ask a Blueprint administrator.")) {
         throw new Error("Company map: a user's empty state does not say who to ask");
     }
+    if (expectButton) {
+        // E3: loading reloads the open map in place: same map element, no second map action.
+        const map = document.querySelector(".o_pan_sl_map");
+        button.click();
+        await waitFor(() => document.querySelector(".o_pan_sl_map .o_pan_sl_block"), "map after loading the template");
+        if (document.querySelector(".o_pan_sl_map") !== map || document.querySelectorAll(".o_pan_sl_map").length !== 1) {
+            throw new Error("Company map: loading the template opened a second map instead of reloading this one");
+        }
+        await waitFor(() => document.querySelector(".o_notification"), "notification of what was loaded");
+    }
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """ % ("true" if expect_button else "false")
 
     def test_map_empty_state(self):
-        """D7: managers get one "Load template" button, users one muted line without a button."""
+        """D7/E3: managers get one "Load template" button that fills this map; users one muted line."""
         if self.env["pan.sl.activity"].search_count([]):
             self.skipTest("This database already has activities, so the map has no empty state.")
         manager = new_test_user(

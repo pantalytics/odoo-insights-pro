@@ -3,13 +3,18 @@
 //
 // Logs in to a running Odoo at http://localhost:8069 as admin/admin and opens
 // the company map client action. On desktop (1440x900, deviceScaleFactor 1)
-// it moves the zoom slider to each of the four stops (Company, Processes,
-// Activities, Detail) and screenshots each, checks that the stops draw what
-// they should, checks that the legend shows at most three items in each
-// colour-by mode, selects a scenario and checks the numbered route badges,
+// it moves the zoom slider to each of the four stops (Company, Activities,
+// Status, Detail) and screenshots each, checks that the stops draw what they
+// should, checks that the colour modes are exactly Choices, Progress and
+// Training and that the legend shows at most three items in each, checks the
+// Training colours and the "Still to train" list against get_map_data, opens
+// a role panel from a lane label, selects every scenario and checks that all
+// of its numbered route badges are in view and that the choice is announced,
 // clicks an activity chip and checks the side panel, presses Esc and checks
-// that the panel closes. On mobile (390x844) it checks that the page does not
-// scroll sideways (the map scrolls inside its own container) and takes one
+// that the panel closes, and reloads the page to check that zoom, centre,
+// scenario and colour mode survive a refresh. On mobile (390x844) it checks
+// that the page does not scroll sideways (the map scrolls inside its own
+// container), that every zoom stop lands on content, and takes one
 // screenshot with the panel open as a bottom sheet.
 //
 // Keyboard: arrow keys pan the focused map, + / - zoom and Home fits it; the
@@ -64,6 +69,10 @@ const SEL = {
     detail: ".o_pan_sl_chip .o_pan_sl_detail text",
     counter: ".o_pan_sl_counter",
     panel: ".o_pan_sl_panel",
+    rolePanel: ".o_pan_sl_role_panel",
+    roleLabel: ".o_pan_sl_role_label_group",
+    zoomLabel: ".o_pan_sl_zoom_label",
+    scenarioStatus: ".o_pan_sl_scenario_status",
     panelOpenActivity: ".o_pan_sl_panel .card-footer .btn-primary",
     formView: ".o_form_view",
     breadcrumbMap: ".o_breadcrumb .breadcrumb-item a",
@@ -73,10 +82,13 @@ const SEL = {
 // A zoom factor inside each semantic stop (thresholds 1, 1.75, 2.5, 3.25; max 4).
 const STOPS = [
     { value: 1, zoom: 1, name: "company" },
-    { value: 2, zoom: 2, name: "processes" },
-    { value: 3, zoom: 2.8, name: "activities" },
+    { value: 2, zoom: 2, name: "activities" },
+    { value: 3, zoom: 2.8, name: "status" },
     { value: 4, zoom: 3.6, name: "detail" },
 ];
+
+const COLOR_MODES = ["choices", "progress", "training"];
+const TRAINED_RUNG = 4;
 
 const DESKTOP = { name: "desktop", width: 1440, height: 900 };
 const MOBILE = { name: "mobile", width: 390, height: 844 };
@@ -223,6 +235,182 @@ async function count(page, selector) {
     return page.locator(selector).count();
 }
 
+/** The map's own data, read the way the map reads it (JSON-RPC as the logged-in user). */
+async function mapData(page) {
+    return page.evaluate(async () => {
+        const response = await fetch("/web/dataset/call_kw/pan.sl.activity/get_map_data", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "call",
+                params: { model: "pan.sl.activity", method: "get_map_data", args: [], kwargs: {} },
+            }),
+        });
+        const payload = await response.json();
+        if (payload.error) {
+            throw new Error(`get_map_data failed: ${payload.error.data?.message || payload.error.message}`);
+        }
+        return payload.result;
+    });
+}
+
+/** Tone of the status dot of each rendered chip: {activityId: "ok" | "warn" | "off"}. */
+async function chipTones(page) {
+    return page.evaluate(() => {
+        const tones = {};
+        for (const chip of document.querySelectorAll(".o_pan_sl_chip")) {
+            const dot = chip.querySelector(".o_pan_sl_dot");
+            const tone = [...dot.classList].find((name) => name.startsWith("o_pan_sl_tone_"));
+            tones[chip.dataset.item.slice(1)] = tone ? tone.slice("o_pan_sl_tone_".length) : null;
+        }
+        return tones;
+    });
+}
+
+/** Open the panel of one activity with the keyboard (focus moves the camera to it). */
+async function openChipPanel(page, activityId) {
+    const chip = page.locator(`[data-item="c${activityId}"]`);
+    check(await chip.count(), `Chip of activity ${activityId} is not rendered.`);
+    await chip.focus();
+    await page.keyboard.press("Enter");
+    await expectVisible(page, SEL.panel, `side panel of activity ${activityId}`);
+}
+
+/**
+ * Training colour mode: green from rung 4, amber below, grey when the role
+ * has nobody. The panel lists the role's people under "Still to train" when
+ * the activity is not trained yet. A lane label opens the role panel with
+ * people, ADKAR band and activity count.
+ */
+async function checkTraining(page, out) {
+    const data = await mapData(page);
+    const roles = new Map(data.roles.map((role) => [role.id, role]));
+    await setZoom(page, 2);
+    await page.locator(SEL.colorSelect).selectOption("training");
+    await page.waitForTimeout(100);
+    const legend = await page.locator(SEL.legendItem).allTextContents();
+    check(
+        legend.map((text) => text.trim()).join("|") === "Trained|Still to train|Nobody in the role",
+        `Training legend reads ${JSON.stringify(legend)}.`
+    );
+    const tones = await chipTones(page);
+    check(Object.keys(tones).length > 0, "Training: no chips rendered to check.");
+    for (const activity of data.activities) {
+        if (!(String(activity.id) in tones)) {
+            continue;
+        }
+        const role = roles.get(activity.role_id);
+        const expected = !role.users.length ? "off" : activity.rung >= TRAINED_RUNG ? "ok" : "warn";
+        check(
+            tones[activity.id] === expected,
+            `Training: "${activity.name}" (rung ${activity.rung}, ${role.users.length} people) is ${tones[activity.id]}, expected ${expected}.`
+        );
+    }
+    await expectNoBlack(page, "colour by training");
+
+    const rendered = data.activities.filter((activity) => String(activity.id) in tones);
+    const toTrain = rendered.find((a) => a.rung < TRAINED_RUNG && roles.get(a.role_id).users.length);
+    if (toTrain) {
+        await openChipPanel(page, toTrain.id);
+        const names = (await page.locator(`${SEL.panel} .o_pan_sl_to_train`).textContent()).trim();
+        check(
+            names === roles.get(toTrain.role_id).users.join(", "),
+            `"Still to train" for "${toTrain.name}" lists "${names}".`
+        );
+        await page.keyboard.press("Escape");
+        await expectGone(page, SEL.panel, "The side panel after Esc (still to train)");
+    }
+    const trained = rendered.find((a) => a.rung >= TRAINED_RUNG && roles.get(a.role_id).users.length);
+    if (trained) {
+        await openChipPanel(page, trained.id);
+        const text = (await page.locator(`${SEL.panel} .o_pan_sl_training`).textContent()).trim();
+        check(text === "Trained", `The panel of trained "${trained.name}" says "${text}".`);
+        check(!(await count(page, `${SEL.panel} .o_pan_sl_to_train`)), `Trained "${trained.name}" still lists people to train.`);
+        await page.keyboard.press("Escape");
+        await expectGone(page, SEL.panel, "The side panel after Esc (trained)");
+    }
+    check(toTrain || trained, "Training: no rendered activity has a role with people, nothing to check.");
+
+    // Role panel from a lane label.
+    const label = page.locator(SEL.roleLabel).first();
+    const roleId = parseInt(await label.getAttribute("data-role"), 10);
+    const role = roles.get(roleId);
+    await label.focus();
+    await page.keyboard.press("Enter");
+    await expectVisible(page, SEL.rolePanel, "role panel");
+    const people = (await page.locator(`${SEL.rolePanel} .o_pan_sl_role_people`).textContent()).trim();
+    const expectedPeople = role.users.length ? role.users.join(", ") : "Nobody holds this role yet";
+    check(people === expectedPeople, `Role panel of "${role.name}" lists "${people}", expected "${expectedPeople}".`);
+    const adkar = (await page.locator(`${SEL.rolePanel} .o_pan_sl_role_adkar`).textContent()).trim();
+    check(
+        role.adkar ? adkar.toLowerCase() === role.adkar : adkar === "Needs three scored people",
+        `Role panel of "${role.name}" shows ADKAR "${adkar}" for band ${role.adkar}.`
+    );
+    await page.screenshot({ path: join(out, "desktop_role_panel.png") });
+    await page.keyboard.press("Escape");
+    await expectGone(page, SEL.rolePanel, "The role panel after pressing Esc");
+    await page.locator(SEL.colorSelect).selectOption("choices");
+}
+
+/** Every scenario: all of its numbered route badges are in view, and the choice is announced. */
+async function checkScenarioFit(page) {
+    const data = await mapData(page);
+    const select = page.locator(SEL.scenarioSelect).first();
+    for (const scenario of data.scenarios) {
+        await setZoom(page, 1);
+        await select.selectOption(String(scenario.id));
+        await page.waitForTimeout(150);
+        const stop = (await svgData(page)).stop;
+        check(stop === 2, `Scenario ${scenario.code}: the map is at stop ${stop}, expected 2 (Activities).`);
+        const badges = await page.evaluate(() => {
+            const body = document.querySelector(".o_pan_sl_body").getBoundingClientRect();
+            return [...document.querySelectorAll(".o_pan_sl_badge")].map((el) => {
+                const r = el.getBoundingClientRect();
+                return r.left >= body.left && r.right <= body.right && r.top >= body.top && r.bottom <= body.bottom;
+            });
+        });
+        check(
+            badges.length === scenario.activity_ids.length,
+            `Scenario ${scenario.code}: ${badges.length} route badges for ${scenario.activity_ids.length} steps.`
+        );
+        const outside = badges.filter((inView) => !inView).length;
+        check(!outside, `Scenario ${scenario.code}: ${outside} of ${badges.length} route steps are out of view.`);
+        const status = (await page.locator(SEL.scenarioStatus).textContent()).trim();
+        const expected = `Showing scenario ${scenario.name}, ${scenario.activity_ids.length} steps`;
+        check(status === expected, `Scenario ${scenario.code}: announced "${status}", expected "${expected}".`);
+    }
+    await select.selectOption("");
+    await page.waitForTimeout(100);
+    const status = (await page.locator(SEL.scenarioStatus).textContent()).trim();
+    check(status === "Showing all activities", `Clearing the scenario announces "${status}".`);
+}
+
+/** A page refresh keeps zoom, centre, scenario and colour mode. */
+async function checkRefresh(page) {
+    await setZoom(page, 1);
+    const select = page.locator(SEL.scenarioSelect).first();
+    await select.selectOption({ index: 1 });
+    await page.locator(SEL.colorSelect).selectOption("training");
+    await page.waitForTimeout(200);
+    const before = await svgData(page);
+    const scenario = await select.inputValue();
+    await page.reload();
+    await expectVisible(page, SEL.svg, "company map after a refresh");
+    await page.waitForTimeout(300);
+    const after = await svgData(page);
+    const centre = (box) => [box[0] + box[2] / 2, box[1] + box[3] / 2];
+    const [bx, by] = centre(before.viewBox);
+    const [ax, ay] = centre(after.viewBox);
+    check(Math.abs(after.zoom - before.zoom) < 0.01, `Refresh: zoom ${before.zoom} -> ${after.zoom}.`);
+    check(Math.abs(ax - bx) < 2 && Math.abs(ay - by) < 2, `Refresh: centre (${bx}, ${by}) -> (${ax}, ${ay}).`);
+    check((await page.locator(SEL.scenarioSelect).inputValue()) === scenario, "Refresh: scenario not kept.");
+    check((await page.locator(SEL.colorSelect).inputValue()) === "training", "Refresh: colour mode not kept.");
+    await page.locator(SEL.scenarioSelect).selectOption("");
+    await page.locator(SEL.colorSelect).selectOption("choices");
+    await setZoom(page, 1);
+}
+
 /** Description of document.activeElement: which map item it is and whether it is in view. */
 async function activeItem(page) {
     return page.evaluate(() => {
@@ -301,7 +489,7 @@ async function checkKeyboard(page) {
     await page.locator(SEL.slider).focus();
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(100);
-    check((await svgData(page)).stop === 2, "ArrowRight on the zoom slider does not jump to the Processes stop.");
+    check((await svgData(page)).stop === 2, "ArrowRight on the zoom slider does not jump to the Activities stop.");
 
     // Enter on a Company block zooms in and moves focus to a chip of that cell.
     await setZoom(page, 1);
@@ -342,14 +530,14 @@ async function checkStateRestore(page) {
 }
 
 async function checkDesktop(page, out) {
-    const scales = [];
+    const widths = [];
     for (const stop of STOPS) {
         await setZoom(page, stop.zoom);
         const label = `stop ${stop.value} (${stop.name})`;
         const info = await svgData(page);
         check(info.stop === stop.value, `${label}: zoom ${stop.zoom} shows stop ${info.stop}.`);
         await expectNoBlack(page, label);
-        scales.push(info.scale);
+        widths.push(info.mapWidth);
         const blocks = await count(page, SEL.block);
         const chips = await count(page, SEL.chip);
         if (stop.value === 1) {
@@ -376,12 +564,17 @@ async function checkDesktop(page, out) {
         await page.screenshot({ path: join(out, `desktop_stop${stop.value}_${stop.name}.png`) });
     }
     check(
-        scales.every((scale, index) => !index || scale > scales[index - 1]),
-        `The map does not get physically larger with each stop (scales ${scales.join(", ")}).`
+        widths.every((width, index) => !index || width > widths[index - 1]),
+        `The map does not get physically larger with each stop (widths ${widths.join(", ")} px).`
     );
 
-    // The legend shows only the active colour-by mode, at most three items.
-    for (const mode of ["choices", "progress", "people"]) {
+    // The colour modes are exactly Choices, Progress and Training; the legend
+    // shows only the active one, at most three items.
+    const modes = await page.locator(`${SEL.colorSelect} option`).evaluateAll((options) =>
+        options.map((option) => option.value)
+    );
+    check(modes.join("|") === COLOR_MODES.join("|"), `Colour modes are ${modes.join(", ")}.`);
+    for (const mode of COLOR_MODES) {
         await page.locator(SEL.colorSelect).selectOption(mode);
         await page.waitForTimeout(100);
         const items = await count(page, SEL.legendItem);
@@ -390,6 +583,8 @@ async function checkDesktop(page, out) {
     }
     await page.locator(SEL.colorSelect).selectOption("choices");
 
+    await checkTraining(page, out);
+    await checkScenarioFit(page);
     await checkKeyboard(page);
     await setZoom(page, 3.6);
 
@@ -436,12 +631,6 @@ async function checkDesktop(page, out) {
     check(stopAfter === 2, `Selecting a scenario should jump to stop 2, the map is at stop ${stopAfter}.`);
     const badgeTexts = await page.locator(`${SEL.badge} text`).allTextContents();
     check(badgeTexts[0] === "1", `The first route badge reads "${badgeTexts[0]}" instead of "1".`);
-    const badgeVisible = await page.locator(SEL.badge).first().evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        const body = document.querySelector(".o_pan_sl_body").getBoundingClientRect();
-        return r.left >= body.left && r.right <= body.right && r.top >= body.top && r.bottom <= body.bottom;
-    });
-    check(badgeVisible, "The first route badge is not in view (the route is not fitted).");
     await expectNoBlack(page, "scenario route");
     await page.screenshot({ path: join(out, "desktop_scenario.png") });
 
@@ -462,6 +651,8 @@ async function checkDesktop(page, out) {
 
     await checkStateRestore(page);
     await expectNoErrorDialog(page);
+    await checkRefresh(page);
+    await expectNoErrorDialog(page);
 }
 
 async function checkMobile(page, out) {
@@ -478,6 +669,27 @@ async function checkMobile(page, out) {
     );
     check(info.mapWidth > sizes.body, "On mobile the map should be wider than its container (and pan inside it).");
     await expectNoBlack(page, "mobile");
+
+    // Every zoom stop, chosen from its label, lands on content: never an empty screen.
+    const labels = page.locator(SEL.zoomLabel);
+    for (let index = (await labels.count()) - 1; index >= 0; index--) {
+        await labels.nth(index).click();
+        await page.waitForTimeout(150);
+        const onScreen = await page.evaluate(() => {
+            const body = document.querySelector(".o_pan_sl_body").getBoundingClientRect();
+            return [...document.querySelectorAll(".o_pan_sl_chip, .o_pan_sl_block")].some((el) => {
+                const r = el.getBoundingClientRect();
+                const x = Math.min(Math.max(r.left + r.width / 2, body.left), body.right - 1);
+                const y = Math.min(Math.max(r.top + Math.min(r.height / 2, 14), body.top), body.bottom - 1);
+                const hit = document.elementFromPoint(x, y);
+                return r.right > body.left && r.left < body.right && r.bottom > body.top && r.top < body.bottom &&
+                    Boolean(hit && el.contains(hit));
+            });
+        });
+        const name = (await labels.nth(index).textContent()).trim();
+        check(onScreen, `Mobile: the ${name} stop shows no block or chip (empty screen).`);
+    }
+    await setZoom(page, 2);
     await clickVisibleChip(page, SEL.chip, "activity chip");
     await expectVisible(page, SEL.panel, "activity side panel (mobile)");
     const sheet = await page.locator(SEL.panel).evaluate((el) => {

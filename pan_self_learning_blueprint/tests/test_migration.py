@@ -1,8 +1,11 @@
-"""The 19.0.1.2.0 migration: people move from users to contacts (D4), default data loses its XML ids (D7).
+"""The 19.0.1.2.0 migration: people move from users to contacts (D4), default data loses its XML ids (D7),
+and the tables of removed many2many fields are dropped (E9).
 
 The scripts are run on a cursor prepared like a 19.0.1.1.0 database: an ADKAR
-score with only ``user_id`` and the old role-user table. DDL is transactional in
-PostgreSQL, so the test transaction rolls the prepared state back.
+score with only ``user_id``, the old role-user table and the tables of the
+removed ``role.group_ids`` and ``phase.model_ids``, each with its
+``ir_model_relation`` record. DDL is transactional in PostgreSQL, so the test
+transaction rolls the prepared state back.
 """
 
 import importlib.util
@@ -13,6 +16,12 @@ from odoo.tools import file_path, sql
 from .common import BlueprintCase
 
 MODULE = "pan_self_learning_blueprint"
+# Relation tables of removed many2many fields: (table, model, column 1, column 2).
+OLD_RELATIONS = (
+    ("pan_sl_role_res_users_rel", "pan.sl.role", "role_id", "user_id"),
+    ("pan_sl_role_res_groups_rel", "pan.sl.role", "role_id", "group_id"),
+    ("ir_model_pan_sl_phase_rel", "pan.sl.phase", "pan_sl_phase_id", "ir_model_id"),
+)
 
 
 def _load(name):
@@ -47,15 +56,25 @@ class TestMigration(BlueprintCase):
             (self.old_user.id, score.id),
         )
         cr.execute("DELETE FROM pan_sl_role_res_partner_rel WHERE role_id = %s", (self.role_sales.id,))
-        cr.execute(
-            """
-            CREATE TABLE IF NOT EXISTS pan_sl_role_res_users_rel (
-                role_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                PRIMARY KEY (role_id, user_id)
+        module_id = self.env["ir.module.module"].search([("name", "=", MODULE)]).id
+        for table, model, column1, column2 in OLD_RELATIONS:
+            cr.execute(
+                sql.SQL(
+                    "CREATE TABLE IF NOT EXISTS %s (%s INTEGER NOT NULL, %s INTEGER NOT NULL, PRIMARY KEY (%s, %s))",
+                    sql.SQL.identifier(table),
+                    sql.SQL.identifier(column1),
+                    sql.SQL.identifier(column2),
+                    sql.SQL.identifier(column1),
+                    sql.SQL.identifier(column2),
+                )
             )
-            """
-        )
+            cr.execute(
+                """
+                INSERT INTO ir_model_relation (name, model, module, create_date, write_date)
+                VALUES (%s, %s, %s, now() at time zone 'UTC', now() at time zone 'UTC')
+                """,
+                (table, self.env["ir.model"]._get_id(model), module_id),
+            )
         cr.execute(
             "INSERT INTO pan_sl_role_res_users_rel (role_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             (self.role_sales.id, self.old_user.id),
@@ -76,7 +95,8 @@ class TestMigration(BlueprintCase):
         self.post.migrate(self.env.cr, None)
         self.env.cr.execute("SELECT partner_id FROM pan_sl_adkar_score WHERE id = %s", (score.id,))
         self.assertIsNone(self.env.cr.fetchone()[0])
-        self.assertTrue(sql.table_exists(self.env.cr, "pan_sl_role_res_users_rel"))
+        for table, *_columns in OLD_RELATIONS:
+            self.assertTrue(sql.table_exists(self.env.cr, table))
 
     def test_upgrade_moves_people_to_contacts(self):
         score = self._prepare_old_state()
@@ -98,10 +118,8 @@ class TestMigration(BlueprintCase):
         self.assertTrue(self.phase_a.exists())
 
         self.post.migrate(cr, "19.0.1.1.0")
-        self.assertFalse(sql.table_exists(cr, "pan_sl_role_res_users_rel"))
         self.assertFalse(sql.column_exists(cr, "pan_sl_adkar_score", "user_id"))
-        cr.execute("SELECT 1 FROM ir_model_relation WHERE name = 'pan_sl_role_res_users_rel'")
-        self.assertFalse(cr.fetchall())
+        self._assert_old_relations_gone()
 
         self.env.invalidate_all()
         self.assertEqual(score.partner_id, partner)
@@ -115,6 +133,27 @@ class TestMigration(BlueprintCase):
         for _attempt in range(2):
             self.pre.migrate(cr, "19.0.1.1.0")
             self.post.migrate(cr, "19.0.1.1.0")
+        self._assert_old_relations_gone()
         self.env.invalidate_all()
         self.assertEqual(score.partner_id, self.old_user.partner_id)
         self.assertEqual(self.role_sales.partner_ids, self.old_user.partner_id)
+
+    def test_orphan_relation_tables_are_dropped(self):
+        """E9: the tables of removed role.group_ids and phase.model_ids go, with their relation records."""
+        self._prepare_old_state()
+        cr = self.env.cr
+        self.pre.migrate(cr, "19.0.1.1.0")
+        self.assertTrue(sql.table_exists(cr, "pan_sl_role_res_groups_rel"), "The pre-migration leaves them.")
+        self.post.migrate(cr, "19.0.1.1.0")
+        self._assert_old_relations_gone()
+        self.assertTrue(
+            sql.table_exists(cr, "pan_sl_role_res_partner_rel"), "The table of the live role.partner_ids stays."
+        )
+
+    def _assert_old_relations_gone(self):
+        cr = self.env.cr
+        for table, *_columns in OLD_RELATIONS:
+            with self.subTest(table=table):
+                self.assertFalse(sql.table_exists(cr, table), f"{table} must be dropped.")
+        cr.execute("SELECT name FROM ir_model_relation WHERE name IN %s", (tuple(row[0] for row in OLD_RELATIONS),))
+        self.assertFalse(cr.fetchall(), "No relation record of a dropped table may stay.")

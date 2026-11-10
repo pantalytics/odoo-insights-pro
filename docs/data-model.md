@@ -28,7 +28,7 @@ ADKAR score). Everything else is standard Odoo.
 |---|---|---|
 | A choice and its iterations | The activity: `choice_state` plus the chatter. A choice that needs discussion is a project task tagged "Decision", linked to the activities it settles | A task already has a title, an owner, a deadline, a chatter and a link to activities |
 | A requirement or user story | A project task tagged "Requirement", with the story in the description, linked to one activity | Same: the task is the unit of work, hours and estimates sit on it |
-| Training | The rung "Trained" on the tasks of an activity, plus ADKAR per person (shown on the map as a band per role) | A per-person training record is detail we do not need yet |
+| Training | The progress "Trained" on the tasks of an activity; the map colours by Training and lists who in the role still has to be trained. ADKAR per person, shown as a band in the role panel | A per-person training record is detail we do not need yet |
 | Gates (systeemtest, gebruikerstest) | Standard project milestones | Odoo already has them |
 
 ## The one change: people are contacts (built in 19.0.1.2.0)
@@ -41,9 +41,11 @@ and members to the user's partner.
 
 Removed at the same time, because nothing used them: `pan.sl.role.group_ids`,
 `pan.sl.phase.model_ids` and the default chains and phases data file (the
-template is the one source).
+template is the one source). The migration drops their relation tables
+(`pan_sl_role_res_groups_rel`, `ir_model_pan_sl_phase_rel`) and the old
+`pan_sl_role_res_users_rel`, with their `ir_model_relation` rows.
 
 ## Added later only if it hurts
 
 - A decision model with options, if tagged tasks stop being enough.
-- A training record per person × activity, if the rung stops being enough.
+- A training record per person × activity, if the progress stops being enough.

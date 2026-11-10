@@ -30,6 +30,8 @@
                     <div class="visually-hidden" role="status" aria-live="polite">
                         Zoom: <t t-esc="currentStop.label"/>. <t t-esc="currentStop.hint"/>
                     </div>
+                    <div class="visually-hidden o_pan_sl_scenario_status" role="status" aria-live="polite"
+                         t-esc="scenarioAnnouncement"/>
                 </t>
             </t>
         </div>
@@ -55,7 +57,7 @@
                     <option t-foreach="data.scenarios" t-as="scenario" t-key="scenario.id"
                             t-att-value="scenario.id"
                             t-att-selected="state.scenarioId === scenario.id">
-                        <t t-esc="scenario.code"/> · <t t-esc="scenario.name"/> · <t t-esc="scenario.progress"/>%
+                        <t t-esc="scenario.code"/> · <t t-esc="scenario.name"/> · Tested <t t-esc="scenario.progress"/>%
                     </option>
                 </select>
             </label>
@@ -65,7 +67,7 @@
                         t-on-change="onColorByChange">
                     <option value="choices" t-att-selected="state.colorBy === 'choices'">Choices</option>
                     <option value="progress" t-att-selected="state.colorBy === 'progress'">Progress</option>
-                    <option value="people" t-att-selected="state.colorBy === 'people'">People (ADKAR)</option>
+                    <option value="training" t-att-selected="state.colorBy === 'training'">Training</option>
                 </select>
             </label>
             <div class="o_pan_sl_zoom d-flex align-items-center gap-2">
@@ -225,7 +227,7 @@
                     <title t-esc="chip.activity.name"/>
                     <rect class="o_pan_sl_chip_box" x="0" y="0"
                           t-att-width="chip.width" t-att-height="chip.height" rx="6"/>
-                    <t t-if="stop === geometry.STOP_PROCESSES">
+                    <t t-if="stop === geometry.STOP_ACTIVITIES">
                         <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
                             <t t-set="dot" t-value="dotView(chip.activity, 15, 14)"/>
                         </t>
@@ -245,7 +247,7 @@
                         </g>
                         <g class="o_pan_sl_rung" aria-hidden="true">
                             <rect t-foreach="extras.rungSegments" t-as="segment" t-key="segment.key"
-                                  class="o_pan_sl_rung_seg" t-att-class="{ 'o_pan_sl_rung_on': segment.filled }"
+                                  class="o_pan_sl_rung_seg" t-att-class="segment.className"
                                   t-att-x="segment.x" y="31" width="7" height="6" rx="1.5"/>
                             <text class="o_pan_sl_small" t-att-x="extras.rungLabelX" y="37"
                                   t-esc="extras.rungLabel"/>
@@ -327,7 +329,12 @@
                           t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
                           x="0" t-att-y="lane.y" t-att-width="layout.labelW" t-att-height="lane.height"/>
                     <g class="o_pan_sl_role_label_group" t-att-data-lane="lane_index"
-                       t-att-transform="'translate(0,' + laneLabelY(lane) + ')'">
+                       t-att-data-role="lane.role.id"
+                       t-att-transform="'translate(0,' + laneLabelY(lane) + ')'"
+                       tabindex="0" role="button" t-att-aria-label="lane.role.name"
+                       t-att-aria-expanded="state.selectedRoleId === lane.role.id ? 'true' : 'false'"
+                       t-on-click="() => this.openRolePanel(lane.role.id)"
+                       t-on-keydown="(ev) => this.onRoleKeydown(ev, lane.role.id)">
                         <text class="o_pan_sl_role_label" x="12" y="0">
                             <t t-esc="lane.label"/>
                             <title t-esc="lane.role.name"/>
@@ -350,7 +357,7 @@
                 </text>
                 <rect class="o_pan_sl_band o_pan_sl_label_cell" x="0" t-att-y="layout.progressTop"
                       t-att-width="layout.labelW" t-att-height="geometry.PROGRESS_H"/>
-                <text class="o_pan_sl_band_label" x="12" t-att-y="layout.progressTop + 24">Progress</text>
+                <text class="o_pan_sl_band_label" x="12" t-att-y="layout.progressTop + 24">Tested</text>
             </g>
         </svg>
     </t>
@@ -361,8 +368,8 @@
                aria-labelledby="o_pan_sl_panel_title">
             <div class="card-header d-flex align-items-start gap-2">
                 <div class="flex-grow-1 min-w-0">
-                    <div class="text-muted small">
-                        <t t-esc="panel.activity.code"/>
+                    <div class="text-muted small o_pan_sl_panel_context">
+                        <t t-esc="panel.chain.name"/> › <t t-esc="panel.process.name"/>
                         <t t-if="panel.phase"> · <t t-esc="panel.phase.name"/></t>
                     </div>
                     <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1"
@@ -375,11 +382,18 @@
                 <dl class="mb-0">
                     <dt>Role</dt>
                     <dd>
-                        <t t-esc="panel.role.name"/>
+                        <a href="#" class="o_pan_sl_role_link" t-on-click.prevent="() => this.openRolePanel(panel.role.id)"
+                           t-esc="panel.role.name"/>
                         <span t-if="panel.role.is_external" class="badge text-bg-light ms-1">External</span>
-                        <div t-if="panel.role.users.length" t-esc="panel.role.users.join(', ')"/>
-                        <div t-else="" class="text-muted">Nobody holds this role yet</div>
-                        <div t-if="panel.adkarBand">ADKAR <t t-esc="panel.adkarBand"/></div>
+                    </dd>
+                    <dt>Training</dt>
+                    <dd class="o_pan_sl_training">
+                        <t t-if="panel.trained">Trained</t>
+                        <t t-elif="panel.role.users.length">
+                            <div>Still to train</div>
+                            <div class="o_pan_sl_to_train" t-esc="panel.role.users.join(', ')"/>
+                        </t>
+                        <span t-else="" class="text-muted">Nobody holds this role yet</span>
                     </dd>
                     <dt>Choice</dt>
                     <dd class="d-flex align-items-center gap-1">
@@ -391,7 +405,16 @@
                         <span t-esc="panel.choiceLabel"/>
                     </dd>
                     <dt>Progress</dt>
-                    <dd t-esc="panel.rungLabel"/>
+                    <dd class="d-flex align-items-center gap-1">
+                        <svg width="14" height="14" aria-hidden="true">
+                            <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
+                                <t t-set="dot" t-value="panel.rungDot"/>
+                            </t>
+                        </svg>
+                        <span t-esc="panel.rungLabel"/>
+                    </dd>
+                    <dt>Hours</dt>
+                    <dd class="o_pan_sl_hours" t-esc="panel.hours"/>
                     <t t-if="panel.activity.model">
                         <dt>Odoo model</dt>
                         <dd><code t-esc="panel.activity.model"/></dd>
@@ -436,6 +459,36 @@
                 <button type="button" class="btn btn-primary btn-sm" t-on-click="openActivity">
                     Open activity
                 </button>
+            </div>
+        </aside>
+        <aside t-elif="rolePanel" class="o_pan_sl_panel o_pan_sl_role_panel card" role="region"
+               aria-labelledby="o_pan_sl_panel_title">
+            <div class="card-header d-flex align-items-start gap-2">
+                <div class="flex-grow-1 min-w-0">
+                    <div class="text-muted small">
+                        Role<t t-if="rolePanel.role.is_external"> · External</t>
+                    </div>
+                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1"
+                        t-esc="rolePanel.role.name"/>
+                </div>
+                <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
+                        t-on-click="closePanel"/>
+            </div>
+            <div class="card-body small">
+                <dl class="mb-0">
+                    <dt>People</dt>
+                    <dd class="o_pan_sl_role_people">
+                        <t t-if="rolePanel.role.users.length" t-esc="rolePanel.role.users.join(', ')"/>
+                        <span t-else="" class="text-muted">Nobody holds this role yet</span>
+                    </dd>
+                    <dt>ADKAR</dt>
+                    <dd class="o_pan_sl_role_adkar">
+                        <t t-if="rolePanel.adkarBand" t-esc="rolePanel.adkarBand"/>
+                        <span t-else="" class="text-muted">Needs three scored people</span>
+                    </dd>
+                    <dt>Activities</dt>
+                    <dd t-esc="rolePanel.activityCount"/>
+                </dl>
             </div>
         </aside>
     </t>

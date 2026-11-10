@@ -50,7 +50,7 @@ class PanSlScenario(models.Model):
         help="Activities of this scenario, in the order of its steps.",
     )
     rung = fields.Integer(
-        help="Technical: the lowest rung (0 Open to 5 Live) of the activities in "
+        help="Technical: the lowest progress (0 Open to 5 Live) of the activities in "
         "this scenario; 0 when it has no activities.",
     )
     rung_state = fields.Selection(
@@ -58,7 +58,7 @@ class PanSlScenario(models.Model):
         help="Progress of the least ready activity in this scenario.",
     )
     progress = fields.Float(
-        string="Progress",
+        string="Tested %",
         compute="_compute_progress",
         store=True,
         compute_sudo=True,
@@ -66,12 +66,12 @@ class PanSlScenario(models.Model):
         help="Share of the activities in this scenario that are Tested or further, in percent.",
     )
     planned_hours = fields.Float(
-        help="Sum of the allocated hours of all tasks on this scenario, cancelled "
-        "tasks left out. Each task counts once.",
+        help="Sum of the allocated hours of all tasks on this scenario, archived ones "
+        "included, cancelled tasks left out. Each task counts once.",
     )
     spent_hours = fields.Float(
-        help="Sum of the timesheet hours on all tasks of this scenario, cancelled "
-        "tasks left out. Each task counts once.",
+        help="Sum of the timesheet hours on all tasks of this scenario, archived ones "
+        "included, cancelled tasks left out. Each task counts once.",
     )
     task_ids = fields.One2many(
         "project.task",
@@ -98,30 +98,29 @@ class PanSlScenario(models.Model):
             ordered_ids = list(dict.fromkeys(steps.activity_id.ids))
             scenario.activity_ids = self.env["pan.sl.activity"].browse(ordered_ids)
 
-    def _progress_tasks(self):
+    def _scenario_rungs(self):
+        """The rungs (ints) of the activities on the steps of this scenario."""
         self.ensure_one()
-        return self._counted(self.sudo().task_ids)
-
-    def _progress_rungs(self):
         return self.step_ids.activity_id.mapped("rung")
 
     @api.depends("step_ids.activity_id.rung")
     def _compute_rung(self):
-        return super()._compute_rung()
+        for scenario in self:
+            rungs = scenario._scenario_rungs()
+            scenario.rung = min(rungs) if rungs else 0
 
-    @api.depends(
-        "task_ids.allocated_hours",
-        "task_ids.effective_hours",
-        "task_ids.state",
-        "task_ids.active",
-    )
+    @api.depends("task_ids.allocated_hours", "task_ids.effective_hours", "task_ids.state")
     def _compute_hours(self):
-        return super()._compute_hours()
+        for scenario in self:
+            # Archived tasks count too; only cancelled tasks are left out.
+            tasks = self._counted(scenario.sudo().with_context(active_test=False).task_ids)
+            scenario.planned_hours = sum(tasks.mapped("allocated_hours"))
+            scenario.spent_hours = sum(tasks.mapped("effective_hours"))
 
     @api.depends("step_ids.activity_id.rung")
     def _compute_progress(self):
         for scenario in self:
-            rungs = scenario.step_ids.activity_id.mapped("rung")
+            rungs = scenario._scenario_rungs()
             tested = sum(1 for rung in rungs if rung >= TESTED_RUNG)
             scenario.progress = 100.0 * tested / len(rungs) if rungs else 0.0
 
@@ -138,7 +137,7 @@ class PanSlScenario(models.Model):
             "res_model": "project.task",
             "view_mode": "list,kanban,form",
             "domain": [("pan_scenario_id", "=", self.id)],
-            "context": {"default_pan_scenario_id": self.id},
+            "context": {"default_pan_scenario_id": self.id, "active_test": False},
         }
 
 

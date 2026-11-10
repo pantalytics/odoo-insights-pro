@@ -26,17 +26,17 @@
         </field>
     </record>
 
-    <!-- Task list: progress and scenario columns (base view, shared by all task lists) -->
+    <!-- Task list: progress and scenario columns (base view, shared by all task lists).
+         The pan_* fields carry groups on the model, so Odoo drops them for other users;
+         filters and group-bys below keep groups because their domains name those fields. -->
     <record id="view_task_list_blueprint" model="ir.ui.view">
         <field name="name">project.task.list.blueprint</field>
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.project_task_view_tree_main_base"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='stage_id']" position="after">
-                <field name="pan_scenario_id" optional="hide"
-                       groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <field name="pan_scenario_id" optional="hide"/>
                 <field name="pan_rung" optional="show" widget="badge"
-                       groups="pan_self_learning_blueprint.group_blueprint_user"
                        decoration-muted="pan_rung == '0'"
                        decoration-warning="pan_rung in ('1', '2')"
                        decoration-success="pan_rung in ('3', '4', '5')"/>
@@ -51,8 +51,8 @@
         <field name="inherit_id" ref="project.view_task_search_form_project_base"/>
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">
-                <field name="pan_scenario_id" groups="pan_self_learning_blueprint.group_blueprint_user"/>
-                <field name="pan_activity_ids" groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <field name="pan_scenario_id"/>
+                <field name="pan_activity_ids"/>
                 <separator groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Blueprint task" name="pan_blueprint_task"
                         domain="['|', ('pan_scenario_id', '!=', False), ('pan_activity_ids', '!=', False)]"

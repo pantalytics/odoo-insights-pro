@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 from urllib.parse import parse_qs, urlparse
 
 from odoo.exceptions import UserError
@@ -311,6 +312,91 @@ class TestBlueprint(BlueprintCase):
                     self.Blueprint.import_blueprint(data)
         self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]))
 
+    def _refused(self, data):
+        """Import ``data``, expect a refusal that says what to do, and return its message."""
+        with self.assertRaises(UserError) as caught:
+            self.Blueprint.import_blueprint(data)
+        message = str(caught.exception)
+        # Two sentences at least: what is wrong, then what to do.
+        self.assertGreaterEqual(len(re.findall(r"[.!?](?:\s|$)", message)), 2, f"No next step in: {message!r}")
+        return message
+
+    def test_text_values_must_be_text(self):
+        """E11: names, descriptions, notes, codes of references and apps must be text, else refused."""
+
+        def activity(**values):
+            return [dict(self._minimal()["activities"][0], **values)]
+
+        cases = {
+            "name as a number": self._minimal(chains=[{"code": "t_bp_chain", "name": 5}]),
+            "description as a list": self._minimal(chains=[{"code": "t_bp_chain", "name": "C", "description": ["x"]}]),
+            "open point as an object": self._minimal(activities=activity(open_point={"text": "x"})),
+            "click path as a number": self._minimal(activities=activity(click_path=3)),
+            "process reference as a number": self._minimal(activities=activity(process=12)),
+            "chain reference as a list": self._minimal(
+                processes=[{"code": "t_bp_process", "name": "Process", "chain": ["t_bp_chain"]}]
+            ),
+            "step note as a number": self._minimal(
+                scenarios=[{"code": "t_bp_scen", "name": "S", "steps": [{"activity": "t_bp_act", "note": 7}]}]
+            ),
+            "phase app as a number": self._minimal(phases=[{"code": "t_bp_phase", "name": "Phase", "apps": [1]}]),
+            "phase apps as text": self._minimal(phases=[{"code": "t_bp_phase", "name": "Phase", "apps": "crm"}]),
+            "model as a number": self._minimal(activities=activity(model=42)),
+        }
+        for label, data in cases.items():
+            with self.subTest(case=label):
+                self._refused(data)
+        self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]), "A refusal writes nothing.")
+
+    def test_external_must_be_a_real_boolean(self):
+        """E11: "external" is true or false without quotes; "false" as text would read as true."""
+        for value in ("true", "false", 1, 0, None):
+            with self.subTest(value=value):
+                message = self._refused(
+                    self._minimal(roles=[{"code": "t_bp_role", "name": "Role", "external": value}])
+                )
+                self.assertIn("t_bp_role", message)
+        self.Blueprint.import_blueprint(self._minimal(roles=[{"code": "t_bp_role", "name": "Role", "external": True}]))
+        self.assertTrue(self.Role.search([("code", "=", "t_bp_role")]).is_external)
+
+    def test_sequence_must_be_a_whole_number(self):
+        for value in (True, "10", 1.5):
+            with self.subTest(value=value):
+                self._refused(self._minimal(chains=[{"code": "t_bp_chain", "name": "Chain", "sequence": value}]))
+
+    def test_direct_import_size_limit(self):
+        """E11: a direct call (RPC) is held to the same 5 MB as a file, before anything is written."""
+        data = self._minimal()
+        data["padding"] = "x" * MAX_FILE_BYTES
+        message = self._refused(data)
+        self.assertIn("5 MB", message)
+        self.assertFalse(self.Chain.search_count([("code", "=", "t_bp_chain")]))
+
+    def test_deeply_nested_data_refused(self):
+        """E11: nesting too deep for Python gives a plain UserError, not a RecursionError."""
+        nested = []
+        for _depth in range(100000):
+            nested = [nested]
+        data = self._minimal(padding=nested)
+        self._refused(data)
+        with self.assertRaises(UserError) as caught:
+            self._import_file(b"[" * 100000 + b"]" * 100000, filename="deep.json")
+        self.assertIn("deep.json", str(caught.exception))
+
+    def test_values_that_are_not_json_refused(self):
+        """E11: a direct call with a value JSON cannot hold (a set, a date) is refused in plain language."""
+        self._refused(self._minimal(padding={"a", "b"}))
+
+    def test_invalid_json_names_the_line(self):
+        """E11: invalid JSON says near which line, not the parser's own text."""
+        content = b'{\n  "format": "pantalytics-blueprint",\n  "version": 1,\n  oops\n}'
+        with self.assertRaises(UserError) as caught:
+            self._import_file(content, filename="typo.json")
+        message = str(caught.exception)
+        self.assertIn("typo.json", message)
+        self.assertIn("line 4", message)
+        self.assertNotIn("Expecting", message, "The parser's own wording is not shown.")
+
     def test_not_an_object_refused(self):
         with self.assertRaises(UserError):
             self.Blueprint.import_blueprint([])
@@ -334,6 +420,27 @@ class TestBlueprint(BlueprintCase):
             self.env.ref("pan_self_learning_blueprint.action_blueprint_map").id,
             "After loading, the company map opens.",
         )
+        self.assertEqual(
+            result["params"]["next"]["target"], "main", "E3: the map replaces the breadcrumbs, never a second one."
+        )
+
+    def test_load_template_when_the_map_has_content(self):
+        """E3: Load template is always available; on a filled map it only adds what is missing."""
+        self.assertTrue(self.Activity.search_count([]), "Fixture: the map has content.")
+        before = (self.act_a.name, self.act_a.choice_state, self.act_a.open_point)
+        self._load_template()
+        self.assertTrue(self.Activity.search_count([("code", "=", "customer_create")]))
+        self.assertEqual((self.act_a.name, self.act_a.choice_state, self.act_a.open_point), before)
+
+    def test_template_phase_apps_are_module_names(self):
+        """E4: the template names Odoo apps by technical module name, every one a real Odoo 19 module."""
+        with file_open(TEMPLATE_PATH, "rb") as handle:
+            template = json.loads(handle.read())
+        apps = {app for phase in template["phases"] for app in phase.get("apps", [])}
+        self.assertTrue(apps)
+        known = set(self.env["ir.module.module"].sudo().search([("name", "in", list(apps))]).mapped("name"))
+        self.assertEqual(sorted(apps - known), [], "Template apps that are no module name.")
+        self.assertNotIn("models", {key for phase in template["phases"] for key in phase})
 
     def test_template_generic_manufacturing_loads(self):
         with file_open(TEMPLATE_PATH, "rb") as handle:

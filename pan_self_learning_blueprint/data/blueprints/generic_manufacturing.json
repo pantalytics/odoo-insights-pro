@@ -45,95 +45,67 @@
       "code": "master_data",
       "name": "Master data",
       "sequence": 10,
-      "models": [
-        "res.partner",
-        "product.template"
-      ],
       "apps": [
-        "Contacts",
-        "Inventory"
+        "contacts",
+        "stock"
       ]
     },
     {
       "code": "request",
       "name": "Request",
       "sequence": 20,
-      "models": [
-        "crm.lead"
-      ],
       "apps": [
-        "CRM"
+        "crm"
       ]
     },
     {
       "code": "quotation",
       "name": "Quotation",
       "sequence": 30,
-      "models": [
-        "sale.order"
-      ],
       "apps": [
-        "Sales"
+        "sale_management"
       ]
     },
     {
       "code": "order",
       "name": "Order",
       "sequence": 40,
-      "models": [
-        "sale.order"
-      ],
       "apps": [
-        "Sales"
+        "sale_management"
       ]
     },
     {
       "code": "plan_produce",
       "name": "Plan and produce",
       "sequence": 50,
-      "models": [
-        "mrp.production",
-        "mrp.bom"
-      ],
       "apps": [
-        "Manufacturing"
+        "mrp"
       ]
     },
     {
       "code": "purchase_receive",
       "name": "Purchase and receive",
       "sequence": 60,
-      "models": [
-        "purchase.order",
-        "stock.picking"
-      ],
       "apps": [
-        "Purchase",
-        "Inventory"
+        "purchase",
+        "stock"
       ]
     },
     {
       "code": "deliver",
       "name": "Deliver",
       "sequence": 70,
-      "models": [
-        "stock.picking"
-      ],
       "apps": [
-        "Inventory"
+        "stock"
       ]
     },
     {
       "code": "invoice_pay",
       "name": "Invoice and pay",
       "sequence": 80,
-      "models": [
-        "account.move",
-        "account.analytic.line"
-      ],
       "apps": [
-        "Accounting",
-        "Timesheets"
+        "account",
+        "hr_timesheet"
       ]
     }
   ],

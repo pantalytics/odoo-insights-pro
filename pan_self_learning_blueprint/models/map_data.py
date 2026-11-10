@@ -14,16 +14,20 @@ class PanSlActivity(models.Model):
 
     @api.model
     def get_map_data(self):
-        """Everything the company map needs, in one call.
+        """Everything the company map (and an agent) needs, in one call.
 
-        Returns a dict with ``phases`` (map columns, each with its ``apps`` as
-        ``{name, installed}``), ``roles`` (map lanes, with the names of their
-        people as ``users`` and the ADKAR band "low", "medium", "high" or
-        False as ``adkar``), ``activities`` (chips) and ``scenarios`` (routes,
-        with their ``progress`` in percent). Records are read as recordsets so
+        Returns a dict with ``chains`` and ``processes`` (level 1 and 2, with
+        their codes), ``phases`` (map columns, each with its Odoo ``apps`` as
+        ``{name, module, installed}``), ``roles`` (map lanes, with their
+        ``code``, the names of their people as ``users`` and the ADKAR band
+        "low", "medium", "high" or False as ``adkar``), ``activities`` (chips,
+        with process, chain, rung and hours) and ``scenarios`` (routes, with
+        their ``progress`` as Tested %). Records are read as recordsets so
         related and computed values are fetched in batches (prefetching),
         never one query per activity.
         """
+        chains = self.env["pan.sl.chain"].search([])
+        processes = self.env["pan.sl.process"].search([])
         phases = self.env["pan.sl.phase"].search([])
         roles = self.env["pan.sl.role"].search([])
         activities = self.search([])
@@ -31,27 +35,37 @@ class PanSlActivity(models.Model):
 
         # One search for all roles; only a band word per role, never a score.
         adkar_bands = roles._get_adkar_bands()
-        app_labels = {phase.id: self._map_split_app_labels(phase.app_labels) for phase in phases}
-        installed_apps = self._map_installed_apps(
-            {label for labels in app_labels.values() for label in labels}
-        )
+        app_values = {phase.id: self._map_split_app_labels(phase.app_labels) for phase in phases}
+        modules = self._map_modules({value for values in app_values.values() for value in values})
 
         return {
+            "chains": [
+                {"id": chain.id, "code": chain.code, "name": chain.name}
+                for chain in chains
+            ],
+            "processes": [
+                {
+                    "id": process.id,
+                    "code": process.code,
+                    "name": process.name,
+                    "chain_id": process.chain_id.id,
+                    "owner_role_id": process.owner_role_id.id or False,
+                }
+                for process in processes
+            ],
             "phases": [
                 {
                     "id": phase.id,
                     "name": phase.name,
                     "code": phase.code,
-                    "apps": [
-                        {"name": label, "installed": label in installed_apps}
-                        for label in app_labels[phase.id]
-                    ],
+                    "apps": [self._map_app(value, modules) for value in app_values[phase.id]],
                 }
                 for phase in phases
             ],
             "roles": [
                 {
                     "id": role.id,
+                    "code": role.code,
                     "name": role.name,
                     "is_external": role.is_external,
                     "users": role.partner_ids.mapped("name"),
@@ -64,10 +78,14 @@ class PanSlActivity(models.Model):
                     "id": activity.id,
                     "name": activity.name,
                     "code": activity.code,
+                    "process_id": activity.process_id.id,
+                    "chain_id": activity.chain_id.id,
                     "role_id": activity.role_id.id,
                     "phase_id": activity.phase_id.id,
                     "choice_state": activity.choice_state,
                     "rung": activity.rung,
+                    "planned_hours": activity.planned_hours,
+                    "spent_hours": activity.spent_hours,
                     "open_point": activity.open_point or False,
                     "scenario_ids": activity.scenario_ids.ids,
                     "model": activity.model_name or False,
@@ -90,24 +108,45 @@ class PanSlActivity(models.Model):
         }
 
     @api.model
-    def _map_installed_apps(self, labels):
-        """The app labels that match the English name of an installed app."""
-        if not labels:
-            return set()
+    def _map_modules(self, values):
+        """The modules a phase's ``app_labels`` refer to, keyed by each value.
+
+        A value is a technical module name (``sale_management``). A value that
+        is no module name is matched on the module's name (shortdesc) in
+        en_US or in the user's language, so older labels such as "Sales" keep
+        working. Values that match nothing are left out.
+        """
+        if not values:
+            return {}
         # ir.module.module is technical metadata; reading it exposes no business data.
-        modules = (
-            self.env["ir.module.module"]
-            .sudo()
-            .with_context(lang="en_US")
-            .search(
-                [("shortdesc", "in", list(labels)), ("application", "=", True), ("state", "=", "installed")]
-            )
-        )
-        return set(modules.mapped("shortdesc"))
+        Module = self.env["ir.module.module"].sudo()
+        found = {module.name: module for module in Module.search([("name", "in", list(values))])}
+        for lang in dict.fromkeys(["en_US", self.env.lang or "en_US"]):
+            rest = [value for value in values if value not in found]
+            if not rest:
+                break
+            for module in Module.with_context(lang=lang).search([("shortdesc", "in", rest)]):
+                # Prefer the installed one when several modules share a name.
+                current = found.get(module.shortdesc)
+                if not current or (current.state != "installed" and module.state == "installed"):
+                    found[module.shortdesc] = module
+        return found
+
+    @api.model
+    def _map_app(self, value, modules):
+        """One Odoo band chip: the module's name in the user's language."""
+        module = modules.get(value)
+        if not module:
+            return {"name": value, "module": False, "installed": False}
+        return {
+            "name": module.with_context(lang=self.env.lang).shortdesc,
+            "module": module.name,
+            "installed": module.state == "installed",
+        }
 
     @api.model
     def _map_split_app_labels(self, app_labels):
-        """Turn the comma separated ``app_labels`` of a phase into a list of names."""
+        """Turn the comma separated ``app_labels`` of a phase into a list of values."""
         if not app_labels:
             return []
         return [label.strip() for label in app_labels.split(",") if label.strip()]
@@ -119,7 +158,7 @@ class PanSlActivity(models.Model):
         Kept apart from :meth:`get_map_data` so that contract stays as it is.
         Returns a list with one dict per activity: ``id``, ``tasks`` (linked
         project tasks as ``{id, name, rung}``, ``rung`` an int 0-5, cancelled
-        tasks left out like in the activity rung) and
+        tasks left out and archived tasks kept, like in the activity rung) and
         ``click_path`` (first line of the click path as plain text, or
         ``False``). Tasks are read with one search for all activities.
         """
@@ -132,8 +171,11 @@ class PanSlActivity(models.Model):
             }
             for activity in activities
         }
-        tasks = self.env["project.task"].search(
-            [("pan_activity_ids", "in", activities.ids), ("state", "!=", CANCELLED_STATE)]
+        # Archived tasks count, like in the activity rung; only cancelled ones are left out.
+        tasks = (
+            self.env["project.task"]
+            .with_context(active_test=False)
+            .search([("pan_activity_ids", "in", activities.ids), ("state", "!=", CANCELLED_STATE)])
         )
         for task in tasks:
             item = {"id": task.id, "name": task.name, "rung": int(task.pan_rung)}

@@ -111,7 +111,7 @@
                             <field name="code" placeholder="e.g. QUOTATION"/>
                         </group>
                         <group>
-                            <field name="app_labels" placeholder="e.g. Sales, Inventory"/>
+                            <field name="app_labels" placeholder="e.g. sale_management, stock"/>
                         </group>
                     </group>
                 </sheet>

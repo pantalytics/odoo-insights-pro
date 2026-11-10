@@ -35,14 +35,35 @@ msgstr "%(model)s '%(name)s' heeft een code nodig."
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "%(name)s is not a valid JSON file: %(error)s"
-msgstr "%(name)s is geen geldig JSON-bestand: %(error)s"
+msgid ""
+"%(name)s is not a blueprint file. Choose a file exported from Blueprint, or "
+"load the template."
+msgstr ""
+"%(name)s is geen blueprint-bestand. Kies een bestand dat uit Blueprint is "
+"geëxporteerd, of laad het sjabloon."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"%(name)s is not a blueprint file: it breaks off or has a typo near line "
+"%(line)s. Choose a file exported from Blueprint, or load the template."
+msgstr ""
+"%(name)s is geen blueprint-bestand: het breekt af of heeft een typefout rond"
+" regel %(line)s. Kies een bestand dat uit Blueprint is geëxporteerd, of laad"
+" het sjabloon."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
 msgid "%(percent)s tested or further (%(done)s of %(total)s activities)"
 msgstr "%(percent)s getest of verder (%(done)s van %(total)s activiteiten)"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "%(planned)s planned · %(spent)s spent"
+msgstr "%(planned)s gepland · %(spent)s besteed"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -62,20 +83,21 @@ msgstr "%s (niet geïnstalleerd)"
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "'%(code)s' needs a '%(key)s'."
-msgstr "'%(code)s' heeft een '%(key)s' nodig."
+msgid ""
+"'%(code)s' has no %(key)s. Add the code of its %(key)s and import again."
+msgstr ""
+"'%(code)s' heeft geen %(key)s. Vul de code van de %(key)s in en importeer "
+"opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "'apps' of phase '%(code)s' must be a list."
-msgstr "'apps' van fase '%(code)s' moet een lijst zijn."
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "'steps' of scenario '%(code)s' must be a list."
-msgstr "'steps' van scenario '%(code)s' moet een lijst zijn."
+msgid ""
+"'external' of role '%(code)s' must be true or false, without quotes. Fix it "
+"and import again."
+msgstr ""
+"'external' van rol '%(code)s' moet true of false zijn, zonder "
+"aanhalingstekens. Pas het aan en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -121,24 +143,24 @@ msgstr "Een blueprint-JSON-bestand van maximaal 5 MB."
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "A blueprint must be a JSON object, not %(type)s."
-msgstr "Een blueprint moet een JSON-object zijn, geen %(type)s."
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "A model name must be text, found %(value)r."
-msgstr "Een modelnaam moet tekst zijn, gevonden: %(value)r."
+msgid ""
+"A model in this blueprint is not text: %(value)s. Write the technical model "
+"name between quotes, e.g. \"sale.order\"."
+msgstr ""
+"Een model in deze blueprint is geen tekst: %(value)s. Schrijf de technische "
+"modelnaam tussen aanhalingstekens, bijv. \"sale.order\"."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"A step of scenario '%(code)s' must be an activity code or an object with "
-"'activity' and 'note'; found %(step)r."
+"A step of scenario '%(code)s' is not an activity code. Write each step as an"
+" activity code, or as {\"activity\": code, \"note\": text}, and import "
+"again."
 msgstr ""
-"Een stap van scenario '%(code)s' moet een activiteitcode zijn of een object "
-"met 'activity' en 'note'; gevonden: %(step)r."
+"Een stap van scenario '%(code)s' is geen activiteitcode. Schrijf elke stap "
+"als activiteitcode, of als {\"activity\": code, \"note\": text}, en "
+"importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -150,18 +172,6 @@ msgstr "ADKAR"
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_pivot
 msgid "ADKAR averages"
 msgstr "ADKAR-gemiddelden"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "ADKAR high"
-msgstr "ADKAR hoog"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "ADKAR medium or low"
-msgstr "ADKAR middel of laag"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_adkar_score
@@ -197,6 +207,7 @@ msgstr "Vaardigheid"
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_process_form
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "Activities"
 msgstr "Activiteiten"
 
@@ -242,10 +253,11 @@ msgstr "Activiteit"
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"Activity '%(code)s' has choice state %(state)r; use one of: %(states)s."
+"Activity '%(code)s' has choice state %(state)s, which does not exist. Use "
+"one of %(states)s and import again."
 msgstr ""
-"Activiteit '%(code)s' heeft keuzestatus %(state)r; gebruik een van: "
-"%(states)s."
+"Activiteit '%(code)s' heeft keuzestatus %(state)s, die niet bestaat. Gebruik"
+" een van %(states)s en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_process__activity_count
@@ -283,11 +295,6 @@ msgstr ""
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "All scenarios"
 msgstr "Alle scenario's"
-
-#. module: pan_self_learning_blueprint
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
-msgid "Apps"
-msgstr "Apps"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -423,16 +430,6 @@ msgid "Blueprint task"
 msgstr "Blueprint-taak"
 
 #. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid ""
-"Blueprint version %(found)r is not supported; this module reads version "
-"%(expected)s."
-msgstr ""
-"Blueprint-versie %(found)r wordt niet ondersteund; deze module leest versie "
-"%(expected)s."
-
-#. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_activity__rung_state__2
@@ -533,15 +530,6 @@ msgstr "Code"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "Colour by"
 msgstr "Kleur op"
-
-#. module: pan_self_learning_blueprint
-#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
-msgid ""
-"Comma separated Odoo app names as in the Apps menu, for example: Sales, "
-"Inventory."
-msgstr ""
-"Door komma's gescheiden namen van Odoo-apps zoals in het menu Apps, "
-"bijvoorbeeld: Sales, Inventory."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -689,9 +677,16 @@ msgid "Has a score below 3"
 msgstr "Heeft een score onder 3"
 
 #. module: pan_self_learning_blueprint
-#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_blueprint
-msgid "Import / export"
-msgstr "Importeren / exporteren"
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "High"
+msgstr "Hoog"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Hours"
+msgstr "Uren"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.actions.act_window,name:pan_self_learning_blueprint.action_blueprint_import
@@ -701,21 +696,19 @@ msgid "Import file"
 msgstr "Bestand importeren"
 
 #. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"In this blueprint, '%(section)s' must be a list of records between [ ]. Fix "
+"the file and import it again."
+msgstr ""
+"In deze blueprint moet '%(section)s' een lijst van records tussen [ ] zijn. "
+"Pas het bestand aan en importeer het opnieuw."
+
+#. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_search
 msgid "Internal"
 msgstr "Intern"
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "Item %(index)s of '%(section)s' has no code."
-msgstr "Item %(index)s van '%(section)s' heeft geen code."
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "Item %(index)s of '%(section)s' must be an object."
-msgstr "Item %(index)s van '%(section)s' moet een object zijn."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__knowledge
@@ -747,6 +740,12 @@ msgid "Load template"
 msgstr "Sjabloon laden"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Low"
+msgstr "Laag"
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__rung_state
 msgid "Lowest progress"
 msgstr "Laagste voortgang"
@@ -768,6 +767,12 @@ msgid ""
 msgstr ""
 "Breng het bedrijf in kaart en volg de gereedheid van de implementatie op de "
 "bedrijfskaart."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Medium"
+msgstr "Middel"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_model
@@ -832,9 +837,9 @@ msgstr "Naam van de waardeketen (niveau 1), bijvoorbeeld Lead to cash."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "No ADKAR data"
-msgstr "Geen ADKAR-gegevens"
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Needs three scored people"
+msgstr "Heeft drie mensen met een score nodig"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -873,6 +878,12 @@ msgstr "Nog geen taken gekoppeld"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "Nobody holds this role yet"
 msgstr "Niemand vervult deze rol nog"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Nobody in the role"
+msgstr "Niemand in de rol"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -967,6 +978,11 @@ msgid "Odoo Document"
 msgstr "Odoo-document"
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
+msgid "Odoo apps"
+msgstr "Odoo-apps"
+
+#. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__model_name
@@ -1056,14 +1072,9 @@ msgstr "Eigenaarsrol"
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__partner_ids
 #: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_people
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "People"
 msgstr "Mensen"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
-msgid "People (ADKAR)"
-msgstr "Mensen (ADKAR)"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__partner_id
@@ -1166,10 +1177,16 @@ msgstr "Processen"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__rung_state
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_progress_mixin__rung_state
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__progress
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_search
 msgid "Progress"
 msgstr "Voortgang"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__rung
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_progress_mixin__rung
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__rung
+msgid "Progress level"
+msgstr "Voortgangsniveau"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__rung_state
@@ -1212,6 +1229,26 @@ msgstr ""
 "Gereedheidspoort die deze taak voor haar activiteiten heeft bereikt: Open, "
 "Besloten (keuze gemaakt), Gebouwd (Odoo ingericht), Getest, Getraind (mensen"
 " kunnen het), Live."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Record %(index)s in '%(section)s' has no code. Give it a unique code as text"
+" and import again."
+msgstr ""
+"Record %(index)s in '%(section)s' heeft geen code. Geef het een unieke code "
+"als tekst en importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Record %(index)s in '%(section)s' is not a record between { }. Fix the file "
+"and import it again."
+msgstr ""
+"Record %(index)s in '%(section)s' is geen record tussen { }. Pas het bestand"
+" aan en importeer het opnieuw."
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.actions.act_window,help:pan_self_learning_blueprint.action_adkar_score
@@ -1278,13 +1315,6 @@ msgid "Route"
 msgstr "Route"
 
 #. module: pan_self_learning_blueprint
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_activity__rung
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_progress_mixin__rung
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__rung
-msgid "Rung"
-msgstr "Trede"
-
-#. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario_step__scenario_id
@@ -1346,6 +1376,18 @@ msgstr ""
 "procenten."
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Showing all activities"
+msgstr "Alle activiteiten worden getoond"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Showing scenario %(name)s, %(count)s steps"
+msgstr "Scenario %(name)s wordt getoond, %(count)s stappen"
+
+#. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_scenario_list
 msgid "Spent"
 msgstr "Besteed"
@@ -1358,27 +1400,42 @@ msgid "Spent hours"
 msgstr "Bestede uren"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+msgid "Status"
+msgstr "Status"
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__step_ids
 msgid "Steps"
 msgstr "Stappen"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Still to train"
+msgstr "Nog te trainen"
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__planned_hours
 msgid ""
-"Sum of the allocated hours of all linked tasks, cancelled tasks left out. A "
-"task linked to several activities counts fully for each of them."
+"Sum of the allocated hours of all linked tasks, archived ones included, "
+"cancelled tasks left out. A task linked to several activities counts fully "
+"for each of them."
 msgstr ""
-"Som van de geplande uren van alle gekoppelde taken, zonder geannuleerde "
-"taken. Een taak bij meerdere activiteiten telt voor elk ervan volledig mee."
+"Som van de toegewezen uren van alle gekoppelde taken, gearchiveerde "
+"meegeteld, zonder geannuleerde taken. Een taak die aan meerdere activiteiten"
+" gekoppeld is, telt voor elk ervan volledig mee."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__planned_hours
 msgid ""
-"Sum of the allocated hours of all tasks on this scenario, cancelled tasks "
-"left out. Each task counts once."
+"Sum of the allocated hours of all tasks on this scenario, archived ones "
+"included, cancelled tasks left out. Each task counts once."
 msgstr ""
-"Som van de geplande uren van alle taken van dit scenario, zonder "
-"geannuleerde taken. Elke taak telt één keer."
+"Som van de toegewezen uren van alle taken van dit scenario, gearchiveerde "
+"meegeteld, zonder geannuleerde taken. Elke taak telt één keer."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_progress_mixin__planned_hours
@@ -1390,20 +1447,22 @@ msgstr ""
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__spent_hours
 msgid ""
-"Sum of the timesheet hours on all linked tasks, cancelled tasks left out. A "
-"task linked to several activities counts fully for each of them."
+"Sum of the timesheet hours on all linked tasks, archived ones included, "
+"cancelled tasks left out. A task linked to several activities counts fully "
+"for each of them."
 msgstr ""
-"Som van de urenregistraties op alle gekoppelde taken, zonder geannuleerde "
-"taken. Een taak bij meerdere activiteiten telt voor elk ervan volledig mee."
+"Som van de urenregistraties op alle gekoppelde taken, gearchiveerde "
+"meegeteld, zonder geannuleerde taken. Een taak die aan meerdere activiteiten"
+" gekoppeld is, telt voor elk ervan volledig mee."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__spent_hours
 msgid ""
-"Sum of the timesheet hours on all tasks of this scenario, cancelled tasks "
-"left out. Each task counts once."
+"Sum of the timesheet hours on all tasks of this scenario, archived ones "
+"included, cancelled tasks left out. Each task counts once."
 msgstr ""
-"Som van de urenregistraties op alle taken van dit scenario, zonder "
-"geannuleerde taken. Elke taak telt één keer."
+"Som van de urenregistraties op alle taken van dit scenario, gearchiveerde "
+"meegeteld, zonder geannuleerde taken. Elke taak telt één keer."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_progress_mixin__spent_hours
@@ -1445,6 +1504,14 @@ msgid "Tasks of %s"
 msgstr "Taken van %s"
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__app_labels
+msgid ""
+"Technical module names, comma separated, e.g. sale_management, account."
+msgstr ""
+"Technische modulenamen, gescheiden door komma's, bijv. sale_management, "
+"account."
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__model_name
 msgid "Technical name of the Odoo document, for example sale.order."
 msgstr "Technische naam van het Odoo-document, bijvoorbeeld sale.order."
@@ -1452,28 +1519,30 @@ msgstr "Technische naam van het Odoo-document, bijvoorbeeld sale.order."
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_scenario__rung
 msgid ""
-"Technical: the lowest rung (0 Open to 5 Live) of the activities in this "
+"Technical: the lowest progress (0 Open to 5 Live) of the activities in this "
 "scenario; 0 when it has no activities."
 msgstr ""
-"Technisch: de laagste trede (0 Open tot 5 Live) van de activiteiten in dit "
-"scenario; 0 als het geen activiteiten heeft."
+"Technisch: de laagste voortgang (0 Open tot 5 Live) van de activiteiten in "
+"dit scenario; 0 als het geen activiteiten heeft."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_activity__rung
 msgid ""
-"Technical: the lowest rung (0 Open to 5 Live) over all linked tasks, also "
-"the ones you cannot open, cancelled tasks left out. 0 when no task is "
-"linked."
+"Technical: the lowest progress (0 Open to 5 Live) over all linked tasks, "
+"also archived ones and the ones you cannot open, cancelled tasks left out. 0"
+" when no task is linked."
 msgstr ""
-"Technisch: de laagste trede (0 Open tot 5 Live) over alle gekoppelde taken, "
-"ook die je niet kunt openen, zonder geannuleerde taken. 0 als er geen taak "
-"gekoppeld is."
+"Technisch: de laagste voortgang (0 Open tot 5 Live) over alle gekoppelde "
+"taken, ook gearchiveerde en die je niet kunt openen, zonder geannuleerde "
+"taken. 0 als er geen taak gekoppeld is."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_progress_mixin__rung
-msgid "Technical: the rung as a number (0 Open to 5 Live). Shown as Progress."
+msgid ""
+"Technical: the progress as a number (0 Open to 5 Live). Shown as Progress."
 msgstr ""
-"Technisch: de trede als getal (0 Open tot 5 Live). Getoond als Voortgang."
+"Technisch: de voortgang als getal (0 Open tot 5 Live). Getoond als "
+"Voortgang."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -1488,8 +1557,14 @@ msgstr "Sjabloon geladen"
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_progress_mixin__rung_state__3
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_scenario__rung_state__3
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__3
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "Tested"
 msgstr "Getest"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_scenario__progress
+msgid "Tested %"
+msgstr "Getest %"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -1501,28 +1576,41 @@ msgstr "Getest of verder"
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"The blueprint is written in language %(lang)r, which is not active in this "
-"database. Activate it first, or export the file again in English."
+"The %(key)s of '%(code)s' must be a code as text. Put it between quotes and "
+"import again."
 msgstr ""
-"De blueprint is geschreven in de taal %(lang)r, die in deze database niet "
-"actief is. Activeer die taal eerst, of exporteer het bestand opnieuw in het "
-"Engels."
+"De %(key)s van '%(code)s' moet een code als tekst zijn. Zet die tussen "
+"aanhalingstekens en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"The blueprint refers to unknown %(section)s code(s): %(codes)s. Add them to "
-"the file or create them first."
+"The %(key)s of '%(code)s' must be text. Put it between quotes and import "
+"again."
 msgstr ""
-"De blueprint verwijst naar onbekende code(s) in %(section)s: %(codes)s. Voeg"
-" ze toe aan het bestand of maak ze eerst aan."
+"De %(key)s van '%(code)s' moet tekst zijn. Zet die tussen aanhalingstekens "
+"en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "The code '%(code)s' appears twice in '%(section)s'."
-msgstr "De code '%(code)s' komt twee keer voor in '%(section)s'."
+msgid ""
+"The apps of phase '%(code)s' must be a list of module names as text, e.g. "
+"[\"sale_management\", \"account\"]. Fix it and import again."
+msgstr ""
+"De apps van fase '%(code)s' moeten een lijst van modulenamen als tekst zijn,"
+" bijv. [\"sale_management\", \"account\"]. Pas het aan en importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"The code '%(code)s' is used twice in '%(section)s'. Give every record its "
+"own code and import again."
+msgstr ""
+"De code '%(code)s' wordt twee keer gebruikt in '%(section)s'. Geef elk "
+"record een eigen code en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -1541,22 +1629,11 @@ msgstr "Het bestand"
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"The file is %(size)s MB; at most %(max)s MB can be imported. Split the file "
-"or remove records."
+"The new record '%(code)s' in '%(section)s' has no name. Add a name and "
+"import again."
 msgstr ""
-"Het bestand is %(size)s MB; er kan maximaal %(max)s MB worden geïmporteerd. "
-"Splits het bestand of verwijder records."
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "The new %(section)s record '%(code)s' needs a name."
-msgstr "Het nieuwe record '%(code)s' in %(section)s heeft een naam nodig."
-
-#. module: pan_self_learning_blueprint
-#: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__user_ids
-msgid "The people who hold this role."
-msgstr "De mensen die deze rol vervullen."
+"Het nieuwe record '%(code)s' in '%(section)s' heeft geen naam. Vul een naam "
+"in en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__partner_ids
@@ -1584,19 +1661,37 @@ msgstr "De processen (niveau 2) waaruit deze keten bestaat."
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "The section '%(section)s' must be a list."
-msgstr "De sectie '%(section)s' moet een lijst zijn."
-
-#. module: pan_self_learning_blueprint
-#. odoo-python
-#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "The sequence of '%(code)s' must be a whole number."
-msgstr "De volgorde van '%(code)s' moet een geheel getal zijn."
+msgid ""
+"The sequence of '%(code)s' must be a whole number, e.g. 10. Fix it and "
+"import again."
+msgstr ""
+"De volgorde van '%(code)s' moet een geheel getal zijn, bijv. 10. Pas het aan"
+" en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_pan_sl_activity_form
 msgid "The steps in Odoo, one per line."
 msgstr "De stappen in Odoo, één per regel."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"The steps of scenario '%(code)s' must be a list of activity codes between [ "
+"]. Fix it and import again."
+msgstr ""
+"De stappen van scenario '%(code)s' moeten een lijst van activiteitcodes "
+"tussen [ ] zijn. Pas het aan en importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint file has version %(found)s; this app reads version "
+"%(expected)s. Export the file again with this app and import that."
+msgstr ""
+"Dit blueprint-bestand heeft versie %(found)s; deze app leest versie "
+"%(expected)s. Exporteer het bestand opnieuw met deze app en importeer dat."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -1612,20 +1707,75 @@ msgstr ""
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"This blueprint refers to Odoo models that are not installed: %(models)s. "
-"Install the apps that provide them, or remove these models from the file."
+"This blueprint holds values that are not JSON (text, numbers, true/false, "
+"lists, objects). Export the file again and import that."
 msgstr ""
-"Deze blueprint verwijst naar Odoo-modellen die niet geïnstalleerd zijn: "
-"%(models)s. Installeer de apps die ze leveren, of haal deze modellen uit het"
-" bestand."
+"Deze blueprint bevat waarden die geen JSON zijn (tekst, getallen, "
+"true/false, lijsten, objecten). Exporteer het bestand opnieuw en importeer "
+"dat."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
-"This is not a blueprint file: 'format' is %(found)r, expected %(expected)r."
+"This blueprint is %(size)s MB; at most %(max)s MB can be imported at once. "
+"Split the file or remove records."
 msgstr ""
-"Dit is geen blueprint-bestand: 'format' is %(found)r, verwacht %(expected)r."
+"Deze blueprint is %(size)s MB; er kan maximaal %(max)s MB tegelijk worden "
+"geïmporteerd. Splits het bestand of verwijder records."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint is nested too deeply to read. Export the file again and "
+"import that."
+msgstr ""
+"Deze blueprint is te diep genest om te lezen. Exporteer het bestand opnieuw "
+"en importeer dat."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint is written in language %(lang)s, which is not active here. "
+"Activate the language and import again, or export the file again in English."
+msgstr ""
+"Deze blueprint is geschreven in de taal %(lang)s, die hier niet actief is. "
+"Activeer de taal en importeer opnieuw, of exporteer het bestand opnieuw in "
+"het Engels."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint refers to %(section)s that do not exist: %(codes)s. Add them "
+"to the file, or correct the codes, and import again."
+msgstr ""
+"Deze blueprint verwijst naar %(section)s die niet bestaan: %(codes)s. Voeg "
+"ze toe aan het bestand, of verbeter de codes, en importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This blueprint uses Odoo models that are not installed here: %(models)s. "
+"Install the apps that provide them and import again, or remove these models "
+"from the file."
+msgstr ""
+"Deze blueprint gebruikt Odoo-modellen die hier niet geïnstalleerd zijn: "
+"%(models)s. Installeer de apps die ze leveren en importeer opnieuw, of haal "
+"deze modellen uit het bestand."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"This is not a blueprint file. Choose a file exported from Blueprint, or load"
+" the template."
+msgstr ""
+"Dit is geen blueprint-bestand. Kies een bestand dat uit Blueprint is "
+"geëxporteerd, of laad het sjabloon."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__is_external
@@ -1643,8 +1793,15 @@ msgstr ""
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_progress_mixin__rung_state__4
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__pan_sl_scenario__rung_state__4
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task__pan_rung__4
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 msgid "Trained"
 msgstr "Getraind"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "Training"
+msgstr "Training"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_chain__code
@@ -1702,11 +1859,6 @@ msgid ""
 msgstr ""
 "Gebruiker: kan de bedrijfskaart openen, het blueprint-model lezen (ketens, "
 "processen, activiteiten, scenario's) en de eigen ADKAR-scores lezen."
-
-#. module: pan_self_learning_blueprint
-#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__user_ids
-msgid "Users"
-msgstr "Gebruikers"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_chain
@@ -1899,26 +2051,8 @@ msgstr "bijv. Verkoop"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
-msgid "e.g. Sales, Inventory"
-msgstr "bijv. Verkoop, Voorraad"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "high"
-msgstr "hoog"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "low"
-msgstr "laag"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "medium"
-msgstr "middel"
+msgid "e.g. sale_management, stock"
+msgstr "bijv. sale_management, stock"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -1955,3 +2089,14 @@ msgstr "rollen"
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid "scenarios"
 msgstr "scenario's"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+msgid "· Tested"
+msgstr "· Getest"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_blueprint
+msgid "Import / export"
+msgstr "Importeren / exporteren"

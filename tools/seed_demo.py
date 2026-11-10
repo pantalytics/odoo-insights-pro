@@ -5,13 +5,15 @@ the database name confirmed in an environment variable:
     BLUEPRINT_SEED_OK=<db> odoo-bin shell -d <db>
     >>> exec(open("tools/seed_demo.py").read())
 Creates demo people (contacts, no logins) per internal role, one task per
-activity with a rung and hours, and ADKAR scores, then commits. Development
+activity with a progress step and hours, and ADKAR scores, then commits. Development
 only: the script refuses to run, and creates nothing, unless
 BLUEPRINT_SEED_OK equals the name of the connected database.
 
-Each role gets three demo people, because the company map only shows a role's
-ADKAR band once at least three of its people have a score. The latest scores
-differ per role (low, medium, high), so colouring by people shows each band.
+Every internal role gets three scored demo people, also a role that already
+has people (they may have no score), because a role's ADKAR band only shows
+once at least three of its people have a score. The latest scores differ per role
+(low, medium, high), so the role panel shows each band. Rerunning creates
+nothing new: demo people are found again by their reference.
 """
 import os
 
@@ -24,19 +26,16 @@ DEMO_PEOPLE_PER_ROLE = 3
 DEMO_BAND_BASES = (2, 3, 4)
 
 roles = env["pan.sl.role"].search([("is_external", "=", False)])
-roles_to_seed = roles.filtered(lambda role: not role.partner_ids)
 activities = env["pan.sl.activity"].search([], order="phase_id, sequence, id")
 activities_to_seed = activities.filtered(lambda activity: not activity.task_ids)
 Partners = env["res.partner"].with_context(active_test=False)
-planned_refs = [
-    f"demo_{role.code}_{number}" for role in roles_to_seed for number in range(1, DEMO_PEOPLE_PER_ROLE + 1)
-]
+planned_refs = [f"demo_{role.code}_{number}" for role in roles for number in range(1, DEMO_PEOPLE_PER_ROLE + 1)]
 existing_refs = set(Partners.search([("ref", "in", planned_refs)]).mapped("ref"))
 
 print(f"Database: {env.cr.dbname}")
 print(
     f"Plan: {len(planned_refs) - len(existing_refs)} new demo contacts, "
-    f"{len(existing_refs)} existing demo contacts linked again, "
+    f"{len(existing_refs)} existing demo contacts kept, on {len(roles)} internal roles, "
     f"up to {len(planned_refs) * 2} ADKAR scores, "
     f"{len(activities_to_seed)} tasks in project '{DEMO_PROJECT_NAME}'."
 )
@@ -51,8 +50,6 @@ project = env["project.project"].search([("name", "=", DEMO_PROJECT_NAME)], limi
     "project.project"
 ].create({"name": DEMO_PROJECT_NAME})
 for index, role in enumerate(roles):
-    if role not in roles_to_seed:
-        continue
     latest_base = DEMO_BAND_BASES[index % len(DEMO_BAND_BASES)]
     for number in range(1, DEMO_PEOPLE_PER_ROLE + 1):
         ref = f"demo_{role.code}_{number}"
