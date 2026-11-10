@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Task form: Blueprint page -->
+    <record id="view_task_form_blueprint" model="ir.ui.view">
+        <field name="name">project.task.form.blueprint</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="pan_blueprint_page" string="Blueprint"
+                      groups="pan_self_learning_blueprint.group_blueprint_user">
+                    <group>
+                        <group>
+                            <field name="pan_scenario_id" options="{'no_create': True}"/>
+                            <field name="pan_rung" widget="selection_badge"/>
+                        </group>
+                    </group>
+                    <field name="pan_activity_ids"
+                           widget="many2many_tags"
+                           options="{'no_create': True}"
+                           domain="[('scenario_ids', 'in', [pan_scenario_id])] if pan_scenario_id else []"
+                           placeholder="Activities this task moves forward"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Task list: progress and scenario columns (base view, shared by all task lists).
+         The pan_* fields carry groups on the model, so Odoo drops them for other users;
+         filters and group-bys below keep groups because their domains name those fields. -->
+    <record id="view_task_list_blueprint" model="ir.ui.view">
+        <field name="name">project.task.list.blueprint</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.project_task_view_tree_main_base"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='stage_id']" position="after">
+                <field name="pan_scenario_id" optional="hide"/>
+                <field name="pan_rung" optional="show" widget="badge"
+                       decoration-muted="pan_rung == '0'"
+                       decoration-warning="pan_rung in ('1', '2')"
+                       decoration-success="pan_rung in ('3', '4', '5')"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Task search: filter and group by progress and scenario -->
+    <record id="view_task_search_blueprint" model="ir.ui.view">
+        <field name="name">project.task.search.blueprint</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_search_form_project_base"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <field name="pan_scenario_id"/>
+                <field name="pan_activity_ids"/>
+                <separator groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Blueprint task" name="pan_blueprint_task"
+                        domain="['|', ('pan_scenario_id', '!=', False), ('pan_activity_ids', '!=', False)]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Not live" name="pan_not_live"
+                        domain="[('pan_rung', '!=', '5')]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+            </xpath>
+            <filter name="stage" position="after">
+                <filter string="Blueprint progress" name="pan_groupby_rung" context="{'group_by': 'pan_rung'}"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Blueprint scenario" name="pan_groupby_scenario" context="{'group_by': 'pan_scenario_id'}"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+            </filter>
+        </field>
+    </record>
+
+</odoo>

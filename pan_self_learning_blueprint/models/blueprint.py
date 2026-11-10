@@ -1,0 +1,852 @@
+"""Open blueprint format: export and import the whole company model as JSON.
+
+See ``docs/blueprint-format.md`` for the format. Records are matched on
+``code``; import creates and updates, it never deletes.
+
+Unknown Odoo models
+-------------------
+An activity may name an Odoo model (``sale.order``) whose app is not
+installed. ``import_blueprint(data)`` is strict by default and refuses the
+file, naming the missing models, so a hand-made or exported blueprint never
+loses information silently. The bundled template is written for a full
+installation; ``import_blueprint(data, strict=False)`` (used by "Load
+template") imports every record but leaves the model link empty for models
+that are not installed, and lists those models in the result so the user
+knows which apps to install and which links to set later.
+
+Phases name their Odoo apps (``apps``) by technical module name
+(``sale_management``); the map shows the module's name in the user's
+language. Older files also list phase ``models``; import accepts that key and
+ignores it.
+
+Loading a template never overwrites the company's own work
+-----------------------------------------------------------
+``import_blueprint(data, fill_empty_only=True)`` (used by "Load template")
+creates the records that are missing and only fills what is still empty on
+the existing ones: an empty name, description, click path or model link. It
+never touches choice states, booleans, references, open points or scenario
+steps a company already has, and only records it actually writes count as
+updated. So loading the template again after installing an app links the new
+models without undoing any decision.
+
+Limits
+------
+Every import (file or direct call over RPC) refuses blueprints above
+``MAX_FILE_BYTES`` and with more than ``MAX_RECORDS`` records (all sections
+plus scenario steps), so one wrong file cannot flood a production database.
+
+Errors
+------
+Every refusal is a ``UserError`` in plain language: what is wrong and what to
+do. A refusal rolls the whole import back, so nothing is half written.
+
+Language
+--------
+Names are translatable. An export always writes the English source values and
+says so in ``lang``; an import writes the names in the language the file
+declares (``en_US`` when the key is absent), so a Dutch user's export never
+replaces the English source text.
+"""
+
+import base64
+import json
+
+from odoo import api, fields, models
+from odoo.exceptions import UserError
+from odoo.tools import file_open, is_html_empty
+
+BLUEPRINT_FORMAT = "pantalytics-blueprint"
+BLUEPRINT_VERSION = 1
+# The one bundled template. Add a template choice only when there is a second one.
+TEMPLATE_FILE = "pan_self_learning_blueprint/data/blueprints/generic_manufacturing.json"
+SOURCE_LANG = "en_US"
+MAX_FILE_BYTES = 5 * 1024 * 1024
+MAX_RECORDS = 5000
+
+# The Odoo app (module) that provides a model, to tell a user which app to
+# install instead of naming a technical model. Models not listed here are
+# reported by their technical name, on a line of their own.
+MODEL_APPS = {
+    "account.analytic.line": "hr_timesheet",
+    "account.move": "account",
+    "crm.lead": "crm",
+    "mrp.bom": "mrp",
+    "mrp.production": "mrp",
+    "product.template": "product",
+    "purchase.order": "purchase",
+    "sale.order": "sale_management",
+    "stock.picking": "stock",
+}
+
+# Sections in dependency order: every section only refers to earlier ones.
+SECTIONS = ("chains", "phases", "roles", "processes", "activities", "scenarios")
+SECTION_MODELS = {
+    "chains": "pan.sl.chain",
+    "phases": "pan.sl.phase",
+    "roles": "pan.sl.role",
+    "processes": "pan.sl.process",
+    "activities": "pan.sl.activity",
+    "scenarios": "pan.sl.scenario",
+}
+
+
+# A company clears these on purpose (a resolved open point); a template reload
+# must not bring them back.
+NEVER_REFILL = frozenset({"open_point"})
+
+
+class PanSlBlueprint(models.AbstractModel):
+    _name = "pan.sl.blueprint"
+    _description = "Blueprint import and export"
+
+    # ------------------------------------------------------------------
+    # Export
+    # ------------------------------------------------------------------
+
+    @api.model
+    def export_blueprint(self):
+        """Return the whole company model as a blueprint dict (format version 1).
+
+        Translatable names are exported in the English source language,
+        whatever the language of the exporting user, so the file is stable.
+        """
+        self = self.with_context(lang=SOURCE_LANG)
+        chains = self.env["pan.sl.chain"].search([])
+        phases = self.env["pan.sl.phase"].search([])
+        roles = self.env["pan.sl.role"].search([])
+        processes = self.env["pan.sl.process"].search([])
+        activities = self.env["pan.sl.activity"].search([])
+        scenarios = self.env["pan.sl.scenario"].search([])
+        return {
+            "format": BLUEPRINT_FORMAT,
+            "version": BLUEPRINT_VERSION,
+            "lang": SOURCE_LANG,
+            "name": self.env.company.name,
+            "chains": [
+                {
+                    "code": chain.code,
+                    "name": chain.name,
+                    "sequence": chain.sequence,
+                    "description": chain.description or "",
+                }
+                for chain in chains
+            ],
+            "phases": [
+                {
+                    "code": phase.code,
+                    "name": phase.name,
+                    "sequence": phase.sequence,
+                    "apps": self.env["pan.sl.activity"]._map_split_app_labels(phase.app_labels),
+                }
+                for phase in phases
+            ],
+            "roles": [
+                {
+                    "code": role.code,
+                    "name": role.name,
+                    "sequence": role.sequence,
+                    "external": role.is_external,
+                    "description": role.description or "",
+                }
+                for role in roles
+            ],
+            "processes": [
+                {
+                    "code": process.code,
+                    "name": process.name,
+                    "sequence": process.sequence,
+                    "chain": process.chain_id.code,
+                    "owner_role": process.owner_role_id.code or "",
+                }
+                for process in processes
+            ],
+            "activities": [
+                {
+                    "code": activity.code,
+                    "name": activity.name,
+                    "sequence": activity.sequence,
+                    "process": activity.process_id.code,
+                    "role": activity.role_id.code,
+                    "phase": activity.phase_id.code,
+                    "model": activity.model_name or "",
+                    "choice_state": activity.choice_state,
+                    "open_point": activity.open_point or "",
+                    "click_path": activity.click_path or "",
+                }
+                for activity in activities
+            ],
+            "scenarios": [
+                {
+                    "code": scenario.code,
+                    "name": scenario.name,
+                    "sequence": scenario.sequence,
+                    "description": scenario.description or "",
+                    "open_point": scenario.open_point or "",
+                    "steps": [
+                        {"activity": step.activity_id.code, "note": step.note}
+                        if step.note
+                        else step.activity_id.code
+                        for step in scenario.step_ids.sorted(lambda s: (s.sequence, s.id))
+                    ],
+                }
+                for scenario in scenarios
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    # Import
+    # ------------------------------------------------------------------
+
+    @api.model
+    def import_blueprint(self, data, strict=True, fill_empty_only=False):
+        """Create or update all records of a blueprint dict, matched on ``code``.
+
+        :param dict data: the parsed blueprint (see docs/blueprint-format.md)
+        :param bool strict: when True (default) an unknown Odoo model refuses
+            the whole file; when False the model link is left empty and the
+            model is reported in ``skipped_models``.
+        :param bool fill_empty_only: when True (template loading) existing
+            records are never overwritten: only empty fields are filled, and
+            scenarios that already have steps keep them.
+        :return: summary dict ``{"name", "chains": {"created", "updated"}, ...,
+            "skipped_models": [str]}``
+        :raise UserError: on a wrong format, version or language, more than
+            ``MAX_FILE_BYTES`` or ``MAX_RECORDS`` records, a malformed record,
+            a reference to an unknown code, or (strict) an unknown model.
+        """
+        self._check_size(self._serialized_size(data))
+        self._check_header(data)
+        self = self.with_context(lang=self._get_import_lang(data))
+        sections = {key: self._get_section(data, key) for key in SECTIONS}
+        self._check_record_count(sections)
+        model_map, missing_models = self._resolve_models(sections)
+        if missing_models and strict:
+            raise UserError(
+                self.env._(
+                    "This blueprint uses Odoo models that are not installed here: %(models)s. "
+                    "Install the apps that provide them and import again, or remove these models from the file.",
+                    models=", ".join(missing_models),
+                )
+            )
+
+        summary = {"name": data.get("name") or "", "skipped_models": missing_models}
+        refs = {}
+        summary["chains"] = self._upsert(
+            "chains", sections["chains"], lambda item, is_new: self._chain_vals(item), refs, fill_empty_only
+        )
+        summary["phases"] = self._upsert(
+            "phases",
+            sections["phases"],
+            lambda item, is_new: self._phase_vals(item),
+            refs,
+            fill_empty_only,
+        )
+        summary["roles"] = self._upsert(
+            "roles", sections["roles"], lambda item, is_new: self._role_vals(item), refs, fill_empty_only
+        )
+        self._load_refs(refs, sections["processes"], (("chain", "chains"), ("owner_role", "roles")))
+        summary["processes"] = self._upsert(
+            "processes",
+            sections["processes"],
+            lambda item, is_new: self._process_vals(item, is_new, refs),
+            refs,
+            fill_empty_only,
+        )
+        self._load_refs(
+            refs, sections["activities"], (("process", "processes"), ("role", "roles"), ("phase", "phases"))
+        )
+        summary["activities"] = self._upsert(
+            "activities",
+            sections["activities"],
+            lambda item, is_new: self._activity_vals(item, model_map, is_new, refs),
+            refs,
+            fill_empty_only,
+        )
+        summary["scenarios"] = self._upsert(
+            "scenarios", sections["scenarios"], lambda item, is_new: self._scenario_vals(item), refs, fill_empty_only
+        )
+        self._replace_scenario_steps(sections["scenarios"], refs, fill_empty_only)
+        return summary
+
+    @api.model
+    def _get_import_lang(self, data):
+        """The language the names in the file are written in (``en_US`` if not given)."""
+        lang = data.get("lang", SOURCE_LANG)
+        if lang == SOURCE_LANG:
+            return lang
+        installed = dict(self.env["res.lang"].get_installed())
+        if not isinstance(lang, str) or lang not in installed:
+            raise UserError(
+                self.env._(
+                    "This blueprint is written in language %(lang)s, which is not active here. "
+                    "Activate the language and import again, or export the file again in English.",
+                    lang=lang,
+                )
+            )
+        return lang
+
+    @api.model
+    def _serialized_size(self, data):
+        """The size in bytes of ``data`` written as JSON, the same measure as a file."""
+        try:
+            return len(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        except RecursionError as error:
+            raise UserError(
+                self.env._("This blueprint is nested too deeply to read. Export the file again and import that.")
+            ) from error
+        except (TypeError, ValueError) as error:
+            raise UserError(
+                self.env._(
+                    "This blueprint holds values that are not JSON (text, numbers, true/false, lists, objects). "
+                    "Export the file again and import that."
+                )
+            ) from error
+
+    @api.model
+    def _check_size(self, size):
+        if size > MAX_FILE_BYTES:
+            raise UserError(
+                self.env._(
+                    "This blueprint is %(size)s MB; at most %(max)s MB can be imported at once. "
+                    "Split the file or remove records.",
+                    size=round(size / 1024 / 1024, 1),
+                    max=MAX_FILE_BYTES // 1024 // 1024,
+                )
+            )
+
+    @api.model
+    def _check_header(self, data):
+        if not isinstance(data, dict) or data.get("format") != BLUEPRINT_FORMAT:
+            raise UserError(
+                self.env._(
+                    "This is not a blueprint file. Choose a file exported from Blueprint, "
+                    "or load the template."
+                )
+            )
+        if data.get("version") != BLUEPRINT_VERSION:
+            raise UserError(
+                self.env._(
+                    "This blueprint file has version %(found)s; this app reads version %(expected)s. "
+                    "Export the file again with this app and import that.",
+                    found=data.get("version"),
+                    expected=BLUEPRINT_VERSION,
+                )
+            )
+
+    @api.model
+    def _check_record_count(self, sections):
+        total = sum(len(items) for items in sections.values()) + sum(
+            len(item["steps"]) for item in sections["scenarios"] if isinstance(item.get("steps"), list)
+        )
+        if total > MAX_RECORDS:
+            raise UserError(
+                self.env._(
+                    "This blueprint holds %(count)s records; at most %(max)s can be imported at once. "
+                    "Split the file or remove records.",
+                    count=total,
+                    max=MAX_RECORDS,
+                )
+            )
+
+    @api.model
+    def _get_section(self, data, key):
+        items = data.get(key, [])
+        if not isinstance(items, list):
+            raise UserError(
+                self.env._(
+                    "In this blueprint, '%(section)s' must be a list of records between [ ]. "
+                    "Fix the file and import it again.",
+                    section=key,
+                )
+            )
+        seen = set()
+        for index, item in enumerate(items, start=1):
+            if not isinstance(item, dict):
+                raise UserError(
+                    self.env._(
+                        "Record %(index)s in '%(section)s' is not a record between { }. "
+                        "Fix the file and import it again.",
+                        index=index,
+                        section=key,
+                    )
+                )
+            code = item.get("code")
+            if not isinstance(code, str) or not code.strip():
+                raise UserError(
+                    self.env._(
+                        "Record %(index)s in '%(section)s' has no code. "
+                        "Give it a unique code as text and import again.",
+                        index=index,
+                        section=key,
+                    )
+                )
+            if code in seen:
+                raise UserError(
+                    self.env._(
+                        "The code '%(code)s' is used twice in '%(section)s'. "
+                        "Give every record its own code and import again.",
+                        code=code,
+                        section=key,
+                    )
+                )
+            seen.add(code)
+        return items
+
+    @api.model
+    def _resolve_models(self, sections):
+        """Map every technical model name in the file to its ``ir.model`` id.
+
+        :return: (dict name -> id, sorted list of names that are not installed)
+        """
+        names = [activity["model"] for activity in sections["activities"] if activity.get("model")]
+        for name in names:
+            if not isinstance(name, str):
+                raise UserError(
+                    self.env._(
+                        "A model in this blueprint is not text: %(value)s. "
+                        "Write the technical model name between quotes, e.g. \"sale.order\".",
+                        value=name,
+                    )
+                )
+        # ir.model is technical metadata; reading it does not expose business data.
+        names = set(names)
+        found = self.env["ir.model"].sudo().search_read([("model", "in", list(names))], ["model"])
+        model_map = {row["model"]: row["id"] for row in found}
+        return model_map, sorted(names - set(model_map))
+
+    @api.model
+    def _codes_to_ids(self, section, codes):
+        """Return {code: id} for the given codes; raise naming the first unknown one."""
+        codes = set(codes)
+        if not codes:
+            return {}
+        records = self.env[SECTION_MODELS[section]].search_read([("code", "in", list(codes))], ["code"])
+        mapping = {row["code"]: row["id"] for row in records}
+        missing = sorted(codes - set(mapping))
+        if missing:
+            raise UserError(
+                self.env._(
+                    "This blueprint refers to %(section)s that do not exist: %(codes)s. "
+                    "Add them to the file, or correct the codes, and import again.",
+                    section=section,
+                    codes=", ".join(missing),
+                )
+            )
+        return mapping
+
+    @api.model
+    def _load_refs(self, refs, items, keys):
+        """Resolve every code that ``items`` refer to, one query per section.
+
+        ``keys`` is a sequence of ``(item key, section)``. The ids are added to
+        ``refs[section]``; an unknown code raises, naming all unknown codes.
+        """
+        for key, section in keys:
+            for item in items:
+                if item.get(key) and not isinstance(item[key], str):
+                    raise UserError(
+                        self.env._(
+                            "The %(key)s of '%(code)s' must be a code as text. "
+                            "Put it between quotes and import again.",
+                            key=key,
+                            code=item["code"],
+                        )
+                    )
+            codes = {item[key] for item in items if item.get(key)} - set(refs.get(section, {}))
+            refs.setdefault(section, {}).update(self._codes_to_ids(section, codes))
+
+    @api.model
+    def _ref_id(self, refs, section, item, key, required):
+        code = item.get(key)
+        if not code:
+            if required:
+                raise UserError(
+                    self.env._(
+                        "'%(code)s' has no %(key)s. Add the code of its %(key)s and import again.",
+                        code=item["code"],
+                        key=key,
+                    )
+                )
+            return False
+        if code not in refs.get(section, {}):
+            # Codes are resolved up front by _load_refs; reaching this is a bug.
+            raise UserError(
+                self.env._(
+                    "This blueprint refers to %(section)s that do not exist: %(codes)s. "
+                    "Add them to the file, or correct the codes, and import again.",
+                    section=section,
+                    codes=code,
+                )
+            )
+        return refs[section][code]
+
+    @api.model
+    def _upsert(self, section, items, make_vals, refs, fill_empty_only=False):
+        """Create or update the records of one section, matched on code.
+
+        ``make_vals(item, is_new)`` returns the values to write; on update only
+        the keys present in the item are written. With ``fill_empty_only`` an
+        existing record only gets the values of fields that are still empty.
+        Afterwards ``refs[section]`` maps every code of the section to its id.
+        """
+        refs.setdefault(section, {})
+        if not items:
+            return {"created": 0, "updated": 0}
+        Model = self.env[SECTION_MODELS[section]]
+        existing = {
+            record.code: record for record in Model.search([("code", "in", [item["code"] for item in items])])
+        }
+        to_create = []
+        updated = 0
+        for item in items:
+            record = existing.get(item["code"])
+            vals = make_vals(item, not record)
+            if record:
+                if fill_empty_only:
+                    vals = self._empty_only(record, vals)
+                if vals:
+                    record.write(vals)
+                    updated += 1
+            else:
+                if not item.get("name"):
+                    raise UserError(
+                        self.env._(
+                            "The new record '%(code)s' in '%(section)s' has no name. Add a name and import again.",
+                            section=section,
+                            code=item["code"],
+                        )
+                    )
+                to_create.append(dict(vals, code=item["code"]))
+        created = Model.create(to_create) if to_create else Model
+        refs[section].update({record.code: record.id for record in existing.values()})
+        refs[section].update({record.code: record.id for record in created})
+        return {"created": len(to_create), "updated": updated}
+
+    @api.model
+    def _empty_only(self, record, vals):
+        """Keep only the values that fill an empty field of ``record``.
+
+        Booleans and selections always hold a decision (``is_external``,
+        ``choice_state``), so they are never filled. An empty value fills
+        nothing, so it is dropped: a record is only written, and counted as
+        updated, when something really changes.
+        """
+        kept = {}
+        for key, value in vals.items():
+            field = record._fields[key]
+            if not value or key in NEVER_REFILL or field.type in ("boolean", "selection"):
+                continue
+            if is_html_empty(record[key]) if field.type == "html" else not record[key]:
+                kept[key] = value
+        return kept
+
+    @api.model
+    def _common_vals(self, item, keys):
+        vals = {}
+        for key in keys:
+            if key in item:
+                if item[key] is not None and not isinstance(item[key], str):
+                    raise UserError(
+                        self.env._(
+                            "The %(key)s of '%(code)s' must be text. Put it between quotes and import again.",
+                            key=key,
+                            code=item["code"],
+                        )
+                    )
+                vals[key] = item[key] or False
+        if "sequence" in item:
+            # bool is a subclass of int; true/false is no position.
+            if not isinstance(item["sequence"], int) or isinstance(item["sequence"], bool):
+                raise UserError(
+                    self.env._(
+                        "The sequence of '%(code)s' must be a whole number, e.g. 10. Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            vals["sequence"] = item["sequence"]
+        return vals
+
+    @api.model
+    def _chain_vals(self, item):
+        return self._common_vals(item, ("name", "description"))
+
+    @api.model
+    def _phase_vals(self, item):
+        # A legacy "models" key is accepted and ignored: phases name apps, activities models.
+        vals = self._common_vals(item, ("name",))
+        if "apps" in item:
+            apps = item["apps"]
+            if not isinstance(apps, list) or not all(isinstance(app, str) for app in apps):
+                raise UserError(
+                    self.env._(
+                        "The apps of phase '%(code)s' must be a list of module names as text, "
+                        "e.g. [\"sale_management\", \"account\"]. Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            vals["app_labels"] = ", ".join(app.strip() for app in apps if app.strip()) or False
+        return vals
+
+    @api.model
+    def _role_vals(self, item):
+        vals = self._common_vals(item, ("name", "description"))
+        if "external" in item:
+            if not isinstance(item["external"], bool):
+                raise UserError(
+                    self.env._(
+                        "'external' of role '%(code)s' must be true or false, without quotes. "
+                        "Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            vals["is_external"] = item["external"]
+        return vals
+
+    @api.model
+    def _process_vals(self, item, is_new, refs):
+        vals = self._common_vals(item, ("name",))
+        if "chain" in item or is_new:
+            vals["chain_id"] = self._ref_id(refs, "chains", item, "chain", required=True)
+        if "owner_role" in item:
+            vals["owner_role_id"] = self._ref_id(refs, "roles", item, "owner_role", required=False)
+        return vals
+
+    @api.model
+    def _activity_vals(self, item, model_map, is_new, refs):
+        vals = self._common_vals(item, ("name", "open_point", "click_path"))
+        for key, section, field_name in (
+            ("process", "processes", "process_id"),
+            ("role", "roles", "role_id"),
+            ("phase", "phases", "phase_id"),
+        ):
+            if key in item or is_new:
+                vals[field_name] = self._ref_id(refs, section, item, key, required=True)
+        if "model" in item:
+            # Unknown models only get here in non-strict mode: leave the link empty.
+            vals["model_id"] = model_map.get(item["model"], False) if item["model"] else False
+        if "choice_state" in item:
+            states = self.env["pan.sl.activity"]._fields["choice_state"].get_values(self.env)
+            if item["choice_state"] not in states:
+                raise UserError(
+                    self.env._(
+                        "Activity '%(code)s' has choice state %(state)s, which does not exist. "
+                        "Use one of %(states)s and import again.",
+                        code=item["code"],
+                        state=item["choice_state"],
+                        states=", ".join(states),
+                    )
+                )
+            vals["choice_state"] = item["choice_state"]
+        return vals
+
+    @api.model
+    def _scenario_vals(self, item):
+        return self._common_vals(item, ("name", "description", "open_point"))
+
+    @api.model
+    def _replace_scenario_steps(self, items, refs, fill_empty_only=False):
+        """Make the steps of every scenario that lists ``steps`` match the file order.
+
+        With ``fill_empty_only`` only scenarios without steps get them; a
+        company's own route is kept as it is.
+        """
+        parsed = {}
+        for item in items:
+            if "steps" not in item:
+                continue
+            if not isinstance(item["steps"], list):
+                raise UserError(
+                    self.env._(
+                        "The steps of scenario '%(code)s' must be a list of activity codes between [ ]. "
+                        "Fix it and import again.",
+                        code=item["code"],
+                    )
+                )
+            steps = []
+            for step in item["steps"]:
+                if isinstance(step, str):
+                    steps.append((step, False))
+                elif (
+                    isinstance(step, dict)
+                    and isinstance(step.get("activity"), str)
+                    and isinstance(step.get("note") or "", str)
+                ):
+                    steps.append((step["activity"], step.get("note") or False))
+                else:
+                    raise UserError(
+                        self.env._(
+                            "A step of scenario '%(code)s' is not an activity code. Write each step as "
+                            "an activity code, or as {\"activity\": code, \"note\": text}, and import again.",
+                            code=item["code"],
+                        )
+                    )
+            parsed[item["code"]] = steps
+        if not parsed:
+            return
+        activity_ids = self._codes_to_ids(
+            "activities", {code for steps in parsed.values() for code, _note in steps}
+        )
+        scenarios = self.env["pan.sl.scenario"].browse([refs["scenarios"][code] for code in parsed])
+        if fill_empty_only:
+            scenarios = scenarios.filtered(lambda scenario: not scenario.step_ids)
+        else:
+            scenarios.step_ids.unlink()
+        self.env["pan.sl.scenario.step"].create(
+            [
+                {
+                    "scenario_id": scenario.id,
+                    "sequence": (position + 1) * 10,
+                    "activity_id": activity_ids[code],
+                    "note": note,
+                }
+                for scenario in scenarios
+                for position, (code, note) in enumerate(parsed[scenario.code])
+            ]
+        )
+
+    # ------------------------------------------------------------------
+    # Menu actions (administrators)
+    # ------------------------------------------------------------------
+
+    @api.model
+    def action_load_template(self):
+        """Load the bundled template without overwriting anything, then open the map."""
+        with file_open(TEMPLATE_FILE, "rb", filter_ext=(".json",)) as handle:
+            data = self._parse_json(handle.read(), TEMPLATE_FILE.rsplit("/", 1)[-1])
+        # Never overwrite the company's own decisions: only fill what is missing.
+        summary = self.import_blueprint(data, strict=False, fill_empty_only=True)
+        return self._open_map_with_summary(self.env._("Template loaded"), summary)
+
+    @api.model
+    def action_export(self):
+        """Download the current model as blueprint.json."""
+        data = self.export_blueprint()
+        content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+        holder = self.env["pan.sl.blueprint.wizard"].create(
+            {"file": base64.b64encode(content.encode("utf-8")), "filename": "blueprint.json"}
+        )
+        return {
+            "type": "ir.actions.act_url",
+            "url": f"/web/content?model={holder._name}&id={holder.id}&field=file"
+            "&filename_field=filename&download=true",
+            "target": "download",
+        }
+
+    @api.model
+    def _parse_json(self, raw, label):
+        try:
+            return json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
+        except json.JSONDecodeError as error:
+            raise UserError(
+                self.env._(
+                    "%(name)s is not a blueprint file: it breaks off or has a typo near line %(line)s. "
+                    "Choose a file exported from Blueprint, or load the template.",
+                    name=label,
+                    line=error.lineno,
+                )
+            ) from error
+        except (UnicodeDecodeError, ValueError, RecursionError) as error:
+            raise UserError(
+                self.env._(
+                    "%(name)s is not a blueprint file. Choose a file exported from Blueprint, "
+                    "or load the template.",
+                    name=label,
+                )
+            ) from error
+
+    @api.model
+    def _open_map_with_summary(self, title, summary):
+        """Show what an import changed in a notification, then open the company map."""
+        message = self._format_summary(summary)
+        missing_apps = self._format_missing_apps(summary["skipped_models"])
+        if missing_apps:
+            message = f"{message} {missing_apps}"
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": title,
+                "message": message,
+                "type": "warning" if missing_apps else "success",
+                "sticky": bool(missing_apps),
+                # target "main": the map replaces the breadcrumbs, so loading
+                # from the (empty) map never stacks a second "Company map".
+                "next": dict(
+                    self.env["ir.actions.actions"]._for_xml_id("pan_self_learning_blueprint.action_blueprint_map"),
+                    target="main",
+                ),
+            },
+        }
+
+    @api.model
+    def _format_summary(self, summary):
+        """One line: what was created and what was updated, per section."""
+        labels = {
+            "chains": self.env._("chains"),
+            "phases": self.env._("phases"),
+            "roles": self.env._("roles"),
+            "processes": self.env._("processes"),
+            "activities": self.env._("activities"),
+            "scenarios": self.env._("scenarios"),
+        }
+
+        def counts(key):
+            return ", ".join(
+                f"{summary[section][key]} {labels[section]}" for section in SECTIONS if summary[section][key]
+            )
+
+        created, updated = counts("created"), counts("updated")
+        if not created and not updated:
+            return self.env._("Nothing to change.")
+        parts = []
+        if created:
+            parts.append(self.env._("Created %(counts)s.", counts=created))
+        if updated:
+            parts.append(self.env._("Updated %(counts)s.", counts=updated))
+        return " ".join(parts)
+
+    @api.model
+    def _format_missing_apps(self, skipped_models):
+        """Name the apps to install for the models a template could not link, or False."""
+        if not skipped_models:
+            return False
+        module_names = {MODEL_APPS[model] for model in skipped_models if model in MODEL_APPS}
+        # ir.module.module is technical metadata; reading it does not expose business data.
+        modules = self.env["ir.module.module"].sudo().search_read(
+            [("name", "in", list(module_names))], ["name", "shortdesc"]
+        )
+        app_names = {row["name"]: row["shortdesc"] for row in modules}
+        names = {app_names[MODEL_APPS[model]] for model in skipped_models if MODEL_APPS.get(model) in app_names}
+        # Models without a known app are named technically, so nothing is left out.
+        names.update(model for model in skipped_models if MODEL_APPS.get(model) not in app_names)
+        return self.env._(
+            "Not installed: %(apps)s. Install them and load the template again to link them.",
+            apps=", ".join(sorted(names)),
+        )
+
+
+class PanSlBlueprintWizard(models.TransientModel):
+    _name = "pan.sl.blueprint.wizard"
+    _description = "Blueprint file"
+
+    file = fields.Binary(
+        string="Blueprint file",
+        help="A blueprint JSON file of at most 5 MB.",
+    )
+    filename = fields.Char(
+        string="File name",
+        help="Name of the blueprint file.",
+    )
+
+    def action_import(self):
+        """Import the chosen file (strict: unknown models refuse it), then open the map."""
+        self.ensure_one()
+        if not self.file:
+            raise UserError(self.env._("Choose a blueprint file to import."))
+        raw = base64.b64decode(self.file)
+        Blueprint = self.env["pan.sl.blueprint"]
+        # Checked before parsing, so a huge file is never read into memory twice.
+        Blueprint._check_size(len(raw))
+        data = Blueprint._parse_json(raw, self.filename or self.env._("The file"))
+        summary = Blueprint.import_blueprint(data, strict=True)
+        return Blueprint._open_map_with_summary(self.env._("Blueprint imported"), summary)

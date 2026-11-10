@@ -1,0 +1,555 @@
+// Company map.
+//
+// Every SVG fill and stroke uses the small token set below, defined on the
+// component root. An undefined var() in an SVG fill falls back to black, so
+// each token resolves Odoo's own CSS variable first (Odoo 19 compiles
+// Bootstrap with an empty prefix: --success, --body-bg, ...), then the
+// prefixed Bootstrap 5 name (--bs-success, ...), then a literal. Odoo
+// redefines the unprefixed variables in the dark bundle, so the map follows
+// light and dark mode.
+
+// Card / view background (white in light mode, dark grey in dark mode).
+$o-pan-sl-surface: #ffffff;
+@if global-variable-exists("o-view-background-color") {
+    $o-pan-sl-surface: $o-view-background-color !global;
+}
+
+.o_pan_sl_map {
+    --pan-bg: var(--body-bg, var(--bs-body-bg, #f8f9fa));
+    --pan-fg: var(--body-color, var(--bs-body-color, #212529));
+    --pan-muted: var(--secondary-color, var(--bs-secondary-color, #6c757d));
+    --pan-border: var(--border-color, var(--bs-border-color, #dee2e6));
+    --pan-band: var(--secondary-bg, var(--bs-secondary-bg, #e9ecef));
+    --pan-surface: #{$o-pan-sl-surface};
+    --pan-ok: var(--success, var(--bs-success, #28a745));
+    --pan-warn: var(--warning, var(--bs-warning, #ffac00));
+    --pan-off: var(--gray-500, var(--bs-gray-500, #adb5bd));
+    --pan-accent: var(--primary, var(--bs-primary, #71639e));
+    --pan-on-accent: #ffffff;
+    // Derived shades.
+    --pan-lane-external: color-mix(in srgb, var(--pan-off) 14%, var(--pan-bg));
+    --pan-column-alt: color-mix(in srgb, var(--pan-fg) 2.5%, var(--pan-bg));
+    --pan-track: color-mix(in srgb, var(--pan-off) 35%, var(--pan-surface));
+    // Amber as text: bright amber is kept for fills and markers; as small
+    // text it is mixed with the foreground to reach 4.5:1 on the background.
+    --pan-warn-text: color-mix(in srgb, var(--pan-warn) 45%, var(--pan-fg));
+
+    background-color: var(--pan-bg);
+    color: var(--pan-fg);
+    overflow: hidden;
+
+    // Controls --------------------------------------------------------
+    .o_pan_sl_controls {
+        select {
+            width: auto;
+            min-width: 9rem;
+            max-width: 13rem;
+        }
+    }
+
+    .o_pan_sl_zoom_track {
+        position: relative;
+        width: 300px;
+        padding: 0 8px;
+        // Leave room for the stop labels under the slider.
+        padding-bottom: 1rem;
+        margin-top: 0.4rem;
+
+        .o_pan_sl_zoom_slider {
+            display: block;
+            height: 1.1rem;
+            accent-color: var(--pan-accent);
+
+            &:focus-visible {
+                outline: 2px solid var(--pan-accent);
+                outline-offset: 2px;
+                border-radius: 4px;
+            }
+        }
+    }
+
+    .o_pan_sl_zoom_labels {
+        position: absolute;
+        // The range thumb travels from half its width (8px) to the other end.
+        left: calc(8px + 8px);
+        right: calc(8px + 8px);
+        bottom: 0;
+        height: 1rem;
+    }
+
+    .o_pan_sl_zoom_tick {
+        position: absolute;
+        top: -0.35rem;
+        width: 1px;
+        height: 0.3rem;
+        background-color: var(--pan-muted);
+    }
+
+    .o_pan_sl_zoom_label {
+        position: absolute;
+        top: 0;
+        // Each label sits right of its threshold tick: the range where that stop shows.
+        padding-left: 3px;
+        font-size: 0.72rem;
+        line-height: 1rem;
+        color: var(--pan-muted);
+        text-decoration: none;
+        white-space: nowrap;
+
+        &:hover {
+            color: var(--pan-fg);
+        }
+    }
+
+    .o_pan_sl_zoom_label_active {
+        color: var(--pan-accent);
+        font-weight: 700;
+    }
+
+    .o_pan_sl_text_warn {
+        color: var(--pan-warn-text);
+    }
+
+    // Empty state: one muted line, at most one action, dashed border.
+    .o_pan_sl_empty {
+        border: 1px dashed var(--pan-border);
+        border-radius: 0.5rem;
+    }
+
+    // Map container ---------------------------------------------------
+    .o_pan_sl_body {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .o_pan_sl_svg {
+        position: absolute;
+        inset: 0;
+        display: block;
+        cursor: grab;
+        user-select: none;
+        // Pan and pinch are handled by the map itself.
+        touch-action: none;
+        font-family: inherit;
+
+        &:active {
+            cursor: grabbing;
+        }
+
+        // Keyboard focus on the map itself (arrow keys pan, + and - zoom).
+        &:focus {
+            outline: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--pan-accent);
+            outline-offset: -2px;
+        }
+
+        text {
+            fill: var(--pan-fg);
+            font-size: 12px;
+        }
+    }
+
+    // Grid ------------------------------------------------------------
+    .o_pan_sl_canvas {
+        fill: var(--pan-bg);
+    }
+
+    .o_pan_sl_column {
+        fill: var(--pan-bg);
+        stroke: var(--pan-border);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_column_alt {
+        fill: var(--pan-column-alt);
+    }
+
+    .o_pan_sl_phase_label {
+        font-weight: 600;
+        font-size: 13px !important;
+    }
+
+    .o_pan_sl_counter {
+        font-size: 11px !important;
+        fill: var(--pan-muted) !important;
+    }
+
+    .o_pan_sl_counter_value {
+        font-weight: 700;
+        fill: var(--pan-warn-text);
+    }
+
+    .o_pan_sl_lane {
+        fill: transparent;
+        stroke: var(--pan-border);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_lane_external {
+        fill: var(--pan-lane-external);
+    }
+
+    // Cells of the sticky label column and corner must be opaque.
+    .o_pan_sl_label_cell {
+        fill: var(--pan-bg);
+
+        &.o_pan_sl_lane_external {
+            fill: var(--pan-lane-external);
+        }
+
+        &.o_pan_sl_band {
+            fill: var(--pan-band);
+        }
+    }
+
+    .o_pan_sl_sticky_left,
+    .o_pan_sl_sticky_corner {
+        filter: drop-shadow(1px 0 0 var(--pan-border));
+    }
+
+    .o_pan_sl_sticky_top {
+        filter: drop-shadow(0 1px 0 var(--pan-border));
+    }
+
+    .o_pan_sl_role_label {
+        font-weight: 600;
+    }
+
+    // A role name opens the role panel.
+    .o_pan_sl_role_label_group {
+        cursor: pointer;
+        outline: none;
+
+        &:hover .o_pan_sl_role_label {
+            text-decoration: underline;
+        }
+
+        // Accent as a focus mark only, never as text colour.
+        &:focus-visible .o_pan_sl_role_label {
+            text-decoration: underline 2px var(--pan-accent);
+        }
+    }
+
+    .o_pan_sl_role_sub {
+        fill: var(--pan-muted) !important;
+        font-size: 11px !important;
+        font-style: italic;
+    }
+
+    .o_pan_sl_band {
+        fill: var(--pan-band);
+        stroke: var(--pan-border);
+    }
+
+    .o_pan_sl_band_label {
+        font-weight: 700;
+        font-size: 11px !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        fill: var(--pan-muted) !important;
+    }
+
+    .o_pan_sl_progress_track {
+        fill: var(--pan-track);
+    }
+
+    .o_pan_sl_progress_bar {
+        fill: var(--pan-ok);
+    }
+
+    .o_pan_sl_progress_label {
+        font-size: 11px !important;
+        font-weight: 600;
+    }
+
+    .o_pan_sl_app {
+        rect {
+            fill: var(--pan-surface);
+            stroke: var(--pan-border);
+        }
+
+        text {
+            font-size: 11px;
+        }
+    }
+
+    // An app that is not installed is grey: off.
+    .o_pan_sl_app_off {
+        rect {
+            fill: var(--pan-band);
+            stroke-dasharray: 3 2;
+        }
+
+        text {
+            fill: var(--pan-muted) !important;
+        }
+    }
+
+    // Status tones (shared by blocks, dots, swatches and badges) --------
+    .o_pan_sl_tone_ok {
+        --pan-tone: var(--pan-ok);
+    }
+    .o_pan_sl_tone_warn {
+        --pan-tone: var(--pan-warn);
+    }
+    .o_pan_sl_tone_off {
+        --pan-tone: var(--pan-off);
+    }
+
+    .o_pan_sl_swatch,
+    .o_pan_sl_seg,
+    .o_pan_sl_dot,
+    .o_pan_sl_task_rung {
+        fill: color-mix(in srgb, var(--pan-tone, var(--pan-off)) 60%, var(--pan-surface));
+        stroke: var(--pan-tone, var(--pan-off));
+        stroke-width: 1.25;
+    }
+
+    .o_pan_sl_seg {
+        stroke: var(--pan-surface);
+        stroke-width: 1;
+    }
+
+    // Glyphs that repeat the tone as a shape: check (ok), half disc (warn).
+    .o_pan_sl_glyph {
+        fill: none;
+        stroke: var(--pan-fg);
+        stroke-width: 1.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        pointer-events: none;
+    }
+
+    .o_pan_sl_glyph_half {
+        fill: var(--pan-fg);
+        fill-opacity: 0.55;
+        stroke: none;
+        pointer-events: none;
+    }
+
+    // Stop 1: cell blocks ---------------------------------------------
+    .o_pan_sl_block {
+        cursor: zoom-in;
+        outline: none;
+        transition: opacity 0.15s ease-in-out;
+
+        &:hover .o_pan_sl_block_frame {
+            stroke: var(--pan-fg);
+        }
+
+        &:focus-visible .o_pan_sl_block_frame {
+            stroke: var(--pan-accent);
+            stroke-width: 3;
+        }
+    }
+
+    .o_pan_sl_block_frame {
+        fill: none;
+        stroke: color-mix(in srgb, var(--pan-fg) 35%, var(--pan-border));
+        stroke-width: 1.25;
+    }
+
+    .o_pan_sl_block_count_bg {
+        fill: var(--pan-surface);
+        stroke: var(--pan-border);
+    }
+
+    .o_pan_sl_block_count {
+        font-size: 13px !important;
+        font-weight: 700;
+    }
+
+    // Chips -----------------------------------------------------------
+    .o_pan_sl_chip {
+        cursor: pointer;
+        outline: none;
+        transition: opacity 0.15s ease-in-out;
+
+        &:hover .o_pan_sl_chip_box {
+            stroke: color-mix(in srgb, var(--pan-fg) 45%, var(--pan-border));
+        }
+
+        &:focus-visible .o_pan_sl_chip_box,
+        &.o_pan_sl_selected .o_pan_sl_chip_box {
+            stroke: var(--pan-accent);
+            stroke-width: 2.5;
+        }
+    }
+
+    .o_pan_sl_chip_box {
+        fill: var(--pan-surface);
+        stroke: var(--pan-border);
+        stroke-width: 1.25;
+    }
+
+    .o_pan_sl_chip_label {
+        font-weight: 500;
+    }
+
+    .o_pan_sl_dim {
+        opacity: 0.22;
+    }
+
+    .o_pan_sl_small {
+        font-size: 10.5px !important;
+    }
+
+    .o_pan_sl_tiny {
+        font-size: 9px !important;
+        font-weight: 700;
+    }
+
+    .o_pan_sl_muted_italic {
+        fill: var(--pan-muted) !important;
+        font-style: italic;
+    }
+
+    .o_pan_sl_rung_seg {
+        fill: var(--pan-track);
+    }
+
+    // Filled rung segments carry the progress tone (set with a tone class).
+    .o_pan_sl_rung_on {
+        fill: color-mix(in srgb, var(--pan-tone) 60%, var(--pan-surface));
+        stroke: var(--pan-tone);
+        stroke-width: 1;
+    }
+
+    .o_pan_sl_open_marker {
+        fill: var(--pan-warn);
+        stroke: var(--pan-surface);
+        stroke-width: 1.5;
+    }
+
+    .o_pan_sl_open_marker_text {
+        fill: var(--pan-fg) !important;
+        font-size: 10px !important;
+        font-weight: 800;
+    }
+
+    .o_pan_sl_detail_rule {
+        stroke: var(--pan-border);
+        stroke-dasharray: 3 2;
+    }
+
+    .o_pan_sl_path {
+        fill: var(--pan-fg);
+    }
+
+    // Route (accent colour) ---------------------------------------------
+    .o_pan_sl_route {
+        fill: none;
+        stroke: var(--pan-accent);
+        stroke-width: 3;
+        stroke-linejoin: round;
+        stroke-dasharray: 6 4;
+        pointer-events: none;
+    }
+
+    .o_pan_sl_route_arrow {
+        fill: var(--pan-accent);
+    }
+
+    .o_pan_sl_route_badges {
+        pointer-events: none;
+    }
+
+    .o_pan_sl_badge {
+        circle {
+            fill: var(--pan-accent);
+            stroke: var(--pan-surface);
+            stroke-width: 2;
+        }
+
+        text {
+            fill: var(--pan-on-accent) !important;
+            font-size: 10.5px;
+            font-weight: 700;
+        }
+    }
+
+    // Side panel ("street view"); not inside the scaled SVG ------------
+    .o_pan_sl_panel {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        width: 340px;
+        max-width: calc(100% - 1.5rem);
+        overflow-y: auto;
+        z-index: 2;
+
+        dt {
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        dd {
+            margin-bottom: 0;
+        }
+
+        .o_pan_sl_open_point {
+            white-space: pre-wrap;
+        }
+
+        // Focus lands on the title when the panel opens; Tab continues inside.
+        .o_pan_sl_panel_title:focus {
+            outline: none;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+        }
+    }
+
+    // Phones: controls wrap, the map scrolls inside its container and the
+    // panel becomes a bottom sheet.
+    @media (max-width: 767.98px) {
+        .o_pan_sl_controls {
+            column-gap: 0.75rem !important;
+
+            > label {
+                flex: 1 1 100%;
+
+                select {
+                    flex: 1 1 auto;
+                    max-width: none;
+                }
+            }
+        }
+
+        .o_pan_sl_zoom {
+            flex: 1 1 100%;
+        }
+
+        .o_pan_sl_zoom_track {
+            flex: 1 1 auto;
+            width: auto;
+        }
+
+        // Beats the larger .btn font size Odoo uses on small screens.
+        .o_pan_sl_zoom_labels .o_pan_sl_zoom_label.btn {
+            font-size: 0.65rem;
+        }
+
+        .o_pan_sl_legend {
+            margin-left: 0 !important;
+        }
+
+        .o_pan_sl_panel {
+            top: auto;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: auto;
+            max-width: none;
+            max-height: 65%;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+    }
+}

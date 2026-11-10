@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_adkar_score_list" model="ir.ui.view">
+        <field name="name">pan.sl.adkar.score.list</field>
+        <field name="model">pan.sl.adkar.score</field>
+        <field name="arch" type="xml">
+            <list string="ADKAR scores" editable="bottom" multi_edit="1">
+                <field name="partner_id" widget="many2one_avatar"/>
+                <field name="role_ids" widget="many2many_tags" optional="show"/>
+                <field name="date"/>
+                <field name="round"/>
+                <field name="awareness"/>
+                <field name="desire"/>
+                <field name="knowledge"/>
+                <field name="ability"/>
+                <field name="reinforcement"/>
+                <field name="average" optional="show"/>
+                <field name="note" optional="hide" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_adkar_score_form" model="ir.ui.view">
+        <field name="name">pan.sl.adkar.score.form</field>
+        <field name="model">pan.sl.adkar.score</field>
+        <field name="arch" type="xml">
+            <form string="ADKAR score">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="partner_id"/>
+                        <h1><field name="partner_id" widget="many2one_avatar" placeholder="Who is this score about?"/></h1>
+                    </div>
+                    <group>
+                        <group string="Survey">
+                            <field name="date"/>
+                            <field name="round"/>
+                            <field name="role_ids" widget="many2many_tags"/>
+                        </group>
+                        <group string="Scores (1 to 5)">
+                            <field name="awareness"/>
+                            <field name="desire"/>
+                            <field name="knowledge"/>
+                            <field name="ability"/>
+                            <field name="reinforcement"/>
+                            <field name="average"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Main blocker or context for this score..." groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_adkar_score_search" model="ir.ui.view">
+        <field name="name">pan.sl.adkar.score.search</field>
+        <field name="model">pan.sl.adkar.score</field>
+        <field name="arch" type="xml">
+            <search string="ADKAR scores">
+                <field name="partner_id"/>
+                <field name="role_ids"/>
+                <field name="round"/>
+                <filter name="filter_my_scores" string="My scores" domain="[('partner_id.user_ids', 'in', [uid])]"/>
+                <separator/>
+                <filter name="filter_low" string="Has a score below 3"
+                        domain="['|', '|', '|', '|', ('awareness', '&lt;', 3), ('desire', '&lt;', 3), ('knowledge', '&lt;', 3), ('ability', '&lt;', 3), ('reinforcement', '&lt;', 3)]"/>
+                <separator/>
+                <filter name="filter_date" string="Date" date="date"/>
+                <group>
+                    <filter name="group_partner" string="Person" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_round" string="Round" context="{'group_by': 'round'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_adkar_score_pivot" model="ir.ui.view">
+        <field name="name">pan.sl.adkar.score.pivot</field>
+        <field name="model">pan.sl.adkar.score</field>
+        <field name="arch" type="xml">
+            <pivot string="ADKAR averages" sample="1">
+                <field name="partner_id" type="row"/>
+                <field name="round" type="col"/>
+                <field name="awareness" type="measure"/>
+                <field name="desire" type="measure"/>
+                <field name="knowledge" type="measure"/>
+                <field name="ability" type="measure"/>
+                <field name="reinforcement" type="measure"/>
+                <field name="average" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_adkar_score" model="ir.actions.act_window">
+        <field name="name">ADKAR scores</field>
+        <field name="res_model">pan.sl.adkar.score</field>
+        <field name="view_mode">list,pivot,form</field>
+        <field name="search_view_id" ref="view_adkar_score_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Record the first ADKAR round</p>
+        </field>
+    </record>
+</odoo>
