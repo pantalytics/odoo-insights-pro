@@ -126,10 +126,15 @@ class ProjectTask(models.Model):
         project stage whose progress equals the lowest progress among its
         non-cancelled subtasks (archived ones count, as for Tested %).
 
+<<<<<<< HEAD
         Only flows of projects with a map whose stages each carry a different
         step (the six stages of the template), never a project that shares
         several stages per step, such as Icebox, Backlog and Estimated all at
         Open. A flow already in a stage with the right step stays where it is. Nested flows move up level by level, in a
+=======
+        Only flows of projects with a map, and only when the project has a
+        stage with that step. Nested flows move up level by level, in a
+>>>>>>> origin/claude/cool-shannon-olc65j
         bounded loop over the parents of the flows that moved (no recursion);
         the writes carry a context key so they do not start a roll-up of their
         own.
@@ -140,10 +145,13 @@ class ProjectTask(models.Model):
             flows = flows.filtered(lambda flow: flow.project_id.pan_role_ids)
             if not flows:
                 break
+<<<<<<< HEAD
             ladder_projects = flows.project_id.filtered(lambda project: project._pan_has_stage_ladder())
             flows = flows.filtered(lambda flow: flow.project_id in ladder_projects)
             if not flows:
                 break
+=======
+>>>>>>> origin/claude/cool-shannon-olc65j
             subtasks = Task.search([("parent_id", "in", flows.ids), ("state", "!=", CANCELLED_STATE)])
             lowest = {}
             for subtask in subtasks:
@@ -157,8 +165,11 @@ class ProjectTask(models.Model):
                 if flow.id not in lowest:
                     continue
                 rung = str(lowest[flow.id])
+<<<<<<< HEAD
                 if flow.stage_id.pan_rung == rung:
                     continue
+=======
+>>>>>>> origin/claude/cool-shannon-olc65j
                 stage = next(
                     (s for s in stages if s.pan_rung == rung and flow.project_id in s.project_ids), None
                 )

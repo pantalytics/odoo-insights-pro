@@ -26,7 +26,11 @@ creates and updates, never deletes.
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Services/Project",
+<<<<<<< HEAD
     "version": "19.0.2.2.1",
+=======
+    "version": "19.0.2.2.0",
+>>>>>>> origin/claude/cool-shannon-olc65j
     "license": "LGPL-3",
     "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [

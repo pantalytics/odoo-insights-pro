@@ -24,6 +24,7 @@ class ProjectProject(models.Model):
         help="The roles (map rows) of this project. A project with roles has a map.",
     )
 
+<<<<<<< HEAD
     def _pan_has_stage_ladder(self):
         """True when no two stages of the project share a progress step, as
         with the six template stages. Only then may a flow's stage follow its
@@ -33,6 +34,8 @@ class ProjectProject(models.Model):
         rungs = self.env["project.task.type"].sudo().search([("project_ids", "in", self.id)]).mapped("pan_rung")
         return len(rungs) == len(set(rungs))
 
+=======
+>>>>>>> origin/claude/cool-shannon-olc65j
     @api.model
     def get_blueprint_map_projects(self):
         """The projects with a map (at least one role) the user can read, by name."""
