@@ -16,7 +16,7 @@
 //   two-finger pinch on the iPad, + on the phone; the breadcrumb and - zoom out;
 // - clicking a flow flies to its swimlane: its placed tasks, N-1 arrows left
 //   to right ending at their chips, its steps listed; a chip flies to the task:
-//   its facts, one primary button, the panel docked beside the stage;
+//   Odoo's own task form, chatter under it, sliding over the stage;
 // - the page never scrolls (sideways or down) at any level; on touch every
 //   button of the map is 44 px or taller; nothing in an undefined colour;
 // - the map follows Odoo's dark colour variables (desktop_dark).
@@ -147,7 +147,7 @@ async function checkLayout(page, viewport, label) {
     const layout = await page.evaluate(() => {
         const rect = (el) => el.getBoundingClientRect();
         const small = [...document.querySelectorAll(".o_pan_sl_map .o_content button")]
-            .filter((el) => el.offsetParent && rect(el).height < 43.5)
+            .filter((el) => el.offsetParent && rect(el).height < 43.5 && !el.closest(".o_pan_sl_task_form")) // the task form is Odoo's own
             .map((el) => `${el.className.split(" ")[0]} "${el.textContent.trim().slice(0, 20)}" ${Math.round(rect(el).height)}px`);
         const black = [...document.querySelectorAll(".o_pan_sl_map .o_pan_sl_dot, .o_pan_sl_map .o_pan_sl_stack > span")]
             .filter((el) => getComputedStyle(el).backgroundColor === "rgb(0, 0, 0)").length;
@@ -294,23 +294,28 @@ async function checkLevels(page, out, viewport, data) {
     await checkLayout(page, viewport, "z3");
     await shot(page, out, viewport, "z3_flow");
 
-    // z4: a chip flies to its task: facts, one primary button, Move to.
+    // z4: a chip flies to its task: Odoo's own form, chatter under it, over the map.
     await page.locator(".o_pan_sl_chip").first().click();
     await atZoom(page, viewport, 4);
-    const facts = await page.locator(".o_pan_sl_task_panel dt").allTextContents();
-    check(facts.join("|") === "Flow|Role|Phase|Progress|Owners|Hours", `${viewport.name}: task facts ${facts.join("|")}`);
-    const primary = await page.locator(".o_pan_sl_map .o_content .btn-primary").allTextContents();
-    check(primary.length === 1 && primary[0].trim() === "Open task", `${viewport.name}: primary buttons: ${primary.join(", ")}`);
-    if (viewport.name !== "phone") {
-        const docked = await page.evaluate(
-            () => document.querySelector(".o_pan_sl_task_panel").getBoundingClientRect().left >= document.querySelector(".o_pan_sl_stage").getBoundingClientRect().right - 1
-        );
-        check(docked, `${viewport.name}: the task panel covers the stage.`);
-    }
+    const panel = page.locator(".o_pan_sl_task_panel");
+    await panel.locator(".o_form_view .o-mail-Form-chatter").waitFor({ timeout: TIMEOUT });
+    await panel.evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+    const layout = await page.evaluate(() => {
+        const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+        const panel = box(".o_pan_sl_task_panel");
+        return {
+            over: Math.abs(panel.right - box(".o_pan_sl_stage").right) < 2,
+            chatterBelow: box(".o_pan_sl_task_panel .o-mail-Form-chatter").top >= box(".o_pan_sl_task_panel .o_form_sheet_bg").bottom - 1,
+        };
+    });
+    check(viewport.name === "phone" || layout.over, `${viewport.name}: the task panel does not slide over the map.`);
+    check(layout.chatterBelow, `${viewport.name}: the chatter is not under the task form.`);
     await checkLayout(page, viewport, "z4");
     await shot(page, out, viewport, "z4_task");
 
-    // The breadcrumb zooms back out to the flows; - to the project.
+    // Close (X) zooms out to the flow; the breadcrumb to the flows; - to the project.
+    await panel.locator(".o_pan_sl_close").click();
+    await atZoom(page, viewport, 3);
     await page.locator(".o_pan_sl_crumb", { hasText: "Flows" }).click();
     await atZoom(page, viewport, 2);
     await page.locator(".o_pan_sl_zoom_out").click();
