@@ -63,6 +63,7 @@ class ProjectTask(models.Model):
     pan_role_people = fields.Char(
         string="People",
         compute="_compute_pan_role_people",
+        compute_sudo=True,
         groups=USER_GROUP,
         help="The people who hold the role of this task, so who must be trained on it.",
     )
