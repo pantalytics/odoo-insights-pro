@@ -53,8 +53,8 @@ class TestBlueprint(BlueprintCase):
                     "sequence": 1,
                     "description": "",
                     "tasks": [
-                        {"name": "Task A", "role": "t_sales", "phase": "t_phase_a", "description": ""},
-                        {"name": "Task B", "role": "t_customer", "phase": "t_phase_b", "description": ""},
+                        {"name": "Task A", "role": "t_sales", "phase": "t_phase_a", "apps": [], "description": ""},
+                        {"name": "Task B", "role": "t_customer", "phase": "t_phase_b", "apps": [], "description": ""},
                     ],
                 }
             ],
@@ -168,6 +168,29 @@ class TestBlueprint(BlueprintCase):
     def test_phase_apps_of_2_0_files_are_ignored(self):
         summary = self._import(_blueprint(phases=[{"code": "t_phase_a", "name": "Test phase A", "apps": ["sale"]}]))
         self.assertEqual(summary["phases"], {"created": 0, "updated": 0})
+
+    def test_task_apps_round_trip(self):
+        """A task names its Odoo apps by technical name; a name that is no app
+        here is skipped, and a re-import with the same apps changes nothing."""
+        crm, stock = (self.env.ref(f"base.module_{name}") for name in ("crm", "stock"))
+        flow = dict(FLOW, tasks=[dict(FLOW["tasks"][0], apps=["stock", "crm", "no_such_app", "base"])])
+        self._import(_blueprint(roles=ROLES, flows=[flow]))
+        draft = self._flow(self.target, "S90 Test route").child_ids
+        self.assertEqual(draft.pan_app_ids, crm | stock, "Unknown names and modules that are no app are skipped.")
+        exported = self.Blueprint.export_blueprint(self.target)
+        self.assertEqual(exported["flows"][0]["tasks"][0]["apps"], ["crm", "stock"])
+        self.assertEqual(self._import(exported)["tasks"], {"created": 0, "updated": 0})
+        self._import(_blueprint(flows=[dict(flow, tasks=[dict(flow["tasks"][0], apps=["crm"])])]))
+        self.assertEqual(draft.pan_app_ids, crm)
+        stock_only = _blueprint(flows=[dict(flow, tasks=[dict(flow["tasks"][0], apps=["stock"])])])
+        self._import(stock_only, fill_empty_only=True)
+        self.assertEqual(draft.pan_app_ids, crm, "The template never changes apps that are set.")
+        with self.assertRaisesRegex(UserError, "technical names"):
+            self._import(_blueprint(flows=[dict(flow, tasks=[dict(flow["tasks"][0], apps="crm")])]))
+
+    def test_template_tasks_name_their_apps(self):
+        data = self.Blueprint._read_template()
+        self.assertTrue(all(task["apps"] for flow in data["flows"] for task in flow["tasks"]))
 
     def test_template_has_no_version_1_keys(self):
         data = self.Blueprint._read_template()

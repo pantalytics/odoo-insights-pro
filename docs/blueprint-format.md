@@ -18,6 +18,7 @@ Live) when it has none yet (`docs/data-model.md`).
   "flows":  [{"name": "S13 Approve a quotation", "sequence": 130,
               "description": "<p>Internal check is not the customer's approval.</p>",
               "tasks": [{"name": "Draft the quotation", "role": "sales", "phase": "quotation",
+                         "apps": ["sale_management"],
                          "description": "<ol><li>Sales, New</li></ol>"}]}]
 }
 ```
@@ -27,7 +28,7 @@ Live) when it has none yet (`docs/data-model.md`).
 | phases | `code` (shared) | `code`, `name` | `sequence` (`apps` of 2.0 files is ignored) |
 | roles | `code` within the project | `code`, `name` | `sequence`, `external`, `description` |
 | flows | `name` within the project | `name` | `sequence`, `description` (HTML), `tasks` |
-| tasks | `name` within their flow | `name` | `role`, `phase` (codes), `description` (HTML, e.g. the click path) |
+| tasks | `name` within their flow | `name` | `role`, `phase` (codes), `apps` (technical names of Odoo apps), `description` (HTML, e.g. the click path) |
 
 ## Rules
 
@@ -39,6 +40,10 @@ Live) when it has none yet (`docs/data-model.md`).
   route order.
 - A task's `role` and `phase` must be a code in the file or already in the
   project (roles) or the database (phases).
+- A task's `apps` is a list of technical module names of Odoo apps, such as
+  `["sale_management", "stock"]`. A name that is no app in this database
+  (an Enterprise app on Community, a typo) is skipped, so one file works on
+  every Odoo. Export writes them sorted.
 - Codes have no spaces. `sequence` is a whole number, `external` is `true`
   or `false`, the rest is text.
 - `lang` is the language of the names; export always writes English

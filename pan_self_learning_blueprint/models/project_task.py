@@ -34,6 +34,16 @@ class ProjectTask(models.Model):
         groups=USER_GROUP,
         help="Where in the document chain this work happens: the column of the task on the map.",
     )
+    pan_app_ids = fields.Many2many(
+        "ir.module.module",
+        "pan_sl_task_app_rel",
+        "task_id",
+        "module_id",
+        string="Odoo apps",
+        domain="[('application', '=', True)]",
+        groups=USER_GROUP,
+        help="The Odoo apps this work is done in, e.g. Sales or Inventory.",
+    )
     pan_summary = fields.Char(
         string="Summary",
         groups=USER_GROUP,

@@ -113,6 +113,9 @@
           "name": "Create a new customer",
           "role": "administration",
           "phase": "master_data",
+          "apps": [
+            "contacts"
+          ],
           "description": "<ol><li>Contacts, New</li><li>Set company, address, VAT and payment terms</li><li>Save</li></ol>"
         }
       ]
@@ -126,36 +129,55 @@
           "name": "Create a manufactured product",
           "role": "engineering",
           "phase": "master_data",
+          "apps": [
+            "stock",
+            "mrp"
+          ],
           "description": "<ol><li>Inventory, Products, New</li><li>Tick Manufacture as route</li><li>Set unit, category and cost method</li><li>Save</li></ol>"
         },
         {
           "name": "Send a request for quotation",
           "role": "customer",
           "phase": "request",
+          "apps": [
+            "crm"
+          ],
           "description": "<ol><li>Email the sales address with drawing and quantity</li></ol>"
         },
         {
           "name": "Register the request as a lead",
           "role": "sales",
           "phase": "request",
+          "apps": [
+            "crm"
+          ],
           "description": "<ol><li>CRM, check the lead created from the email</li><li>Link the customer</li><li>Set expected revenue</li></ol>"
         },
         {
           "name": "Qualify the lead",
           "role": "sales",
           "phase": "request",
+          "apps": [
+            "crm"
+          ],
           "description": "<ol><li>CRM, open the lead</li><li>Move it to Qualified or mark it lost with a reason</li></ol>"
         },
         {
           "name": "Estimate cost and lead time",
           "role": "engineering",
           "phase": "quotation",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Sales, open the draft quotation</li><li>Log the estimate in the chatter</li><li>Set the delivery date</li></ol>"
         },
         {
           "name": "Draft the quotation",
           "role": "sales",
           "phase": "quotation",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Sales, New</li><li>Add customer, products and quantities</li><li>Check prices and delivery date</li><li>Save</li></ol>"
         }
       ]
@@ -169,24 +191,36 @@
           "name": "Approve the quotation internally",
           "role": "management",
           "phase": "quotation",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Sales, filter To approve</li><li>Open the quotation and check the margin</li><li>Approve or send back with a note</li></ol>"
         },
         {
           "name": "Send the quotation",
           "role": "sales",
           "phase": "quotation",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Open the quotation</li><li>Send by Email</li><li>Check the PDF and send</li></ol>"
         },
         {
           "name": "Accept the quotation",
           "role": "customer",
           "phase": "order",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Open the link in the email</li><li>Sign and accept online</li></ol>"
         },
         {
           "name": "Confirm the sales order",
           "role": "sales",
           "phase": "order",
+          "apps": [
+            "sale_management"
+          ],
           "description": "<ol><li>Open the signed quotation</li><li>Confirm</li><li>Check the manufacturing and delivery orders created</li></ol>"
         }
       ]
@@ -200,30 +234,45 @@
           "name": "Prepare the bill of materials",
           "role": "engineering",
           "phase": "plan_produce",
+          "apps": [
+            "mrp"
+          ],
           "description": "<ol><li>Manufacturing, Bills of Materials, New</li><li>Add components and operations</li><li>Save</li></ol>"
         },
         {
           "name": "Plan the manufacturing order",
           "role": "engineering",
           "phase": "plan_produce",
+          "apps": [
+            "mrp"
+          ],
           "description": "<ol><li>Manufacturing, open the order</li><li>Check component availability</li><li>Plan</li><li>Set the start date</li></ol>"
         },
         {
           "name": "Start the manufacturing order",
           "role": "production",
           "phase": "plan_produce",
+          "apps": [
+            "mrp"
+          ],
           "description": "<ol><li>Manufacturing, open the order</li><li>Start the first work order</li></ol>"
         },
         {
           "name": "Report output and consumption",
           "role": "production",
           "phase": "plan_produce",
+          "apps": [
+            "mrp"
+          ],
           "description": "<ol><li>Open the manufacturing order</li><li>Set the quantity produced</li><li>Check consumed components</li><li>Mark as done</li></ol>"
         },
         {
           "name": "Check the finished product",
           "role": "production",
           "phase": "plan_produce",
+          "apps": [
+            "mrp"
+          ],
           "description": "<ol><li>Open the manufacturing order</li><li>Record the check in the chatter</li><li>Mark as done or report the deviation</li></ol>"
         }
       ]
@@ -237,36 +286,54 @@
           "name": "Create a supplier",
           "role": "purchasing_warehouse",
           "phase": "master_data",
+          "apps": [
+            "purchase"
+          ],
           "description": "<ol><li>Purchase, Vendors, New</li><li>Set address, VAT and payment terms</li><li>Save</li></ol>"
         },
         {
           "name": "Request a price from the supplier",
           "role": "purchasing_warehouse",
           "phase": "purchase_receive",
+          "apps": [
+            "purchase"
+          ],
           "description": "<ol><li>Purchase, New</li><li>Add supplier and products</li><li>Send by Email</li></ol>"
         },
         {
           "name": "Send a price and delivery date",
           "role": "supplier",
           "phase": "purchase_receive",
+          "apps": [
+            "purchase"
+          ],
           "description": "<ol><li>Reply to the request with price and date</li></ol>"
         },
         {
           "name": "Confirm the purchase order",
           "role": "purchasing_warehouse",
           "phase": "purchase_receive",
+          "apps": [
+            "purchase"
+          ],
           "description": "<ol><li>Open the request for quotation</li><li>Update price and date</li><li>Confirm order</li></ol>"
         },
         {
           "name": "Deliver the goods",
           "role": "supplier",
           "phase": "purchase_receive",
+          "apps": [
+            "stock"
+          ],
           "description": "<ol><li>Ship the goods with a delivery note</li></ol>"
         },
         {
           "name": "Receive the goods",
           "role": "purchasing_warehouse",
           "phase": "purchase_receive",
+          "apps": [
+            "stock"
+          ],
           "description": "<ol><li>Inventory, Receipts, open the receipt</li><li>Check quantities</li><li>Validate</li></ol>"
         }
       ]
@@ -280,18 +347,27 @@
           "name": "Send the invoice",
           "role": "supplier",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Email the invoice to the bills address</li></ol>"
         },
         {
           "name": "Register the vendor bill",
           "role": "administration",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Accounting, Vendor bills, check the bill from the email</li><li>Link the purchase order</li><li>Check amounts</li></ol>"
         },
         {
           "name": "Approve the vendor bill",
           "role": "management",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Accounting, Vendor bills, filter To approve</li><li>Check against the receipt</li><li>Confirm the bill</li></ol>"
         }
       ]
@@ -305,12 +381,18 @@
           "name": "Log hours on the project",
           "role": "production",
           "phase": "plan_produce",
+          "apps": [
+            "timesheet_grid"
+          ],
           "description": "<ol><li>Timesheets, New</li><li>Choose project and task</li><li>Enter the hours</li></ol>"
         },
         {
           "name": "Approve timesheets",
           "role": "management",
           "phase": "invoice_pay",
+          "apps": [
+            "timesheet_grid"
+          ],
           "description": "<ol><li>Timesheets, To validate</li><li>Check the hours</li><li>Validate</li></ol>"
         }
       ]
@@ -324,18 +406,27 @@
           "name": "Pick and pack the order",
           "role": "purchasing_warehouse",
           "phase": "deliver",
+          "apps": [
+            "stock"
+          ],
           "description": "<ol><li>Inventory, Deliveries, open the order</li><li>Pick the products</li><li>Put in pack</li></ol>"
         },
         {
           "name": "Ship the order",
           "role": "purchasing_warehouse",
           "phase": "deliver",
+          "apps": [
+            "stock"
+          ],
           "description": "<ol><li>Open the delivery</li><li>Validate</li><li>Print the delivery slip</li></ol>"
         },
         {
           "name": "Receive the delivery",
           "role": "customer",
           "phase": "deliver",
+          "apps": [
+            "stock"
+          ],
           "description": "<ol><li>Sign the delivery slip</li></ol>"
         }
       ]
@@ -349,18 +440,28 @@
           "name": "Create the customer invoice",
           "role": "administration",
           "phase": "invoice_pay",
+          "apps": [
+            "sale_management",
+            "account"
+          ],
           "description": "<ol><li>Sales, To invoice</li><li>Create invoice</li><li>Check and confirm</li><li>Send</li></ol>"
         },
         {
           "name": "Pay the invoice",
           "role": "customer",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Pay by bank transfer with the invoice reference</li></ol>"
         },
         {
           "name": "Reconcile the payment",
           "role": "administration",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Accounting, Bank, Reconcile</li><li>Match the payment to the invoice</li></ol>"
         }
       ]
@@ -374,12 +475,18 @@
           "name": "Close the month",
           "role": "administration",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Accounting, check open items</li><li>Post accruals</li><li>Set the lock date</li></ol>"
         },
         {
           "name": "Review the monthly figures",
           "role": "management",
           "phase": "invoice_pay",
+          "apps": [
+            "account"
+          ],
           "description": "<ol><li>Accounting, Reporting, Profit and Loss</li><li>Compare with last month</li></ol>"
         }
       ]
