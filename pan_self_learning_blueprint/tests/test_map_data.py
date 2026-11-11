@@ -251,13 +251,25 @@ class TestMapData(BlueprintCase):
         self.assertTrue(self.flow.pan_is_map_flow)
         self.assertFalse(self.task_a.pan_is_map_flow)
 
-        self.stages["2"].pan_rung = "1"  # two stages at Decided, none at Built
-        self.task_b.stage_id = self.stages["3"]
-        self.task_a.stage_id = self.stages["2"]
-        self.assertEqual(self.flow.stage_id, self.stages["1"], "The first stage of the step, by sequence.")
         self.stages["0"].project_ids = [(3, self.project.id)]  # the project has no Open stage any more
         self.task_b.stage_id = self.stages["0"]
         self.assertEqual(self.flow.stage_id, self.stages["1"], "No stage for the step: the flow stays.")
+
+    def test_flow_stage_left_alone_in_a_shared_workflow(self):
+        """Production bug 11-11: a project whose stages share a step (Icebox,
+        Backlog and Estimated all Open) is no ladder; its flows never move."""
+        self.task_b.stage_id = self.stages["3"]
+        self.task_a.stage_id = self.stages["3"]
+        self.assertEqual(self.flow.stage_id, self.stages["3"])
+        icebox, backlog = self.env["project.task.type"].create(
+            [{"name": "Icebox", "sequence": -2, "pan_rung": "0", "project_ids": [(4, self.project.id)]},
+             {"name": "Backlog", "sequence": -1, "pan_rung": "0", "project_ids": [(4, self.project.id)]}]
+        )
+        self.flow.stage_id = backlog
+        self.task_a.stage_id = self.stages["0"]
+        self.assertEqual(self.flow.stage_id, backlog, "Shared workflow: the flow stays in Backlog, not Icebox.")
+        self._make_task("More work", self.role_sales, self.phase_b, rung="0")
+        self.assertEqual(self.flow.stage_id, backlog)
 
     def test_flow_rollup_needs_no_write_access_on_the_flow(self):
         user = new_test_user(self.env, login="pan_sl_rollup_user", groups="pan_self_learning_blueprint.group_blueprint_user")
