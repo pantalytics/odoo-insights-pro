@@ -473,8 +473,8 @@ msgstr ""
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "In progress"
-msgstr "Bezig"
+msgid "Decided or Built"
+msgstr "Besloten of gebouwd"
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -664,8 +664,8 @@ msgstr "Niet op de kaart"
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "Not started"
-msgstr "Niet begonnen"
+msgid "Trained or Live"
+msgstr "Getraind of live"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__note

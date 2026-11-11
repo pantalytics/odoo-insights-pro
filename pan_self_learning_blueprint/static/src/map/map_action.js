@@ -22,8 +22,8 @@ export const UNPLACED = "unplaced";
 export const PROGRESS_WORDS = [_t("Open"), _t("Decided"), _t("Built"), _t("Tested"), _t("Trained"), _t("Live")];
 const ADKAR_WORDS = { low: _t("Low"), medium: _t("Medium"), high: _t("High") };
 
-/** Four colours: grey Not started (Open), amber In progress (Decided, Built),
- * green Tested, dark green Trained (Trained, Live). */
+/** Four colours named after the stages: grey Open, amber Decided or Built,
+ * green Tested, dark green Trained or Live. */
 export function tone(rung) {
     if (rung >= TRAINED_RUNG) {
         return "done";
@@ -67,10 +67,10 @@ export class BlueprintMap extends Component {
             selected: null, // { type: "task" | "role", id }
         });
         this.tones = [
-            { tone: "off", label: _t("Not started") },
-            { tone: "warn", label: _t("In progress") },
+            { tone: "off", label: _t("Open") },
+            { tone: "warn", label: _t("Decided or Built") },
             { tone: "ok", label: _t("Tested") },
-            { tone: "done", label: _t("Trained") },
+            { tone: "done", label: _t("Trained or Live") },
         ];
         this.root = useRef("root");
         this.gridArea = useRef("gridArea");

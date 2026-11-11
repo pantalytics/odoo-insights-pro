@@ -154,7 +154,7 @@ async function checkLayout(page, viewport, data) {
 
 async function checkFlows(page, out, viewport, data) {
     const legend = await page.locator(".o_pan_sl_legend li").allTextContents();
-    check(legend.map((item) => item.trim()).join("|") === "Not started|In progress|Tested|Trained", `${viewport.name}: legend ${legend.join("|")}`);
+    check(legend.map((item) => item.trim()).join("|") === "Open|Decided or Built|Tested|Trained or Live", `${viewport.name}: legend ${legend.join("|")}`);
     if (data.flows.length) {
         const summary = (await page.locator(".o_pan_sl_flow_summary").textContent()).trim();
         const late = data.flows.filter((flow) => flow.late).length;

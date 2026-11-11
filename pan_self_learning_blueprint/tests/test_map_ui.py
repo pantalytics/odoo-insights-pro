@@ -145,7 +145,7 @@ class TestMapUi(HttpCase):
     expect(!flows[1].querySelector(".o_pan_sl_flow_open"), "a done flow shows no open count");
 
     // Four colours with plain words.
-    expect($$(".o_pan_sl_legend li").map(text).join("|") === "Not started|In progress|Tested|Trained", "legend");
+    expect($$(".o_pan_sl_legend li").map(text).join("|") === "Open|Decided or Built|Tested|Trained or Live", "legend");
 
     // Grid: placed tasks only, each with a dot in its progress colour.
     expect($$(".o_pan_sl_phase").map(text).join("|") === "UI phase one|UI phase two", "phase columns");
