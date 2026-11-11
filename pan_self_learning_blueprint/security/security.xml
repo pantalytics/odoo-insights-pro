@@ -3,7 +3,7 @@
 
     <record id="module_category_blueprint" model="ir.module.category">
         <field name="name">Blueprint</field>
-        <field name="description">Map the business and track implementation readiness on the company map.</field>
+        <field name="description">A company map per project: every activity is a task with a role, a phase and a progress.</field>
         <field name="parent_id" ref="base.module_category_services"/>
         <field name="sequence">40</field>
     </record>
@@ -16,15 +16,15 @@
 
     <record id="group_blueprint_user" model="res.groups">
         <field name="name">User</field>
-        <field name="comment">User: can open the company map, read the blueprint model (chains, processes, activities, scenarios) and read their own ADKAR scores.</field>
+        <field name="comment">User: can open the map of a project, set role, phase and progress on tasks, read phases and roles, and read their own ADKAR scores.</field>
         <field name="sequence">10</field>
         <field name="privilege_id" ref="res_groups_privilege_blueprint"/>
-        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="implied_ids" eval="[(4, ref('project.group_project_user'))]"/>
     </record>
 
     <record id="group_blueprint_manager" model="res.groups">
         <field name="name">Administrator</field>
-        <field name="comment">Administrator: can edit the blueprint model, read and record everyone's ADKAR scores and notes, and import or export blueprints.</field>
+        <field name="comment">Administrator: can edit phases and roles, read and record everyone's ADKAR scores and notes, and load, import or export a project's blueprint.</field>
         <field name="sequence">20</field>
         <field name="privilege_id" ref="res_groups_privilege_blueprint"/>
         <field name="implied_ids" eval="[(4, ref('group_blueprint_user'))]"/>

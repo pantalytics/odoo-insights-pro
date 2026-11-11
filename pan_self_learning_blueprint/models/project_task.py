@@ -1,82 +1,70 @@
 from odoo import api, fields, models
 
-from .structure import RUNG_SELECTION
+from .structure import CANCELLED_STATE, RUNG_SELECTION, TESTED_RUNG
+
+USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user"
 
 
 class ProjectTask(models.Model):
+    """Everything on the map is a task: a task with a role and a phase is a
+    chip, a parent task is a flow (its subtasks are the route)."""
+
     _inherit = "project.task"
 
-    pan_scenario_id = fields.Many2one(
-        comodel_name="pan.sl.scenario",
-        string="Blueprint Scenario",
+    pan_role_id = fields.Many2one(
+        "pan.sl.role",
+        string="Map role",
         index=True,
         ondelete="set null",
-        groups="pan_self_learning_blueprint.group_blueprint_user",
-        help="Blueprint scenario (test route across processes) this task works on.",
+        domain="[('project_id', '=', project_id)]",
+        groups=USER_GROUP,
+        help="Who does this work: the lane of the task on the project's map.",
     )
-    pan_activity_ids = fields.Many2many(
-        comodel_name="pan.sl.activity",
-        relation="pan_sl_activity_project_task_rel",
-        column1="task_id",
-        column2="activity_id",
-        string="Blueprint Activities",
-        groups="pan_self_learning_blueprint.group_blueprint_user",
-        help="Blueprint activities this task moves forward; the lowest progress of "
-        "their tasks is the progress of an activity.",
+    pan_phase_id = fields.Many2one(
+        "pan.sl.phase",
+        string="Map phase",
+        index=True,
+        ondelete="set null",
+        groups=USER_GROUP,
+        help="Where in the document chain this work happens: the column of the task on the map.",
     )
     pan_rung = fields.Selection(
         selection=RUNG_SELECTION,
-        string="Blueprint progress",
+        string="Map progress",
         default="0",
         required=True,
         tracking=True,
-        groups="pan_self_learning_blueprint.group_blueprint_user",
-        help="Readiness gate this task has reached for its activities: "
-        "Open, Decided (choice made), Built (Odoo configured), Tested, "
-        "Trained (people can do it), Live.",
+        groups=USER_GROUP,
+        help="Readiness of this work: Open, Decided (choice made), Built (Odoo configured), "
+        "Tested, Trained (people can do it), Live.",
+    )
+    pan_flow_progress = fields.Integer(
+        string="Flow tested %",
+        compute="_compute_pan_flow_progress",
+        store=True,
+        compute_sudo=True,
+        aggregator="avg",
+        groups=USER_GROUP,
+        help="For a flow (a task with subtasks): the share of its subtasks at Tested or further. "
+        "Cancelled subtasks do not count, archived ones do.",
     )
 
-
-class PanSlActivity(models.Model):
-    _name = "pan.sl.activity"
-    _inherit = ["pan.sl.activity", "pan.sl.progress.mixin"]
-
-    task_ids = fields.Many2many(
-        comodel_name="project.task",
-        relation="pan_sl_activity_project_task_rel",
-        column1="activity_id",
-        column2="task_id",
-        string="Tasks",
-        help="Project tasks that implement this activity.",
-    )
-    rung = fields.Integer(
-        help="Technical: the lowest progress (0 Open to 5 Live) over all linked tasks, "
-        "also archived ones and the ones you cannot open, cancelled tasks left out. "
-        "0 when no task is linked.",
-    )
-    planned_hours = fields.Float(
-        help="Sum of the allocated hours of all linked tasks, archived ones included, "
-        "cancelled tasks left out. A task linked to several activities counts fully for each of them.",
-    )
-    spent_hours = fields.Float(
-        help="Sum of the timesheet hours on all linked tasks, archived ones included, "
-        "cancelled tasks left out. A task linked to several activities counts fully for each of them.",
-    )
-
-    def _counted_tasks(self):
-        """The tasks that count for this activity, archived ones included."""
-        self.ensure_one()
-        return self._counted(self.sudo().with_context(active_test=False).task_ids)
-
-    @api.depends("task_ids.pan_rung", "task_ids.state")
-    def _compute_rung(self):
-        for activity in self:
-            rungs = [int(rung) for rung in activity._counted_tasks().mapped("pan_rung")]
-            activity.rung = min(rungs) if rungs else 0
-
-    @api.depends("task_ids.allocated_hours", "task_ids.effective_hours", "task_ids.state")
-    def _compute_hours(self):
-        for activity in self:
-            tasks = activity._counted_tasks()
-            activity.planned_hours = sum(tasks.mapped("allocated_hours"))
-            activity.spent_hours = sum(tasks.mapped("effective_hours"))
+    @api.depends("child_ids.pan_rung", "child_ids.state", "child_ids.active")
+    def _compute_pan_flow_progress(self):
+        # Archived subtasks count (archiving must not wipe progress), so read
+        # them without the active filter, in one search for all flows.
+        subtasks = (
+            self.env["project.task"]
+            .with_context(active_test=False)
+            .search([("parent_id", "in", self.ids), ("state", "!=", CANCELLED_STATE)])
+            if self.ids
+            else self.browse()
+        )
+        rungs = {}
+        for subtask in subtasks:
+            rungs.setdefault(subtask.parent_id.id, []).append(int(subtask.pan_rung))
+        for task in self:
+            values = rungs.get(task._origin.id)
+            task.pan_flow_progress = (
+                round(100 * sum(rung >= TESTED_RUNG for rung in values) / len(values)) if values else 0
+            )

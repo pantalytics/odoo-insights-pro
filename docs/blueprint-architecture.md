@@ -1,5 +1,8 @@
 # Blueprint module: architecture and contract
 
+> Version 1 design (chains, processes, activities, scenarios). Superseded by
+> `docs/data-model.md` (v2.0, everything is a task); kept for background.
+
 Module `pan_self_learning_blueprint` (Odoo 19), part of Odoo Self Learning.
 Design background: issue #18. This file is the contract every part of the
 module is built against. Change it first, then the code.

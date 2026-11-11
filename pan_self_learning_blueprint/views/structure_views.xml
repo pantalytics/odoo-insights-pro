@@ -1,82 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Chains (L1) -->
-    <record id="view_chain_list" model="ir.ui.view">
-        <field name="name">pan.sl.chain.list</field>
-        <field name="model">pan.sl.chain</field>
-        <field name="arch" type="xml">
-            <list string="Chains">
-                <field name="sequence" widget="handle"/>
-                <field name="code"/>
-                <field name="name"/>
-                <field name="process_count" optional="show"/>
-                <field name="activity_count" optional="show"/>
-            </list>
-        </field>
-    </record>
-
-    <record id="view_chain_form" model="ir.ui.view">
-        <field name="name">pan.sl.chain.form</field>
-        <field name="model">pan.sl.chain</field>
-        <field name="arch" type="xml">
-            <form string="Chain">
-                <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_activities" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="activity_count" widget="statinfo" string="Activities"/>
-                        </button>
-                    </div>
-                    <div class="oe_title">
-                        <label for="name"/>
-                        <h1><field name="name" placeholder="e.g. Lead to cash"/></h1>
-                    </div>
-                    <group>
-                        <group>
-                            <field name="code" placeholder="e.g. L2C"/>
-                        </group>
-                    </group>
-                    <notebook>
-                        <page string="Processes" name="processes">
-                            <field name="process_ids">
-                                <list>
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="code"/>
-                                    <field name="name"/>
-                                    <field name="owner_role_id"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Description" name="description">
-                            <field name="description" placeholder="What this chain covers, from trigger to result."/>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <record id="view_chain_search" model="ir.ui.view">
-        <field name="name">pan.sl.chain.search</field>
-        <field name="model">pan.sl.chain</field>
-        <field name="arch" type="xml">
-            <search string="Chains">
-                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
-                <field name="code"/>
-            </search>
-        </field>
-    </record>
-
-    <record id="action_chain" model="ir.actions.act_window">
-        <field name="name">Chains</field>
-        <field name="res_model">pan.sl.chain</field>
-        <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_chain_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create the first value chain</p>
-        </field>
-    </record>
-
-    <!-- Phases (map columns) -->
+    <!-- Phases (map columns, shared by all projects) -->
     <record id="view_phase_list" model="ir.ui.view">
         <field name="name">pan.sl.phase.list</field>
         <field name="model">pan.sl.phase</field>
@@ -86,7 +10,6 @@
                 <field name="code"/>
                 <field name="name"/>
                 <field name="app_labels" optional="show"/>
-                <field name="activity_count" optional="show"/>
             </list>
         </field>
     </record>
@@ -97,18 +20,13 @@
         <field name="arch" type="xml">
             <form string="Phase">
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_activities" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="activity_count" widget="statinfo" string="Activities"/>
-                        </button>
-                    </div>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1><field name="name" placeholder="e.g. Quotation"/></h1>
                     </div>
                     <group>
                         <group>
-                            <field name="code" placeholder="e.g. QUOTATION"/>
+                            <field name="code" placeholder="e.g. quotation"/>
                         </group>
                         <group>
                             <field name="app_labels" placeholder="e.g. sale_management, stock"/>
@@ -119,40 +37,27 @@
         </field>
     </record>
 
-    <record id="view_phase_search" model="ir.ui.view">
-        <field name="name">pan.sl.phase.search</field>
-        <field name="model">pan.sl.phase</field>
-        <field name="arch" type="xml">
-            <search string="Phases">
-                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
-                <field name="code"/>
-                <field name="app_labels"/>
-            </search>
-        </field>
-    </record>
-
     <record id="action_phase" model="ir.actions.act_window">
         <field name="name">Phases</field>
         <field name="res_model">pan.sl.phase</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_phase_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create the first phase</p>
         </field>
     </record>
 
-    <!-- Roles (map lanes) -->
+    <!-- Roles (map lanes, per project) -->
     <record id="view_role_list" model="ir.ui.view">
         <field name="name">pan.sl.role.list</field>
         <field name="model">pan.sl.role</field>
         <field name="arch" type="xml">
             <list string="Roles">
                 <field name="sequence" widget="handle"/>
+                <field name="project_id"/>
                 <field name="code"/>
                 <field name="name"/>
                 <field name="is_external"/>
                 <field name="partner_ids" widget="many2many_tags_avatar" optional="show"/>
-                <field name="activity_count" optional="show"/>
             </list>
         </field>
     </record>
@@ -163,18 +68,14 @@
         <field name="arch" type="xml">
             <form string="Role">
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_activities" type="object" class="oe_stat_button" icon="fa-tasks">
-                            <field name="activity_count" widget="statinfo" string="Activities"/>
-                        </button>
-                    </div>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1><field name="name" placeholder="e.g. Sales"/></h1>
                     </div>
                     <group>
                         <group>
-                            <field name="code" placeholder="e.g. SALES"/>
+                            <field name="project_id"/>
+                            <field name="code" placeholder="e.g. sales"/>
                         </group>
                         <group>
                             <field name="is_external"/>
@@ -199,10 +100,12 @@
         <field name="arch" type="xml">
             <search string="Roles">
                 <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
-                <field name="code"/>
+                <field name="project_id"/>
                 <field name="partner_ids"/>
-                <filter string="Internal" name="internal" domain="[('is_external', '=', False)]"/>
                 <filter string="External" name="external" domain="[('is_external', '=', True)]"/>
+                <group>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                </group>
             </search>
         </field>
     </record>
@@ -212,8 +115,9 @@
         <field name="res_model">pan.sl.role</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_role_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create the first role</p>
+            <p class="o_view_nocontent_smiling_face">Create the first role, or load the template from a project</p>
         </field>
     </record>
 </odoo>
