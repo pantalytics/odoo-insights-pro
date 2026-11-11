@@ -12,6 +12,8 @@
                 <field name="pan_role_id" options="{'no_create': True}" invisible="subtask_count"/>
                 <field name="pan_phase_id" options="{'no_create': True}" invisible="subtask_count"/>
                 <field name="pan_flow_progress" widget="progressbar" invisible="not subtask_count"/>
+                <field name="pan_summary" placeholder="One line, shown on the map"/>
+                <field name="pan_keywords" placeholder="e.g. articles, BEMET, migration"/>
             </xpath>
         </field>
     </record>
