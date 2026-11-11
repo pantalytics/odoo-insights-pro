@@ -7,11 +7,12 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloatTime } from "@web/views/fields/formatters";
-import { useSetupAction } from "@web/search/action_hook";
+import { CallbackRecorder, useSetupAction } from "@web/search/action_hook";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardViewProps } from "@web/views/standard_view_props";
+import { BlueprintTaskPanel } from "./task_panel";
 
 // The map of one project as a view type on project.task (Blueprint 2.3.1,
 // docs/ux-test-2026-11-11.md, round 5). It works like a vector map: one stage
@@ -21,7 +22,7 @@ import { standardViewProps } from "@web/views/standard_view_props";
 //   z1 Project   the burn-up (progress against the ideal line) and the bar by step
 //   z2 Flows     every flow as a bar with a one-line summary and keywords
 //   z3 Flow      the swimlane: its tasks by role and step, joined by arrows
-//   z4 Task      owner, hours, stage, first line, "Move to <next stage>"
+//   z4 Task      the task itself: Odoo's form, chatter under it, over the map
 // + and - (44 px), pinch and Ctrl/Cmd + wheel zoom; a plain wheel or swipe
 // scrolls. Clicking an element flies to it. Odoo's search bar filters every level.
 
@@ -35,6 +36,9 @@ const FLY_MS = 220;
 const SNAP_MS = 250;
 export const PROGRESS_WORDS = [_t("Open"), _t("Decided"), _t("Built"), _t("Tested"), _t("Trained"), _t("Live")];
 const ADKAR_WORDS = { low: _t("Low"), medium: _t("Medium"), high: _t("High") };
+
+/** Milestones closer than this share of the timeline (in %) merge into one tick. */
+const CLUSTER_GAP = 10;
 
 /** The zoom range of every layer (like minzoom/maxzoom in a vector tile set). */
 export const LAYERS = {
@@ -124,7 +128,7 @@ let markerCount = 0;
 export class BlueprintMapController extends Component {
     static template = "pan_self_learning_blueprint.MapView";
     static props = { ...standardViewProps };
-    static components = { Layout, SearchBar };
+    static components = { Layout, SearchBar, BlueprintTaskPanel };
 
     setup() {
         this.orm = useService("orm");
@@ -145,6 +149,7 @@ export class BlueprintMapController extends Component {
         this.arrows = useState({ width: 0, height: 0, paths: [] });
         this.markerId = `o_pan_sl_arrow_${++markerCount}`;
         this.tones = STEPS.map((rung) => ({ tone: tone(rung), label: PROGRESS_WORDS[rung] }));
+        this.taskLeave = new CallbackRecorder();
         this.root = useRef("root");
         this.stage = useRef("stage");
         this.gridArea = useRef("gridArea");
@@ -166,6 +171,7 @@ export class BlueprintMapController extends Component {
         useSetupAction({
             rootRef: this.root,
             getLocalState: () => ({ blueprintMap: this.snapshot() }),
+            beforeLeave: () => this.saveTask(),
         });
         useHotkey(
             "escape",
@@ -265,9 +271,15 @@ export class BlueprintMapController extends Component {
         }
     }
 
-    /** Zoom (animated, unless reduced motion) to a whole level. */
-    zoomTo(target, { point, flyTo } = {}) {
+    /**
+     * Zoom (animated, unless reduced motion) to a whole level. Leaving the
+     * task saves its form first; if it cannot be saved, the task stays.
+     */
+    async zoomTo(target, { point, flyTo } = {}) {
         target = clamp(Math.round(target), 0, MAX_ZOOM);
+        if (this.state.taskId && Math.min(target, this.maxZoom) < 4 && !(await this.leaveTask())) {
+            return;
+        }
         this.focusFor(target, point);
         target = Math.min(target, this.maxZoom);
         if (target < 4) {
@@ -302,6 +314,11 @@ export class BlueprintMapController extends Component {
     /** A gesture (pinch, Ctrl + wheel) moves the zoom freely; it snaps to a level when the gesture rests. */
     zoomBy(delta, point) {
         const next = clamp(this.state.zoom + delta, 0, MAX_ZOOM);
+        if (this.state.taskId && next < 3.5) {
+            // Out of the task: through zoomTo, which saves its form first.
+            this.zoomTo(3, { point });
+            return;
+        }
         if (Math.round(next) > this.level) {
             this.focusFor(Math.round(next), point);
         }
@@ -371,13 +388,36 @@ export class BlueprintMapController extends Component {
         this.zoomTo(3, { point: ev && { x: ev.clientX, y: ev.clientY }, flyTo: `[data-fly="flow"]` });
     }
 
-    flyToTask(task, ev) {
+    async flyToTask(task, ev) {
+        if (this.state.taskId && this.state.taskId !== task.id && !(await this.leaveTask())) {
+            return;
+        }
         Object.assign(this.state, { taskId: task.id, flowId: task.flow_id || false, selected: null });
         this.zoomTo(4, { point: ev && { x: ev.clientX, y: ev.clientY }, flyTo: `.o_pan_sl_chip[data-task-id="${task.id}"]` });
     }
 
     remember() {
         memory(this.projectId, this.snapshot());
+    }
+
+    /** Saves the task's form if it changed; false when the save failed. */
+    async saveTask() {
+        const results = await Promise.all(this.taskLeave.callbacks.map((callback) => callback()));
+        return !results.includes(false);
+    }
+
+    /** Saves the task in focus, then refreshes the map so it shows the change. */
+    async leaveTask() {
+        if (!(await this.saveTask())) {
+            return false;
+        }
+        await this.load(this.props);
+        return true;
+    }
+
+    /** The context a task form gets from the map: the project's. */
+    get taskContext() {
+        return { ...this.props.context, default_project_id: this.projectId };
     }
 
     /** The path so far; each crumb zooms back out to its level. */
@@ -545,7 +585,7 @@ export class BlueprintMapController extends Component {
         const from = deserializeDate(start);
         const span = Math.max(1, deserializeDate(end).diff(from, "days").days);
         const at = (date) => clamp((100 * deserializeDate(date).diff(from, "days").days) / span, 0, 100);
-        const ticks = this.state.data.milestones
+        const points = this.state.data.milestones
             .filter((milestone) => milestone.deadline)
             .map((milestone) => ({
                 id: milestone.id,
@@ -553,7 +593,35 @@ export class BlueprintMapController extends Component {
                 date: this.dayMonth(milestone.deadline),
                 at: at(milestone.deadline),
                 reached: milestone.reached,
-            }));
+            }))
+            .sort((a, b) => a.at - b.at);
+        // Generalise like a map at low zoom: milestones less than
+        // CLUSTER_GAP % of the axis apart (chained) merge into one tick ("4 milestones,
+        // 16 Nov – 1 Dec"); the names stay in the tooltip.
+        const groups = [];
+        for (const point of points) {
+            const group = groups.at(-1);
+            if (group && point.at - group.at(-1).at < CLUSTER_GAP) {
+                group.push(point);
+            } else {
+                groups.push([point]);
+            }
+        }
+        const ticks = groups.map((group) => {
+            const first = group[0];
+            const last = group.at(-1);
+            if (group.length === 1) {
+                return { ...first, title: `${first.name}, ${first.date}` };
+            }
+            return {
+                id: first.id,
+                name: _t("%s milestones", group.length),
+                date: `${first.date} – ${last.date}`,
+                at: (first.at + last.at) / 2,
+                reached: group.every((point) => point.reached),
+                title: group.map((point) => `${point.name}, ${point.date}`).join("\n"),
+            };
+        });
         const now = clamp((100 * today().diff(from, "days").days) / span, 0, 100);
         return { start: this.dayMonth(start), end: this.dayMonth(end), today: now, ticks };
     }
@@ -687,44 +755,10 @@ export class BlueprintMapController extends Component {
         return selected?.type === "role" ? data.roles.find((role) => role.id === selected.id) : null;
     }
 
-    taskFacts(task) {
-        const name = (records, id) => records.find((record) => record.id === id)?.name || _t("None");
-        const { data } = this.state;
-        return [
-            [_t("Flow"), name(data.flows, task.flow_id)],
-            [_t("Role"), name(data.roles, task.role_id)],
-            [_t("Phase"), name(data.phases, task.phase_id)],
-            [_t("Progress"), this.progressWord(task)],
-            [_t("Owners"), this.owners(task)],
-            [_t("Hours"), this.hours(task)],
-        ];
-    }
-
     /** The stage, said once: "Built", or "Review (Built)" when the stage has another name. */
     progressWord(task) {
         const word = String(PROGRESS_WORDS[task.rung]); // _t gives a lazy string
         return task.stage && task.stage !== word ? `${task.stage} (${word})` : word;
-    }
-
-    /** The project's next stage by sequence with a higher step, or nothing at the end. */
-    nextStage(task) {
-        const { stages } = this.state.data;
-        const index = stages.findIndex((stage) => stage.id === task.stage_id);
-        return stages.slice(index + 1).find((stage) => stage.rung > task.rung) || null;
-    }
-
-    moveLabel(stage) {
-        return _t("Move to %s", stage.name);
-    }
-
-    /** One step forward without leaving the map: a normal write with the user's rights, then a refresh. */
-    async moveTask(task) {
-        const stage = this.nextStage(task);
-        if (!stage) {
-            return;
-        }
-        await this.orm.write("project.task", [task.id], { stage_id: stage.id });
-        await this.load(this.props);
     }
 
     roleTraining(role) {
@@ -831,7 +865,10 @@ export class BlueprintMapController extends Component {
     }
 
     /** Opens the side panel of a role or of the tasks without a place (Close or Esc closes it). */
-    select(type, id) {
+    async select(type, id) {
+        if (this.state.taskId && !(await this.saveTask())) {
+            return;
+        }
         this.state.selected = { type, id };
     }
 

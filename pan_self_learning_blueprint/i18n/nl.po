@@ -454,8 +454,6 @@ msgid "File name"
 msgstr "Bestandsnaam"
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_list_training
 msgid "Flow"
 msgstr "Flow"
@@ -496,12 +494,6 @@ msgstr "Heeft een score onder 3"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "High"
 msgstr "Hoog"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
-msgid "Hours"
-msgstr "Uren"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_actions_act_window_view__id
@@ -651,12 +643,6 @@ msgid "Medium"
 msgstr "Middel"
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
-msgid "Move to %s"
-msgstr "Naar %s"
-
-#. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
 msgid "My scores"
 msgstr "Mijn scores"
@@ -744,12 +730,6 @@ msgid "Nobody in this role yet."
 msgstr "Nog niemand in deze rol."
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
-msgid "None"
-msgstr "Geen"
-
-#. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
 msgid "Not decided"
 msgstr "Niet besloten"
@@ -823,9 +803,9 @@ msgstr "Open"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
-msgid "Open task"
-msgstr "Taak openen"
+#: code:addons/pan_self_learning_blueprint/static/src/map/task_panel.xml:0
+msgid "Open full screen"
+msgstr "Volledig scherm"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_kanban_blueprint
@@ -837,12 +817,6 @@ msgstr "Open de kaart"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Open the map from a project."
 msgstr "Open de kaart vanuit een project."
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
-msgid "Owners"
-msgstr "Eigenaren"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -860,8 +834,6 @@ msgid "Person"
 msgstr "Persoon"
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_phase
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_phase_id
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
@@ -891,8 +863,6 @@ msgstr ""
 " naar de randen)."
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task_type__pan_rung
 msgid "Progress"
 msgstr "Voortgang"
@@ -963,7 +933,6 @@ msgstr "Borging"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_role
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_role_id
@@ -1533,3 +1502,9 @@ msgstr "naar"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "without a place"
 msgstr "zonder plek"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s milestones"
+msgstr "%s mijlpalen"

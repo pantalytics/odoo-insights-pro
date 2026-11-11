@@ -24,15 +24,11 @@ class TestMapData(BlueprintCase):
         data = self._data()
         self.assertEqual(
             set(data),
-            {"project", "milestones", "phases", "stages", "roles", "flows", "tasks", "progress_history", "ideal", "verdict", "weeks_behind"},
+            {"project", "milestones", "phases", "roles", "flows", "tasks", "progress_history", "ideal", "verdict", "weeks_behind"},
         )
         # No target date: no burn-up (tests/test_burnup.py).
         self.assertEqual((data["progress_history"], data["ideal"], data["verdict"], data["weeks_behind"]), ([], False, False, 0))
         self.assertEqual(data["milestones"], [])
-        self.assertEqual(
-            data["stages"],
-            [{"id": stage.id, "name": stage.name, "rung": int(rung)} for rung, stage in sorted(self.stages.items())],
-        )
         self.assertEqual(
             data["project"],
             {
@@ -86,13 +82,11 @@ class TestMapData(BlueprintCase):
                 "role_id": self.role_sales.id,
                 "phase_id": self.phase_a.id,
                 "flow_id": self.flow.id,
-                "stage_id": self.stages["3"].id,
                 "stage": "Test 3",
                 "rung": 3,
                 "user_names": [],
                 "planned_hours": 0.0,
                 "spent_hours": 0.0,
-                "description": False,
                 "summary": False,
                 "keywords": [],
             },
@@ -269,15 +263,11 @@ class TestMapData(BlueprintCase):
             {
                 "allocated_hours": 4.0,
                 "user_ids": [(6, 0, self.env.user.ids)],
-                "description": "<div><ol><li>Sales, New</li><li>Save</li></ol></div>",
             }
         )
         task = self._task(self._data(), self.task_a)
         self.assertEqual(task["planned_hours"], 4.0)
         self.assertEqual(task["user_names"], [self.env.user.name])
-        self.assertEqual(task["description"], "Sales, New")
-        self.task_a.description = False
-        self.assertIs(self._task(self._data(), self.task_a)["description"], False)
 
     def test_role_people_band_and_training(self):
         people = self.env["res.partner"].create([{"name": f"Person {index}"} for index in range(3)])

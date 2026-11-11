@@ -244,8 +244,9 @@ class TestMapUi(HttpCase):
         self.browser_js("/odoo/project", code, login=self.user.login)
 
     def test_fly_to_flow_and_task(self):
-        """Clicking a flow flies to its swimlane (z3); a chip flies to the task (z4) with
-        "Move to"; the breadcrumb goes back; back from the task form the map is where it was."""
+        """Clicking a flow flies to its swimlane (z3); a chip flies to the task (z4):
+        its own form, chatter under it, over the map, saved when you leave it; the
+        breadcrumb goes back; back from the full-screen form the map is where it was."""
         self.env["project.task"].create(
             {
                 "name": "UI customer step",
@@ -293,27 +294,58 @@ class TestMapUi(HttpCase):
         "steps: " + listed.join("|")
     );
 
-    // A chip flies to the task: z4, its panel, Move to the next stage.
+    // A chip flies to the task: z4, the task itself (Odoo's form, chatter under it) over the map.
     chip("UI tested task").click();
     await atZoom(4);
-    expect(layers() === "legend,swimlane,task", "z4 layers: " + layers());
+    expect(layers() === "legend,swimlane", "z4 layers: " + layers());
     expect(crumbs() === "Company › Project › Flows › UI late flow › UI tested task", "crumbs at z4: " + crumbs());
+    const panelTask = () => $(".o_pan_sl_task_panel .o_form_view .o_field_widget[name='name'] :is(input, textarea)")?.value;
+    await waitFor(() => panelTask() === "UI tested task", "the task form in the panel");
     const panel = $(".o_pan_sl_task_panel");
-    const facts = Object.fromEntries($$(".o_pan_sl_facts dt").map((dt) => [text(dt), text(dt.nextElementSibling)]));
-    const want = { Flow: "UI late flow", Role: "UI lane role", Phase: "UI phase one", Progress: "UI stage 3 (Tested)", Owners: "No owner", Hours: "0:00 spent of 4:00 planned" };
-    for (const [key, value] of Object.entries(want)) {
-        expect(facts[key] === value, key + " reads " + facts[key]);
-    }
-    expect(text(panel.querySelector(".o_pan_sl_description")) === "First line of the UI task", "description");
-    expect(panel.getBoundingClientRect().left >= $(".o_pan_sl_stage").getBoundingClientRect().right - 1, "the panel covers the stage");
-    expect($(".o_pan_sl_zoom_in").disabled, "+ at z4");
-    $(".o_pan_sl_move").click();
-    await waitFor(() => chip("UI tested task").querySelector(".o_pan_sl_tone_s4"), "the chip is not Trained after the move");
-    expect(!$(".o_pan_sl_move"), "a move past the last stage is offered");
+    await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+    const sheet = await waitFor(() => panel.querySelector(".o_form_sheet_bg"), "form sheet");
+    const chatter = await waitFor(() => panel.querySelector(".o-mail-Form-chatter"), "chatter in the panel");
+    expect(chatter.getBoundingClientRect().top >= sheet.getBoundingClientRect().bottom - 1, "the chatter is not under the form");
+    expect(text(panel.querySelector(".o_field_widget[name='description']")).includes("First line of the UI task"), "description");
+    const over = panel.getBoundingClientRect();
+    const stage = $(".o_pan_sl_stage").getBoundingClientRect();
+    expect(over.left < stage.right - 1 && Math.abs(over.right - stage.right) < 2, "the panel does not slide over the map");
+    expect($(".o_breadcrumb").textContent.includes("UI map project"), "the form renamed the map's breadcrumb");
+    expect(!$(".o_pan_sl_zoom"), "zoom buttons over the task form");
 
-    // Open task, then back: still at z4 on that task.
-    $(".o_pan_sl_task_panel .btn-primary").click();
-    await waitFor(() => $(".o_form_view"), "task form");
+    // A change is saved when the panel closes (zooming out to z3), and the chip follows.
+    const name = $(".o_pan_sl_task_panel .o_field_widget[name='name'] :is(input, textarea)");
+    name.value = "UI tested task renamed";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    name.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(0); // a person's click comes after the change, not in the same tick
+    $(".o_pan_sl_task_panel .o_pan_sl_close").click();
+    await atZoom(3);
+    await waitFor(() => !$(".o_pan_sl_task_panel") && chip("UI tested task renamed"), "the map does not show the saved name");
+
+    // The stage moves in the form's own status bar; the chip follows when leaving the task.
+    chip("UI tested task renamed").click();
+    await atZoom(4);
+    await waitFor(() => panelTask() === "UI tested task renamed", "the renamed task form");
+    const next = await waitFor(
+        () => $$(".o_pan_sl_task_panel .o_statusbar_status button").find((el) => text(el).startsWith("UI stage 4")),
+        "stage 4 in the status bar"
+    );
+    next.click();
+    await waitFor(
+        () => $(".o_pan_sl_task_panel .o_statusbar_status button.o_arrow_button_current")?.textContent.includes("UI stage 4"),
+        "stage 4 current"
+    );
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await atZoom(3);
+    await waitFor(() => chip("UI tested task renamed")?.querySelector(".o_pan_sl_tone_s4"), "the chip is not Trained");
+
+    // Full screen, then back: still at z4 on that task.
+    chip("UI tested task renamed").click();
+    await atZoom(4);
+    await waitFor(() => panelTask() === "UI tested task renamed", "panel");
+    $(".o_pan_sl_expand").click();
+    await waitFor(() => $(".o_form_view") && !$(".o_pan_sl_map"), "task form full screen");
     (await waitFor(() => $$(".o_breadcrumb a").find((el) => text(el).includes("UI map project")), "breadcrumb to the map")).click();
     await waitFor(() => $(".o_pan_sl_task_panel") && zoom() === 4, "back at z4");
 

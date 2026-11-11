@@ -96,6 +96,7 @@
     }
 
     .o_pan_sl_viewport {
+        position: relative;
         display: flex;
         flex: 1 1 0;
         min-height: 0;
@@ -185,8 +186,12 @@
     .o_pan_sl_brief {
         max-width: 48rem;
         margin: 0 auto;
-        text-align: left;
+        text-align: center;
         color: var(--pan-muted);
+
+        .o_pan_sl_brief_text {
+            text-align: left;
+        }
     }
 
     .o_pan_sl_brief_more {
@@ -792,21 +797,57 @@
         stroke-linejoin: round;
     }
 
-    // Side panel: docked at the right, it narrows the stage, never covers it.
+    // Side panel: slides in from the right over the stage; the map keeps
+    // its size underneath.
     .o_pan_sl_panel {
-        flex: none;
+        position: absolute;
+        inset: 0 0 0 auto;
+        z-index: 4;
         width: 21rem;
+        max-width: 100%;
         overflow-y: auto;
         padding: 1rem 1rem 4.5rem;
         border-left: 1px solid var(--pan-border);
         background: var(--pan-bg);
+        box-shadow: -0.5rem 0 1.5rem rgba(0, 0, 0, 0.12);
+        animation: o_pan_sl_slide_in 0.18s ease-out;
     }
 
-    .o_pan_sl_task_summary {
-        font-weight: 500;
+    @keyframes o_pan_sl_slide_in {
+        from {
+            transform: translateX(2rem);
+            opacity: 0;
+        }
+        to {
+            transform: none;
+            opacity: 1;
+        }
     }
 
-    .o_pan_sl_description {
+    // The task panel holds Odoo's own task form, chatter under it.
+    .o_pan_sl_task_panel {
+        display: flex;
+        flex-direction: column;
+        width: 56rem;
+        padding: 0;
+        overflow: hidden;
+
+        > .o_pan_sl_task_form {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+    }
+
+    .o_pan_sl_panel_bar {
+        display: flex;
+        flex: none;
+        justify-content: flex-end;
+        border-bottom: 1px solid var(--pan-border);
+    }
+
+    .o_pan_sl_expand {
+        min-width: 44px;
+        min-height: 44px;
         color: var(--pan-muted);
     }
 
@@ -828,25 +869,8 @@
         color: var(--pan-muted);
     }
 
-    .o_pan_sl_move,
     .o_pan_sl_training {
         min-height: var(--pan-tap);
-    }
-
-    .o_pan_sl_facts {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 0.25rem 0.75rem;
-        margin-bottom: 0.75rem;
-
-        dt {
-            font-weight: 400;
-            color: var(--pan-muted);
-        }
-
-        dd {
-            margin: 0;
-        }
     }
 
     // Phones: a flow's steps above its swimlane, the panel as a bottom sheet.
@@ -907,12 +931,25 @@
             border: 1px solid var(--pan-border);
             border-radius: 0.75rem 0.75rem 0 0;
         }
+
+        // The task full screen, as Odoo shows a form on a phone.
+        .o_pan_sl_task_panel {
+            inset: 0;
+            z-index: 1040;
+            max-height: none;
+            border: 0;
+            border-radius: 0;
+        }
     }
 
     @media (prefers-reduced-motion: reduce) {
         .o_pan_sl_lod,
         .o_pan_sl_grid_wrap::after {
             transition: none;
+        }
+
+        .o_pan_sl_panel {
+            animation: none;
         }
     }
 }

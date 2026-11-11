@@ -196,10 +196,6 @@ class ProjectProject(models.Model):
                 for milestone in milestones
             ],
             "phases": [{"id": phase.id, "code": phase.code, "name": phase.name} for phase in phases],
-            "stages": [
-                {"id": stage.id, "name": stage.name, "rung": int(stage.pan_rung or 0)}
-                for stage in self.type_ids.sorted(lambda stage: (stage.sequence, stage.id))
-            ],
             "roles": [
                 {
                     "id": role.id,
@@ -220,13 +216,11 @@ class ProjectProject(models.Model):
                     "role_id": task.pan_role_id.id,
                     "phase_id": task.pan_phase_id.id,
                     "flow_id": task.parent_id.id if task.parent_id in flows else False,
-                    "stage_id": task.stage_id.id,
                     "stage": task.stage_id.name or False,
                     "rung": int(task.pan_rung or 0),
                     "user_names": task.user_ids.mapped("name"),
                     "planned_hours": task.allocated_hours,
                     "spent_hours": task.effective_hours,
-                    "description": self._blueprint_first_line(task.description),
                     "summary": task.pan_summary or False,
                     "keywords": _keywords(task.pan_keywords),
                 }
