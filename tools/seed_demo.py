@@ -95,6 +95,6 @@ flows = env["project.task"].search(
 )
 for index, flow in enumerate(flows):
     flow.date_deadline = today + timedelta(days=-5 if index % 3 == 0 else 14 + index)
-env["project.task"].search([("project_id", "=", project.id), ("user_ids", "=", False)]).user_ids = env.user
+env["project.task"].search([("project_id", "=", project.id), ("user_ids", "=", False)]).user_ids = env.ref("base.user_admin")
 env.cr.commit()
 print("seeded", env["project.task"].search_count([("project_id", "=", project.id)]), "tasks")
