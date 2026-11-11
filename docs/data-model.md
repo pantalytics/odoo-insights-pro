@@ -20,7 +20,7 @@ erDiagram
 |---|---|
 | Map | One project: the "Map" view (type `pan_blueprint`) of the project's tasks, next to Kanban and List, with Odoo's search bar. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
-| Activity / work | A task with a role and a phase: one chip on the map. |
+| Activity / work | A task with a role and a phase: one chip on the map. A chip opens the task itself, Odoo's own task form with its chatter under it, in a panel that slides over the map; a change is saved when the panel closes. |
 | Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows four colours: grey Not started (Open), amber In progress (Decided, Built), green Tested, dark green Trained (Trained, Live). |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
@@ -53,6 +53,11 @@ Removed in 2.1: the phase's Odoo apps (`app_labels`, no app chips any more),
 `unplaced_count` and `action_blueprint_unplaced_tasks` (the map lists tasks
 without a place itself), the Company map menu (Projects > Map and
 Projects > Configuration instead).
+
+Changed in 2.3.2: the task panel is the task's own form (status bar, fields,
+chatter under it) instead of a summary with "Move to" and "Open task"; the
+map data no longer carries `stages`, nor a task's `stage_id` and
+`description`.
 
 Removed in 2.0: chains, processes, activities, scenarios and scenario steps,
 choice state, open point, Odoo model link. Production held only template
@@ -98,7 +103,6 @@ project returns:
   "milestones": [{"id": 2, "name": "Go-live", "deadline": "2026-12-11" | false,
                   "reached": false}],
   "phases": [{"id": 1, "code": "quotation", "name": "Quotation"}],
-  "stages": [{"id": 7, "name": "Built", "rung": 2}],
   "roles":  [{"id": 3, "code": "sales", "name": "Sales", "is_external": false,
               "people": ["Name"], "adkar": "low" | "medium" | "high" | false,
               "open_training_task_ids": [1300]}],
@@ -107,9 +111,8 @@ project returns:
               "days_late": 5, "open_count": 2,
               "task_ids": [1300, 1301]}],
   "tasks":  [{"id": 1300, "name": "...", "role_id": 3 | false, "phase_id": 1 | false,
-              "flow_id": 1245 | false, "stage_id": 7 | false, "stage": "Built" | false, "rung": 2,
-              "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5,
-              "description": "first line or false"}]
+              "flow_id": 1245 | false, "stage": "Built" | false, "rung": 2,
+              "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5}]
 }
 ```
 
@@ -120,10 +123,7 @@ project returns:
   always known from all tasks, so a domain on the flow itself does not hide
   its tasks. `order` (optional) orders `tasks`; `task_ids` keep the sequence.
 - `milestones`: the project's milestones, by deadline (undated last).
-- `phases`: all phases, by sequence. `stages`: the project's stages by
-  sequence, with their step; the task panel's "Move to <stage>" button
-  writes the next one with a higher step to the task's `stage_id`, as an
-  ordinary write with the user's rights. `roles`: the project's roles, by
+- `phases`: all phases, by sequence. `roles`: the project's roles, by
   sequence. `people`: names of the role's contacts. `open_training_task_ids`:
   the role's tasks below Trained (rung < 4), the same list for each person.
 - `flows`: parent tasks of the project that have subtasks, worst first:

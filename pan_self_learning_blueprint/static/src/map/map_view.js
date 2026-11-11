@@ -7,18 +7,20 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloatTime } from "@web/views/fields/formatters";
-import { useSetupAction } from "@web/search/action_hook";
+import { CallbackRecorder, useSetupAction } from "@web/search/action_hook";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardViewProps } from "@web/views/standard_view_props";
+import { BlueprintTaskPanel } from "./task_panel";
 
 // The map of one project as a view type on project.task (Blueprint 2.3,
 // docs/ux-test-2026-11-11.md). Odoo's search bar filters the tasks; on top an
 // overview band answers five questions; below, the flows (worst first) and a
 // plain grid of phases (columns) by roles (rows) with a chip per task.
 // Clicking a flow shows it as a swimlane: only its tasks, joined by arrows in
-// task order, like the client's swimlane charts.
+// task order, like the client's swimlane charts. A chip opens the task
+// itself, Odoo's own form with its chatter, in a panel over the map.
 
 export const MAP_VIEW_TYPE = "pan_blueprint";
 const USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user";
@@ -126,7 +128,7 @@ let markerCount = 0;
 export class BlueprintMapController extends Component {
     static template = "pan_self_learning_blueprint.MapView";
     static props = { ...standardViewProps };
-    static components = { Layout, SearchBar };
+    static components = { Layout, SearchBar, BlueprintTaskPanel };
 
     setup() {
         this.orm = useService("orm");
@@ -146,6 +148,7 @@ export class BlueprintMapController extends Component {
             { tone: "ok", label: _t("Tested") },
             { tone: "done", label: _t("Trained or Live") },
         ];
+        this.taskLeave = new CallbackRecorder();
         this.root = useRef("root");
         this.gridArea = useRef("gridArea");
         this.grid = useRef("grid");
@@ -172,8 +175,9 @@ export class BlueprintMapController extends Component {
         useSetupAction({
             rootRef: this.root,
             getLocalState: () => ({ blueprintMap: { flowId: this.state.flowId } }),
+            beforeLeave: () => this.saveTask(),
         });
-        useHotkey("escape", () => (this.state.selected = null), {
+        useHotkey("escape", () => this.closePanel(), {
             bypassEditableProtection: true,
             isAvailable: () => Boolean(this.state.selected),
         });
@@ -491,48 +495,10 @@ export class BlueprintMapController extends Component {
         return selected?.type === "role" ? data.roles.find((role) => role.id === selected.id) : null;
     }
 
-    taskFacts(task) {
-        const name = (records, id) => records.find((record) => record.id === id)?.name || _t("None");
-        const { data } = this.state;
-        return [
-            [_t("Flow"), name(data.flows, task.flow_id)],
-            [_t("Role"), name(data.roles, task.role_id)],
-            [_t("Phase"), name(data.phases, task.phase_id)],
-            [_t("Progress"), this.progressWord(task)],
-            [_t("Owners"), this.owners(task)],
-            [_t("Hours"), this.hours(task)],
-        ];
-    }
-
     /** The stage, said once: "Built", or "Review (Built)" when the stage has another name. */
     progressWord(task) {
         const word = String(PROGRESS_WORDS[task.rung]); // _t gives a lazy string
         return task.stage && task.stage !== word ? `${task.stage} (${word})` : word;
-    }
-
-    /** The project's next stage by sequence with a higher step, or nothing at the end. */
-    nextStage(task) {
-        const { stages } = this.state.data;
-        const index = stages.findIndex((stage) => stage.id === task.stage_id);
-        return stages.slice(index + 1).find((stage) => stage.rung > task.rung) || null;
-    }
-
-    moveLabel(stage) {
-        return _t("Move to %s", stage.name);
-    }
-
-    /** One step forward without leaving the map: a normal write with the user's rights, then a refresh. */
-    async moveTask(task) {
-        const stage = this.nextStage(task);
-        if (!stage) {
-            return;
-        }
-        await this.orm.write("project.task", [task.id], { stage_id: stage.id });
-        await this.load(this.props, this.state.flowId);
-    }
-
-    firstLine(text) {
-        return (text || "").trim().split("\n")[0];
     }
 
     roleTraining(role) {
@@ -630,9 +596,41 @@ export class BlueprintMapController extends Component {
         rememberedFlow(this.projectId, false);
     }
 
-    /** Opens the panel of a task or role; a tap never closes it (Close or Esc does). */
-    select(type, id) {
-        this.state.selected = { type, id };
+    /**
+     * Opens the panel of a task or role; a tap never closes it (Close or Esc
+     * does). A changed task is saved first; if it cannot be, its form stays.
+     */
+    async select(type, id) {
+        const { selected } = this.state;
+        if (selected?.type === type && selected.id === id) {
+            return;
+        }
+        if (await this.saveTask()) {
+            this.state.selected = { type, id };
+        }
+    }
+
+    /** Saves the task of the panel if it changed; false when the save failed. */
+    async saveTask() {
+        const results = await Promise.all(this.taskLeave.callbacks.map((callback) => callback()));
+        return !results.includes(false);
+    }
+
+    /** Closes the panel; the map then shows what changed in the task. */
+    async closePanel() {
+        const wasTask = this.state.selected?.type === "task";
+        if (!(await this.saveTask())) {
+            return;
+        }
+        this.state.selected = null;
+        if (wasTask) {
+            await this.load(this.props, this.state.flowId);
+        }
+    }
+
+    /** The context a task form gets from the map: the project's. */
+    get taskContext() {
+        return { ...this.props.context, default_project_id: this.projectId };
     }
 
     async onTraining() {

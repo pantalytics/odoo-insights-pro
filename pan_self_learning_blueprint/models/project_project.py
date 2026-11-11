@@ -1,15 +1,9 @@
-from lxml import html as lxml_html
-
 from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.tools import html2plaintext
 
 from .ir_ui_view import MAP_VIEW_TYPE
 from .project_task import USER_GROUP
 from .structure import CANCELLED_STATE, TESTED_RUNG, TRAINED_RUNG
-
-# Block elements whose text counts as one line of a description.
-_LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
 
 
 class ProjectProject(models.Model):
@@ -143,10 +137,6 @@ class ProjectProject(models.Model):
                 for milestone in milestones
             ],
             "phases": [{"id": phase.id, "code": phase.code, "name": phase.name} for phase in phases],
-            "stages": [
-                {"id": stage.id, "name": stage.name, "rung": int(stage.pan_rung or 0)}
-                for stage in self.type_ids.sorted(lambda stage: (stage.sequence, stage.id))
-            ],
             "roles": [
                 {
                     "id": role.id,
@@ -167,13 +157,11 @@ class ProjectProject(models.Model):
                     "role_id": task.pan_role_id.id,
                     "phase_id": task.pan_phase_id.id,
                     "flow_id": task.parent_id.id if task.parent_id in flows else False,
-                    "stage_id": task.stage_id.id,
                     "stage": task.stage_id.name or False,
                     "rung": int(task.pan_rung or 0),
                     "user_names": task.user_ids.mapped("name"),
                     "planned_hours": task.allocated_hours,
                     "spent_hours": task.effective_hours,
-                    "description": self._blueprint_first_line(task.description),
                 }
                 for task in work
             ],
@@ -197,25 +185,6 @@ class ProjectProject(models.Model):
                 "default_project_id": self.id,
             },
         }
-
-    def _blueprint_first_line(self, html):
-        """First line of an HTML description as plain text, ``False`` when empty."""
-        if not html or not html2plaintext(html).strip():
-            return False
-        root = lxml_html.fragment_fromstring(str(html), create_parent="div")
-        for element in root.iter(*_LINE_TAGS):
-            if element is root:
-                continue
-            # Skip wrappers whose text lives in nested blocks (e.g. a div around a list).
-            if any(child.tag in _LINE_TAGS + ("ol", "ul") for child in element):
-                continue
-            text = " ".join(element.text_content().split())
-            if text:
-                return text
-        for line in html2plaintext(html).splitlines():
-            if line.strip():
-                return line.strip()
-        return False
 
     # ------------------------------------------------------------------
     # Blueprint buttons (managers, project form header)

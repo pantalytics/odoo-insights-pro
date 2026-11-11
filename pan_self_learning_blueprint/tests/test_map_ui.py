@@ -32,6 +32,13 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const text = (el) => (el ? el.textContent : "").replace(/\\s+/g, " ").trim();
 const lines = (el) => el.innerText.split("\\n").map((line) => line.trim()).filter(Boolean).join(" / ");
 const chip = (name) => $$(".o_pan_sl_chip").find((el) => text(el) === name);
+// The task in the panel is Odoo's own form; its name field says which task.
+// Waits for the panel to finish sliding in before measuring it.
+const settled = async (panel) => {
+    await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+    return panel;
+};
+const panelTask = () => $(".o_pan_sl_task_panel .o_form_view .o_field_widget[name='name'] :is(input, textarea)")?.value;
 const chips = () => $$(".o_pan_sl_chip").map(text).sort().join("|");
 const answer = (key) => $(".o_pan_sl_answer_" + key);
 const answerText = (key) => lines(answer(key));
@@ -314,15 +321,15 @@ class TestMapUi(HttpCase):
 
     // The chip panel at the flow level.
     chip("UI tested task").click();
-    const panel = await waitFor(() => $(".o_pan_sl_task_panel"), "task panel at the flow level");
-    expect(text(panel.querySelector(".o_pan_sl_panel_title")) === "UI tested task", "panel title");
+    await waitFor(() => panelTask() === "UI tested task", "task form at the flow level");
     document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await waitFor(() => !$(".o_pan_sl_panel"), "panel closed");
 
     // Back from a task form: the flow is still open, highlighted and in view.
     chip("UI open task").click();
-    (await waitFor(() => $(".o_pan_sl_task_panel .btn-primary"), "Open task")).click();
-    await waitFor(() => $(".o_form_view"), "task form");
+    await waitFor(() => panelTask() === "UI open task", "task form in the panel");
+    $(".o_pan_sl_expand").click();
+    await waitFor(() => $(".o_form_view") && !$(".o_pan_sl_map"), "task form full screen");
     (await waitFor(() => $$(".o_breadcrumb a").find((el) => text(el).includes("UI map project")), "breadcrumb to the map")).click();
     await waitFor(() => $(".o_pan_sl_crumbs") && $(".o_pan_sl_flow[aria-pressed='true']"), "flow kept after the form");
     const kept = $(".o_pan_sl_flow[aria-pressed='true']").getBoundingClientRect();
@@ -345,8 +352,8 @@ class TestMapUi(HttpCase):
         self.browser_js("/odoo/project", code, login=self.user.login)
 
     def test_panels(self):
-        """A chip opens the task panel with Open task; a role name opens its people and training."""
-        self.env["project.task.type"].search([("name", "=", "UI stage 1")]).name = "Decided"
+        """A chip opens the task itself (Odoo's form, chatter under it) over the
+        map, saved on close; a role name opens its people and training."""
         code = WAIT_JS + """
 (async () => {
     await openMap();
@@ -359,44 +366,54 @@ class TestMapUi(HttpCase):
     expect(training === "UI lone task|UI open task|UI tested task", "to train on: " + training);
     expect(text(role.querySelector(".o_pan_sl_role_adkar")) === "Needs three scored people", "role ADKAR");
 
-    // Task panel: the facts, the first line, one primary button in the map.
+    // Task panel: the task itself, Odoo's form, chatter under it, over the map.
     chip("UI tested task").click();
-    const panel = await waitFor(() => $(".o_pan_sl_task_panel"), "task panel");
+    const panel = await settled(await waitFor(() => panelTask() === "UI tested task" && $(".o_pan_sl_task_panel"), "task form in the panel"));
     expect(!$(".o_pan_sl_role_panel"), "two panels open");
-    expect(text(panel.querySelector(".o_pan_sl_panel_title")) === "UI tested task", "panel title");
-    const facts = Object.fromEntries($$(".o_pan_sl_facts dt").map((dt) => [text(dt), text(dt.nextElementSibling)]));
-    const want = { Flow: "UI late flow", Role: "UI lane role", Phase: "UI phase one", Progress: "UI stage 3 (Tested)", Owners: "No owner", Hours: "0:00 spent of 4:00 planned" };
-    for (const [key, value] of Object.entries(want)) {
-        expect(facts[key] === value, key + " reads " + facts[key]);
-    }
-    expect(text(panel.querySelector(".o_pan_sl_description")) === "First line of the UI task", "description");
-    const primary = $$(".o_pan_sl_map .o_content .btn-primary");
-    expect(primary.length === 1 && text(primary[0]) === "Open task", "primary buttons: " + primary.length);
+    const sheet = await waitFor(() => panel.querySelector(".o_form_sheet_bg"), "form sheet");
+    const chatter = await waitFor(() => panel.querySelector(".o-mail-Form-chatter"), "chatter in the panel");
+    expect(chatter.getBoundingClientRect().top >= sheet.getBoundingClientRect().bottom - 1, "the chatter is not under the form");
+    expect(text(panel.querySelector(".o_field_widget[name='description']")).includes("First line of the UI task"), "description");
+    const box = panel.getBoundingClientRect();
+    const content = $(".o_pan_sl_map .o_content").getBoundingClientRect();
+    expect(box.left < $(".o_pan_sl_grid_wrap").getBoundingClientRect().right && Math.abs(box.right - content.right) < 2, "the panel does not slide over the map ");
+    expect(Math.abs(box.top - content.top) < 2, "the panel does not cover the overview band");
+    expect($(".o_breadcrumb").textContent.includes("UI map project"), "the form renamed the map's breadcrumb");
+    expect($(".o_pan_sl_close").getBoundingClientRect().height >= 44, "close button under 44 px");
     document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await waitFor(() => !$(".o_pan_sl_panel"), "panel closed after Escape");
 
-    // A stage named after its step is said once.
+    // A change in the form is saved when the panel closes, and the map follows.
     chip("UI lone task").click();
-    await waitFor(() => text($(".o_pan_sl_task_panel .o_pan_sl_panel_title")) === "UI lone task", "lone task panel");
-    const progress = $$(".o_pan_sl_facts dt").find((dt) => text(dt) === "Progress").nextElementSibling;
-    expect(text(progress) === "Decided", "progress reads " + text(progress));
-    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    await waitFor(() => !$(".o_pan_sl_panel"), "panel closed");
+    await waitFor(() => panelTask() === "UI lone task", "lone task form");
+    const name = $(".o_pan_sl_task_panel .o_field_widget[name='name'] :is(input, textarea)");
+    name.value = "UI lone task renamed";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    name.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve)); // a person's click comes after the change, not in the same tick
+    $(".o_pan_sl_close").click();
+    await waitFor(() => !$(".o_pan_sl_panel") && chip("UI lone task renamed"), "the map does not show the saved name");
 
-    // The panel docks beside the chart; one tap moves a task to the next stage.
+    // The stage moves in the form's own status bar; the chip follows on close.
+    chip("UI lone task renamed").click();
+    await waitFor(() => panelTask() === "UI lone task renamed", "renamed task form");
+    const stage = await waitFor(
+        () => $$(".o_pan_sl_task_panel .o_statusbar_status button").find((el) => text(el).startsWith("UI stage 4")),
+        "stage 4 in the status bar"
+    );
+    stage.click();
+    await waitFor(
+        () => $(".o_pan_sl_task_panel .o_statusbar_status button.o_arrow_button_current")?.textContent.includes("UI stage 4"),
+        "stage 4 current"
+    );
+    $(".o_pan_sl_close").click();
+    await waitFor(() => !$(".o_pan_sl_panel") && chip("UI lone task renamed")?.querySelector(".o_pan_sl_tone_done"), "the chip is not Trained");
+
+    // Expand opens the task full screen, as Odoo does.
     chip("UI tested task").click();
-    const docked = (await waitFor(() => $(".o_pan_sl_task_panel"), "panel")).getBoundingClientRect();
-    expect(docked.left >= $(".o_pan_sl_grid_wrap").getBoundingClientRect().right - 1, "the panel covers the chart");
-    expect($(".o_pan_sl_close").getBoundingClientRect().height >= 44, "close button under 44 px");
-    const move = $(".o_pan_sl_move");
-    expect(move && text(move) === "Move to UI stage 4", "move button: " + (move && text(move)));
-    move.click();
-    await waitFor(() => chip("UI tested task").querySelector(".o_pan_sl_tone_done"), "the chip is not Trained after the move");
-    const moved = $$(".o_pan_sl_facts dt").find((dt) => text(dt) === "Progress").nextElementSibling;
-    expect(text(moved) === "UI stage 4 (Trained)", "progress after the move: " + text(moved));
-    expect(!$(".o_pan_sl_move"), "a move past the last stage is offered");
-    (await waitFor(() => $(".o_pan_sl_task_panel .btn-primary"), "Open task")).click();
-    await waitFor(() => $(".o_form_view") && text($(".o_breadcrumb")).includes("UI tested task"), "task form");
+    await waitFor(() => panelTask() === "UI tested task", "panel");
+    $(".o_pan_sl_expand").click();
+    await waitFor(() => $(".o_form_view") && !$(".o_pan_sl_map") && text($(".o_breadcrumb")).includes("UI tested task"), "task form");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
@@ -438,9 +455,9 @@ class TestMapUi(HttpCase):
     last.scrollIntoView({ block: "end" });
     await new Promise((resolve) => setTimeout(resolve, 100));
     last.click();
-    const panel = await waitFor(() => $(".o_pan_sl_task_panel"), "task panel from a low chip");
-    expect(text(panel.querySelector(".o_pan_sl_panel_title")) === "UI tall task 11", "panel title");
-    expect(inView(panel), "the panel opened out of view");
+    await waitFor(() => panelTask() === "UI tall task 11", "task form from a low chip");
+    const panel = await settled($(".o_pan_sl_task_panel"));
+    expect(inView(panel), "the panel opened out of view ");
 
     // From the side list first, then the same task in the grid (the flow's swimlane): the panel stays open.
     $$(".o_pan_sl_flow")[0].click();
@@ -449,10 +466,10 @@ class TestMapUi(HttpCase):
         "listed task"
     );
     listed.click();
-    await waitFor(() => text($(".o_pan_sl_task_panel .o_pan_sl_panel_title")) === "UI open task", "panel from the list");
+    await waitFor(() => panelTask() === "UI open task", "panel from the list");
     chip("UI open task").click();
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect($(".o_pan_sl_task_panel .o_pan_sl_panel_title") && text($(".o_pan_sl_task_panel .o_pan_sl_panel_title")) === "UI open task", "a second tap closed the panel");
+    expect(panelTask() === "UI open task", "a second tap closed the panel");
 
     // Fix 7: eight phase columns do not fit; the right edge fades until scrolled to the end.
     $(".o_pan_sl_crumb").click();

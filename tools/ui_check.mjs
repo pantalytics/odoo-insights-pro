@@ -18,7 +18,8 @@
 //   only its placed tasks, N-1 arrows running left to right
 //   ending at their chips, a breadcrumb "Map > flow"; its open tasks (in view,
 //   with hours) are listed right under it and announced; tapping again goes back;
-// - the task panel has exactly one primary button, "Open task"; Esc closes it;
+// - a chip opens the task itself (Odoo's form, chatter under it) sliding over
+//   the map (full screen on a phone); Esc closes it;
 //   the last chip of the grid (bottom right) opens a panel that is in view;
 // - the grid fades at the right edge while it can scroll sideways;
 // - the "Training" answer counts the internal roles' tasks and opens the
@@ -281,16 +282,20 @@ async function checkPanels(page, out, viewport, data) {
         await chip.click();
         const panel = page.locator(".o_pan_sl_task_panel");
         await panel.waitFor({ timeout: TIMEOUT });
-        const docked = await page.evaluate(() => {
+        // The task itself: Odoo's form, its chatter under it, sliding over the map.
+        await panel.locator(".o_form_view .o-mail-Form-chatter").waitFor({ timeout: TIMEOUT });
+        await panel.evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+        const layout = await page.evaluate(() => {
             const panel = document.querySelector(".o_pan_sl_task_panel").getBoundingClientRect();
-            return panel.left >= document.querySelector(".o_pan_sl_grid_wrap").getBoundingClientRect().right - 1;
+            const content = document.querySelector(".o_pan_sl_map .o_content").getBoundingClientRect();
+            const sheet = document.querySelector(".o_pan_sl_task_panel .o_form_sheet_bg").getBoundingClientRect();
+            const chatter = document.querySelector(".o_pan_sl_task_panel .o-mail-Form-chatter").getBoundingClientRect();
+            return { over: Math.abs(panel.right - content.right) < 2, chatterBelow: chatter.top >= sheet.bottom - 1 };
         });
-        check(viewport.name === "phone" || docked, `${viewport.name}: the task panel covers the chart.`);
-        const primary = await page.locator(".o_pan_sl_map .o_content .btn-primary").allTextContents();
-        check(primary.length === 1 && primary[0].trim() === "Open task", `${viewport.name}: primary buttons: ${primary.join(", ")}`);
-        const facts = await panel.locator("dt").allTextContents();
-        check(facts.join("|") === "Flow|Role|Phase|Progress|Owners|Hours", `${viewport.name}: task facts ${facts.join("|")}`);
+        check(viewport.name === "phone" || layout.over, `${viewport.name}: the task panel does not slide over the map.`);
+        check(layout.chatterBelow, `${viewport.name}: the chatter is not under the task form.`);
         await shot(page, out, viewport, "3_task_panel");
+        await page.mouse.move(0, 0); // a tooltip under the pointer would take the first Escape, as anywhere in Odoo
         await page.keyboard.press("Escape");
         await panel.waitFor({ state: "detached", timeout: TIMEOUT });
 
@@ -302,6 +307,7 @@ async function checkPanels(page, out, viewport, data) {
         const box = await panel.boundingBox();
         check(box && box.y >= 0 && box.y + Math.min(box.height, 200) <= viewport.height, `${viewport.name}: the panel of the last chip is out of view.`);
         await shot(page, out, viewport, "3b_last_chip_panel");
+        await page.mouse.move(0, 0);
         await page.keyboard.press("Escape");
         await panel.waitFor({ state: "detached", timeout: TIMEOUT });
     }
