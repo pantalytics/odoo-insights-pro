@@ -100,14 +100,16 @@ task; the company map is another view on the tasks of one project
 
 ### What it does
 
-- **A project is a map.** Its roles are the lanes, the shared phases (with
-  their Odoo apps) the columns. A task with a role and a phase is one chip.
+- **A project is a map.** Its roles are the rows, the shared phases the
+  columns. A task with a role and a phase is one chip.
 - **Flows.** A parent task is a flow (a test scenario); its subtasks are the
   route. Its Tested % is the share of subtasks at Tested or further; archived
   subtasks count, cancelled ones do not.
-- **Progress.** Every task has a progress: Open, Decided, Built, Tested,
-  Trained, Live. Choices are discussed in the task chatter, click paths live
-  in the description, hours are the task's allocated hours and timesheets.
+- **Progress is the stage.** Every stage carries a progress step: Open,
+  Decided, Built, Tested, Trained, Live; a task's progress is its stage's,
+  so the kanban and the map agree. Choices are discussed in the task chatter,
+  click paths live in the description, hours are the task's allocated hours
+  and timesheets.
 - **People.** Roles list their people as contacts, so people without a login
   count too. ADKAR scores are personal: users see only their own,
   administrators see all. A role shows one band (high, medium or low) once
@@ -122,19 +124,24 @@ task; the company map is another view on the tasks of one project
 2. Install **Odoo Self Learning: Blueprint**. It depends on `project`,
    `hr_timesheet`, `mail` and `web`.
 3. Under **Settings, Users**: *Blueprint / User* opens maps, sets role, phase
-   and progress on tasks and reads their own ADKAR scores; *Blueprint /
+   and stage on tasks and reads their own ADKAR scores; *Blueprint /
    Administrator* edits phases and roles, sees all scores and loads, imports
    or exports. System administrators get Administrator.
 
 ### Use
 
-- Open a project and press **Map**. Tasks without a role or a phase are not
-  on the map; the map links to them.
+- **Projects, Map** opens the map (with several mapped projects, pick one
+  first). A project's form and kanban card have a **Map** button too. Tasks
+  without a role or a phase are not on the grid; their flow lists them.
 - On the project form (administrators): **Load template** fills the project
-  from the bundled template (again: only what is empty), **Import** reads a
-  blueprint file, **Export** downloads `blueprint.json`.
-- **Projects, Company map** holds the shared phases, the roles of all
+  from the bundled template and gives it the six progress stages (again: only
+  what is empty), **Import** reads a blueprint file, **Export** downloads
+  `blueprint.json`.
+- **Projects, Configuration** holds the shared phases, the roles of all
   projects and the ADKAR scores.
+
+Upgrading to 2.1 resets every task's progress to Open (it now follows the
+stage); load the template again to give a project the six progress stages.
 
 Upgrading from 1.x removes chains, processes, activities and scenarios and
 the shared roles; load the template in a project to get them back as tasks.
@@ -144,10 +151,11 @@ the shared roles; load the template in a project to get them back as tasks.
 Over MCP, XML-RPC or JSON-RPC, as a Blueprint user unless noted:
 
 - **Read the picture**: `project.project.get_blueprint_map_data()` on one
-  project returns phases, roles, flows, tasks and the number of tasks not on
-  the map (contract in `docs/data-model.md`).
-- **Move progress**: write `pan_rung` (`"0"`..`"5"`), `pan_role_id` and
-  `pan_phase_id` on `project.task`.
+  project returns phases, roles (with people and open training), flows (worst
+  first, with deadline) and every task (contract in `docs/data-model.md`).
+  `project.project.get_blueprint_map_projects()` lists the mapped projects.
+- **Move progress**: write `stage_id` (a stage whose `pan_rung` is the step),
+  `pan_role_id` and `pan_phase_id` on `project.task`.
 - **Blueprint** (administrators): `pan.sl.blueprint.export_blueprint(project_id)`
   and `pan.sl.blueprint.import_blueprint(project_id, data)`.
 

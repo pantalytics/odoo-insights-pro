@@ -3,7 +3,8 @@
 See ``docs/blueprint-format.md``. Phases match on code (shared by all
 projects), roles on code within the project, flows on name within the
 project, tasks on name within their flow. Import creates and updates, never
-deletes; loading the template only fills what is empty. Every refusal is a
+deletes; loading the template only fills what is empty. A project without
+progress stages gets the six stages Open ... Live. Every refusal is a
 plain-language ``UserError`` and rolls the whole import back.
 """
 
@@ -14,6 +15,8 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.tools import file_open, html_sanitize, is_html_empty
 
+from .structure import RUNG_SELECTION
+
 BLUEPRINT_FORMAT = "pantalytics-blueprint"
 BLUEPRINT_VERSION = 2
 TEMPLATE_FILE = "pan_self_learning_blueprint/data/blueprints/generic_manufacturing.json"
@@ -21,10 +24,11 @@ SOURCE_LANG = "en_US"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_RECORDS = 5000
 MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager"
-SECTIONS = ("phases", "roles", "flows", "tasks")
+SECTIONS = ("stages", "phases", "roles", "flows", "tasks")
 
 # Per section: file key -> (field, type). "html" is text stored as HTML.
-PHASE_KEYS = {"name": ("name", str), "sequence": ("sequence", int), "apps": ("app_labels", list)}
+# A phase's "apps" (2.0) is still accepted and ignored.
+PHASE_KEYS = {"name": ("name", str), "sequence": ("sequence", int)}
 ROLE_KEYS = {
     "name": ("name", str),
     "sequence": ("sequence", int),
@@ -76,7 +80,7 @@ class PanSlBlueprint(models.AbstractModel):
             "lang": SOURCE_LANG,
             "name": project.name,
             "phases": [
-                {"code": phase.code, "name": phase.name, "sequence": phase.sequence, "apps": phase._app_values()}
+                {"code": phase.code, "name": phase.name, "sequence": phase.sequence}
                 for phase in self.env["pan.sl.phase"].search([])
             ],
             "roles": [
@@ -125,7 +129,8 @@ class PanSlBlueprint(models.AbstractModel):
         :param dict data: the parsed blueprint (docs/blueprint-format.md)
         :param bool fill_empty_only: template loading: create what is
             missing and only fill empty values on what exists
-        :return: ``{"name": str, "phases": {"created": n, "updated": n}, "roles": ..., "flows": ..., "tasks": ...}``
+        :return: ``{"name": str, "stages": {"created": n, "updated": n}, "phases": ..., "roles": ...,
+            "flows": ..., "tasks": ...}``; linking an existing stage counts as updated
         """
         self._check_manager()
         project = self._project(project)
@@ -148,12 +153,12 @@ class PanSlBlueprint(models.AbstractModel):
             )
         summary = {"name": data.get("name") or "", **{section: {"created": 0, "updated": 0} for section in SECTIONS}}
         Phase, Role, Task = self.env["pan.sl.phase"], self.env["pan.sl.role"], self.env["project.task"]
+        # Before the tasks, so new tasks land in the first of these stages.
+        self._ensure_stages(project, summary["stages"])
 
         existing = {phase.code: phase for phase in Phase.search([("code", "in", [item["code"] for item in phases])])}
         for item in phases:
             vals = self._vals(item, PHASE_KEYS, "phases")
-            if "app_labels" in vals:
-                vals["app_labels"] = ", ".join(vals["app_labels"])
             existing[item["code"]] = self._upsert(
                 Phase, existing.get(item["code"]), dict(vals, code=item["code"]), summary["phases"], fill_empty_only
             )
@@ -198,6 +203,38 @@ class PanSlBlueprint(models.AbstractModel):
         return summary
 
     @api.model
+    def _ensure_stages(self, project, counts):
+        """Give ``project`` the six progress stages (Open ... Live), unless one
+        of its stages already carries a progress beyond Open.
+
+        A stage with the same English name and progress that another project
+        uses is linked instead of copied. Existing stages are never changed.
+        """
+        if project.type_ids.filtered(lambda stage: stage.pan_rung != "0"):
+            return
+        # sudo: a Blueprint administrator may set up the map's stages without
+        # being a project manager; only these six fixed stages are touched.
+        Stage = self.env["project.task.type"].sudo().with_context(lang=SOURCE_LANG, active_test=True)
+        langs = [lang for lang, _name in self.env["res.lang"].get_installed() if lang != SOURCE_LANG]
+        for rung, name in RUNG_SELECTION:
+            stage = Stage.search([("name", "=", name), ("pan_rung", "=", rung), ("user_id", "=", False)], limit=1)
+            if stage:
+                stage.project_ids = [(4, project.id)]
+                counts["updated"] += 1
+                continue
+            stage = Stage.create(
+                {"name": name, "pan_rung": rung, "sequence": 10 * (int(rung) + 1), "project_ids": [(4, project.id)]}
+            )
+            counts["created"] += 1
+            # Named after its progress word, in every active language.
+            words = {
+                lang: dict(Stage._fields["pan_rung"]._description_selection(Stage.with_context(lang=lang).env))[rung]
+                for lang in langs
+            }
+            if words:
+                stage.update_field_translations("name", words)
+
+    @api.model
     def _upsert(self, Model, record, vals, counts, fill_empty_only):
         """Create the record, or write only the values that really change.
 
@@ -235,8 +272,6 @@ class PanSlBlueprint(models.AbstractModel):
             expected = str if kind == "html" else kind
             # bool is a subclass of int; true/false is no sequence.
             valid = isinstance(value, expected) and not (expected is int and isinstance(value, bool))
-            if expected is list:
-                valid = valid and all(isinstance(entry, str) for entry in value)
             if not valid:
                 raise UserError(
                     self.env._(
@@ -445,6 +480,7 @@ class PanSlBlueprint(models.AbstractModel):
     def _notify_and_open_map(self, title, summary, project):
         """Say what an import changed, then open the project's map."""
         labels = {
+            "stages": self.env._("stages"),
             "phases": self.env._("phases"),
             "roles": self.env._("roles"),
             "flows": self.env._("flows"),

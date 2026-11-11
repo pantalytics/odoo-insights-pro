@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- The company map lives in the Projects app: the map opens from a project;
-         this menu holds what the maps share or need besides tasks. -->
+    <!-- One place to start: Projects > Map. With one mapped project it opens
+         that map; with more, the map shows a plain list of them. -->
     <menuitem
-        id="menu_blueprint_root"
-        name="Company map"
+        id="menu_blueprint_map"
+        name="Map"
         parent="project.menu_main_pm"
+        action="action_blueprint_map"
         groups="group_blueprint_user"
-        sequence="90">
-        <menuitem id="menu_blueprint_phase" name="Phases" action="action_phase" sequence="10"/>
-        <menuitem id="menu_blueprint_role" name="Roles" action="action_role" sequence="20"/>
-        <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" action="action_adkar_score" sequence="30"/>
-    </menuitem>
+        sequence="3"/>
+
+    <!-- What the maps share or need besides tasks: Projects > Configuration. -->
+    <menuitem id="menu_blueprint_phase" name="Phases" parent="project.menu_project_config"
+              action="action_phase" groups="group_blueprint_user" sequence="60"/>
+    <menuitem id="menu_blueprint_role" name="Roles" parent="project.menu_project_config"
+              action="action_role" groups="group_blueprint_user" sequence="61"/>
+    <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" parent="project.menu_project_config"
+              action="action_adkar_score" groups="group_blueprint_user" sequence="62"/>
 
 </odoo>

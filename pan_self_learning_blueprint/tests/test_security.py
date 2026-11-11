@@ -1,7 +1,7 @@
 """Access per group, checked as real (non-super) users with ``with_user()``.
 
 Users read phases and roles, open a project's map and set role, phase and
-progress on tasks; managers edit phases and roles and load, import and export
+stage (so progress) on tasks; managers edit phases and roles and load, import and export
 blueprints. ADKAR scores are personal: a user reads only the scores on their
 own contact, a manager reads all, the note is manager-only, and the map shows
 a role band only over at least three people. Project users without Blueprint
@@ -53,8 +53,8 @@ class TestSecurity(BlueprintCase):
         data = project.get_blueprint_map_data()
         self.assertEqual(len(data["tasks"]), 2)
         self.role_sales.with_user(self.bp_user).read(["name", "partner_ids"])
-        self.phase_a.with_user(self.bp_user).read(["name", "app_labels"])
-        self.task_b.with_user(self.bp_user).write({"pan_rung": "3", "pan_phase_id": self.phase_a.id})
+        self.phase_a.with_user(self.bp_user).read(["name", "code"])
+        self.task_b.with_user(self.bp_user).write({"stage_id": self.stages["3"].id, "pan_phase_id": self.phase_a.id})
         self.assertEqual(self.flow.pan_flow_progress, 100)
         for record in (self.role_sales, self.phase_a):
             with self.subTest(model=record._name), self.assertRaises(AccessError):
@@ -65,7 +65,7 @@ class TestSecurity(BlueprintCase):
     def test_manager_edits_roles(self):
         role = self.Role.with_user(self.bp_manager).create({"name": "Mine", "code": "mine", "project_id": self.project.id})
         role.write({"name": "Ours"})
-        self.phase_a.with_user(self.bp_manager).write({"app_labels": "project"})
+        self.phase_a.with_user(self.bp_manager).write({"sequence": 5})
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_only_managers_load_import_and_export(self):
@@ -80,6 +80,12 @@ class TestSecurity(BlueprintCase):
         self.assertFalse(
             self.env["ir.model.access"].with_user(self.bp_user).check("pan.sl.blueprint.wizard", "read", False)
         )
+        # #24: RPC tooling checks model access before calling a method.
+        self.env["pan.sl.blueprint"].with_user(self.bp_manager).check_access("read")
+        with self.assertRaises(AccessError):
+            self.env["pan.sl.blueprint"].with_user(self.bp_user).check_access("read")
+        exported = self.env["pan.sl.blueprint"].with_user(self.bp_manager).export_blueprint(self.project.id)
+        self.assertEqual(len(exported["roles"]), 2)
         manager_project = self.project.with_user(self.bp_manager)
         self.assertEqual(manager_project.action_blueprint_export()["target"], "download")
         manager_project.action_blueprint_load_template()
@@ -103,7 +109,11 @@ class TestSecurity(BlueprintCase):
         fields = {node.get("name") for node in arch.iter("field")} & set(self.Task._fields)
         self.assertEqual(self.task_a.with_user(self.project_only).web_read({name: {} for name in fields})[0]["id"], self.task_a.id)
         views = self.Task.with_user(self.bp_user).get_views([(False, "form")])
-        self.assertIn("pan_map_page", views["views"]["form"]["arch"], "Blueprint users get the Map page.")
+        arch = etree.fromstring(views["views"]["form"]["arch"])
+        self.assertFalse(arch.xpath("//page[@name='pan_map_page']"), "No Map page any more (2.1).")
+        tags = arch.xpath("//field[@name='tag_ids']")[0]
+        following = [node.get("name") for node in tags.itersiblings("field")][:3]
+        self.assertEqual(following, ["pan_role_id", "pan_phase_id", "pan_flow_progress"], "Role and phase sit next to the tags.")
 
     # ------------------------------------------------------------------
     # ADKAR: own scores only, notes for managers, band as aggregate

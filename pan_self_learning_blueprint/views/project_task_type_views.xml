@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Progress is the stage: each project stage carries a progress step. -->
+    <record id="task_type_edit_blueprint" model="ir.ui.view">
+        <field name="name">project.task.type.form.blueprint</field>
+        <field name="model">project.task.type</field>
+        <field name="inherit_id" ref="project.task_type_edit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='fold']" position="before">
+                <field name="pan_rung" invisible="user_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="task_type_tree_blueprint" model="ir.ui.view">
+        <field name="name">project.task.type.list.blueprint</field>
+        <field name="model">project.task.type</field>
+        <field name="inherit_id" ref="project.task_type_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="pan_rung" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,9 +1,10 @@
 from lxml import html as lxml_html
 
-from odoo import models
+from odoo import api, fields, models
 from odoo.tools import html2plaintext
 
-from .structure import CANCELLED_STATE
+from .project_task import USER_GROUP
+from .structure import CANCELLED_STATE, TRAINED_RUNG
 
 # Block elements whose text counts as one line of a description.
 _LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
@@ -15,29 +16,30 @@ class ProjectProject(models.Model):
 
     _inherit = "project.project"
 
+    pan_role_ids = fields.One2many(
+        "pan.sl.role",
+        "project_id",
+        string="Map roles",
+        groups=USER_GROUP,
+        help="The roles (map rows) of this project. A project with roles has a map.",
+    )
+
+    @api.model
+    def get_blueprint_map_projects(self):
+        """The projects with a map (at least one role) the user can read, by name."""
+        projects = self.search([("pan_role_ids", "!=", False)], order="name, id")
+        return [{"id": project.id, "name": project.name} for project in projects]
+
     def action_open_blueprint_map(self):
         """Open the map of this project (Projects app, not a separate app)."""
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id("pan_self_learning_blueprint.action_blueprint_map")
         action["params"] = {"project_id": self.id}
-        action["display_name"] = self.env._("Map of %s", self.display_name)
         return action
 
     # ------------------------------------------------------------------
     # Map data (contract: docs/data-model.md)
     # ------------------------------------------------------------------
-
-    def _blueprint_unplaced_domain(self):
-        """Tasks of this project that are no flow and miss a role or a phase."""
-        self.ensure_one()
-        return [
-            ("project_id", "=", self.id),
-            ("child_ids", "=", False),
-            ("state", "!=", CANCELLED_STATE),
-            "|",
-            ("pan_role_id", "=", False),
-            ("pan_phase_id", "=", False),
-        ]
 
     def get_blueprint_map_data(self):
         """Everything the map (and an agent) needs for this project, in one call.
@@ -47,52 +49,56 @@ class ProjectProject(models.Model):
         """
         self.ensure_one()
         phases = self.env["pan.sl.phase"].search([])
-        roles = self.env["pan.sl.role"].search([("project_id", "=", self.id)])
+        roles = self.pan_role_ids.sorted()
         tasks = self.env["project.task"].search(
             [("project_id", "=", self.id), ("state", "!=", CANCELLED_STATE)], order="sequence, id"
         )
         flows = tasks.filtered("child_ids")
-        placed = (tasks - flows).filtered(lambda task: task.pan_role_id and task.pan_phase_id)
+        work = tasks - flows
+        flow_tasks, training = {}, {}
+        for task in work:
+            if task.parent_id in flows:
+                flow_tasks.setdefault(task.parent_id.id, []).append(task.id)
+            if task.pan_role_id and int(task.pan_rung or 0) < TRAINED_RUNG:
+                training.setdefault(task.pan_role_id.id, []).append(task.id)
 
         # One search for all roles; only a band word per role, never a score.
         adkar_bands = roles._get_adkar_bands()
-        modules = self._blueprint_modules({value for phase in phases for value in phase._app_values()})
-        flow_tasks = {}
-        for task in placed:
-            if task.parent_id in flows:
-                flow_tasks.setdefault(task.parent_id.id, []).append(task.id)
+        now = fields.Datetime.now()
+        flow_rows = []
+        for flow in flows:
+            late = bool(flow.date_deadline and flow.date_deadline < now and flow.pan_flow_progress < 100)
+            flow_rows.append(
+                {
+                    "id": flow.id,
+                    "name": flow.name,
+                    "progress": flow.pan_flow_progress,
+                    "deadline": flow.date_deadline
+                    and fields.Datetime.context_timestamp(self, flow.date_deadline).date().isoformat(),
+                    "late": late,
+                    "task_ids": flow_tasks.get(flow.id, []),
+                }
+            )
+        # Worst first: lowest Tested %, then late before on time; ``tasks`` is
+        # already in sequence order and the sort is stable.
+        flow_rows.sort(key=lambda row: (row["progress"], not row["late"]))
 
         return {
             "project": {"id": self.id, "name": self.name},
-            "phases": [
-                {
-                    "id": phase.id,
-                    "code": phase.code,
-                    "name": phase.name,
-                    "apps": [self._blueprint_app(value, modules) for value in phase._app_values()],
-                }
-                for phase in phases
-            ],
+            "phases": [{"id": phase.id, "code": phase.code, "name": phase.name} for phase in phases],
             "roles": [
                 {
                     "id": role.id,
                     "code": role.code,
                     "name": role.name,
                     "is_external": role.is_external,
-                    "users": role.partner_ids.mapped("name"),
+                    "people": role.partner_ids.mapped("name"),
                     "adkar": adkar_bands[role.id],
+                    "open_training_task_ids": training.get(role.id, []),
                 }
                 for role in roles
             ],
-            "flows": [
-                {
-                    "id": flow.id,
-                    "name": flow.name,
-                    "progress": flow.pan_flow_progress,
-                    "task_ids": flow_tasks.get(flow.id, []),
-                }
-                for flow in flows
-            ],
+            "flows": flow_rows,
             "tasks": [
                 {
                     "id": task.id,
@@ -100,63 +106,37 @@ class ProjectProject(models.Model):
                     "role_id": task.pan_role_id.id,
                     "phase_id": task.pan_phase_id.id,
                     "flow_id": task.parent_id.id if task.parent_id in flows else False,
-                    "rung": int(task.pan_rung),
+                    "stage": task.stage_id.name or False,
+                    "rung": int(task.pan_rung or 0),
                     "user_names": task.user_ids.mapped("name"),
                     "planned_hours": task.allocated_hours,
                     "spent_hours": task.effective_hours,
                     "description": self._blueprint_first_line(task.description),
                 }
-                for task in placed
+                for task in work
             ],
-            "unplaced_count": self.env["project.task"].search_count(self._blueprint_unplaced_domain()),
         }
 
-    def action_blueprint_unplaced_tasks(self):
-        """The tasks of this project that are not on the map yet (no role or no phase)."""
+    def action_blueprint_training(self):
+        """Who still needs training: the project's tasks with a role below
+        Trained, grouped by role, with the role's people."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Not on the map"),
+            "name": self.env._("Training"),
             "res_model": "project.task",
             "view_mode": "list,form",
-            "views": [(False, "list"), (False, "form")],
-            "domain": self._blueprint_unplaced_domain(),
-            "context": {"default_project_id": self.id},
-        }
-
-    def _blueprint_modules(self, values):
-        """The modules a phase's ``app_labels`` refer to, keyed by each value.
-
-        A value is a technical module name (``sale_management``). A value that
-        is no module name is matched on the module's name (shortdesc) in
-        en_US or in the user's language, so labels such as "Sales" keep
-        working. Values that match nothing are left out.
-        """
-        if not values:
-            return {}
-        # ir.module.module is technical metadata; reading it exposes no business data.
-        Module = self.env["ir.module.module"].sudo()
-        found = {module.name: module for module in Module.search([("name", "in", list(values))])}
-        for lang in dict.fromkeys(["en_US", self.env.lang or "en_US"]):
-            rest = [value for value in values if value not in found]
-            if not rest:
-                break
-            for module in Module.with_context(lang=lang).search([("shortdesc", "in", rest)]):
-                # Prefer the installed one when several modules share a name.
-                current = found.get(module.shortdesc)
-                if not current or (current.state != "installed" and module.state == "installed"):
-                    found[module.shortdesc] = module
-        return found
-
-    def _blueprint_app(self, value, modules):
-        """One Odoo app chip: the module's name in the user's language."""
-        module = modules.get(value)
-        if not module:
-            return {"name": value, "module": False, "installed": False}
-        return {
-            "name": module.with_context(lang=self.env.lang).shortdesc,
-            "module": module.name,
-            "installed": module.state == "installed",
+            "views": [(self.env.ref("pan_self_learning_blueprint.view_task_list_training").id, "list"), (False, "form")],
+            "domain": [
+                ("project_id", "=", self.id),
+                ("child_ids", "=", False),
+                ("state", "!=", CANCELLED_STATE),
+                ("pan_role_id", "!=", False),
+                "|",
+                ("pan_rung", "=", False),
+                ("pan_rung", "in", [str(rung) for rung in range(TRAINED_RUNG)]),
+            ],
+            "context": {"group_by": ["pan_role_id"], "default_project_id": self.id},
         }
 
     def _blueprint_first_line(self, html):

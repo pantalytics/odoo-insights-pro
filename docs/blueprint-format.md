@@ -3,7 +3,8 @@
 One JSON file describes one project as a company map: the phases (shared by
 all projects), the project's roles and its flows with their tasks. No
 personal data: people, ADKAR scores, progress and hours are not part of a
-blueprint.
+blueprint. Importing gives the project the six progress stages (Open ...
+Live) when it has none yet (`docs/data-model.md`).
 
 ```json
 {
@@ -11,8 +12,7 @@ blueprint.
   "version": 2,
   "lang": "en_US",
   "name": "Generic manufacturer",
-  "phases": [{"code": "quotation", "name": "Quotation", "sequence": 30,
-              "apps": ["sale_management"]}],
+  "phases": [{"code": "quotation", "name": "Quotation", "sequence": 30}],
   "roles":  [{"code": "sales", "name": "Sales", "sequence": 30, "external": false,
               "description": "Inside sales and account managers."}],
   "flows":  [{"name": "S13 Approve a quotation", "sequence": 130,
@@ -24,7 +24,7 @@ blueprint.
 
 | Section | Matched on | Required | Optional |
 |---|---|---|---|
-| phases | `code` (shared) | `code`, `name` | `sequence`, `apps` (technical module names) |
+| phases | `code` (shared) | `code`, `name` | `sequence` (`apps` of 2.0 files is ignored) |
 | roles | `code` within the project | `code`, `name` | `sequence`, `external`, `description` |
 | flows | `name` within the project | `name` | `sequence`, `description` (HTML), `tasks` |
 | tasks | `name` within their flow | `name` | `role`, `phase` (codes), `description` (HTML, e.g. the click path) |
@@ -44,7 +44,7 @@ blueprint.
 - `lang` is the language of the names; export always writes English
   (`en_US`). A language that is not active is refused.
 - Loading the bundled template only fills what is empty and never changes
-  the company's own names, descriptions, flags or progress.
+  the company's own names, descriptions, flags, stages or progress.
 - Export writes the project's flows (parent tasks with subtasks) and their
   non-cancelled subtasks. Tasks outside a flow are project work and are not
   exported.
