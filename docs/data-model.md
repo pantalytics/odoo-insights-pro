@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.3.1, 11-11-2026)
+# Data model behind an Odoo implementation (v2.5, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -25,7 +25,7 @@ erDiagram
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
 | Hours | Standard: allocated hours and timesheets on the task. |
-| Gates | Standard project milestones: ticks on the map's timeline; the next one not reached, with On track / At risk / Late, is the caption under the project's bar. |
+| Gates | Standard project milestones: ticks on the map's timeline and burn-up; the next one not reached, with the verdict (On track / Behind · N weeks from the burn-up; without dates On track / At risk / Late), is the caption under the project's bar. |
 | Company in one page | On the project: `pan_brief` (Html, sanitized), `pan_keywords`, `pan_from_systems`, `pan_to_systems` (Char); the programme runs from the project's `date_start` to its `date`. Project form, page "Map" (Blueprint users read, managers write). |
 | Summary, keywords | On a flow or task: `pan_summary` (one line; empty: the description's first line) and `pan_keywords` (comma separated, the map shows up to three). |
 | Phase (map column) | `pan.sl.phase`, shared by all projects. |
@@ -116,7 +116,13 @@ project returns:
               "flow_id": 1245 | false, "stage_id": 7 | false, "stage": "Built" | false, "rung": 2,
               "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5,
               "description": "first line or false", "summary": "one line" | false,
-              "keywords": ["x"]}]
+              "keywords": ["x"]}],
+  "progress_history": [{"date": "2026-09-01", "value": 0.0},
+                       {"date": "2026-09-08", "value": 0.017}],
+  "ideal": [{"date": "2026-09-01", "value": 0.0},
+            {"date": "2027-03-01", "value": 1.0}] | false,
+  "verdict": "on_track" | "behind" | false,
+  "weeks_behind": 4
 }
 ```
 
@@ -150,6 +156,28 @@ project returns:
   (role and phase may be `false`); cancelled tasks left out. The map places
   only tasks with a role and a phase. `rung` is the stage's progress step,
   0 when the task has no stage.
+- Burn-up (2.5, round 6), over the same tasks as `tasks` (so it follows
+  `domain`; flows and cancelled tasks left out). `progress_history`: one
+  point per week from the start, and a last one today; `value` is the mean
+  over the tasks of (step at that date / 5), 0..1, rounded to three
+  decimals. The start is the project's `date_start`, else the first create
+  date of its tasks (all of them, so a search does not move the axis).
+  A task's step at a date is the `pan_rung` of its stage then, rebuilt from
+  the stage tracking (`mail.tracking.value` on `stage_id`, one search for
+  all tasks, by `create_date`): the new stage of the last change on or
+  before that date (end of the day, UTC), else the old stage of the first
+  change after it, else the current stage when the task has no tracking.
+  A task created after the date counts as Open (0) there, so every point
+  divides by the same number of tasks and adding tasks never makes the line
+  jump. `ideal`: a straight line from 0 at the start to 1 at the target
+  `date`. `verdict`: `on_track` when today's value is at or above the ideal
+  line today (1 after the target), else `behind` with `weeks_behind`: how
+  many weeks ago the ideal line stood at today's value, rounded, at least 1
+  (0 when on track). No target date, no start or no tasks: no chart:
+  `progress_history` `[]`, `ideal` and `verdict` `false`, `weeks_behind` 0.
+  The map draws it at z1 instead of the timeline and shows this verdict
+  next to the next milestone; without it the milestone verdict of round 4
+  stays.
 - `project.project.action_blueprint_training()` opens "Still to train": the
   project's tasks with an internal role below Trained (the search filter
   `pan_still_to_train`, on by default and visible), grouped by role with the

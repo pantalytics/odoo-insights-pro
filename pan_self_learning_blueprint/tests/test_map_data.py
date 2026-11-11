@@ -22,7 +22,12 @@ class TestMapData(BlueprintCase):
 
     def test_contract_keys(self):
         data = self._data()
-        self.assertEqual(set(data), {"project", "milestones", "phases", "stages", "roles", "flows", "tasks"})
+        self.assertEqual(
+            set(data),
+            {"project", "milestones", "phases", "stages", "roles", "flows", "tasks", "progress_history", "ideal", "verdict", "weeks_behind"},
+        )
+        # No target date: no burn-up (tests/test_burnup.py).
+        self.assertEqual((data["progress_history"], data["ideal"], data["verdict"], data["weeks_behind"]), ([], False, False, 0))
         self.assertEqual(data["milestones"], [])
         self.assertEqual(
             data["stages"],

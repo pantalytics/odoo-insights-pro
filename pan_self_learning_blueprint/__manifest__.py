@@ -29,7 +29,7 @@ creates and updates, never deletes.
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Services/Project",
-    "version": "19.0.2.4.0",
+    "version": "19.0.2.5.0",
     "license": "LGPL-3",
     "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [
