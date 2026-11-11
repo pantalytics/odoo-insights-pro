@@ -8,7 +8,9 @@
 // screenshots each (z0_company ... z4_task), and checks:
 //
 // - each level shows exactly its layers (data-layer); the legend has the six
-//   steps; z2 lists the flows in the server's order, without task names, and
+//   steps; z1 shows the burn-up (actual and dashed ideal line, today, the
+//   milestone ticks) instead of the timeline, and the server's verdict
+//   ("On track" or "Behind · N weeks") next to the next milestone; z2 lists the flows in the server's order, without task names, and
 //   at 1440x900 every flow row is in view;
 // - zooming: Ctrl + wheel on desktop (a plain wheel does not zoom), a
 //   two-finger pinch on the iPad, + on the phone; the breadcrumb and - zoom out;
@@ -165,6 +167,33 @@ async function checkLayout(page, viewport, label) {
     }
 }
 
+/** z1: the burn-up's lines and marks fit their box, and the caption carries the server's verdict. */
+async function checkBurnup(page, viewport, data) {
+    const chart = await page.evaluate(() => {
+        const box = document.querySelector(".o_pan_sl_burnup_plot").getBoundingClientRect();
+        const points = document.querySelector(".o_pan_sl_burnup_actual").getAttribute("points").trim().split(/\s+/);
+        const inside = (el) => {
+            const rect = el.getBoundingClientRect();
+            return rect.left >= box.left - 8 && rect.right <= box.right + 8;
+        };
+        return {
+            points: points.length,
+            dashed: getComputedStyle(document.querySelector(".o_pan_sl_burnup_ideal")).strokeDasharray !== "none",
+            ticks: document.querySelectorAll(".o_pan_sl_burnup_tick").length,
+            today: inside(document.querySelector(".o_pan_sl_burnup_today")),
+            height: box.height,
+            status: document.querySelector(".o_pan_sl_caption_status").textContent.replace(/\s+/g, " ").trim(),
+        };
+    });
+    check(chart.points === data.progress_history.length, `${viewport.name}: burn-up has ${chart.points} points, expected ${data.progress_history.length}.`);
+    check(chart.dashed, `${viewport.name}: the ideal line is not dashed.`);
+    check(chart.ticks === data.milestones.filter((milestone) => milestone.deadline).length, `${viewport.name}: milestone ticks ${chart.ticks}.`);
+    check(chart.today && chart.height >= 80, `${viewport.name}: the burn-up is cut off (height ${chart.height}).`);
+    const weeks = data.weeks_behind === 1 ? "Behind · 1 week" : `Behind · ${data.weeks_behind} weeks`;
+    const want = data.verdict === "on_track" ? "On track" : weeks;
+    check(chart.status === want, `${viewport.name}: verdict "${chart.status}", expected "${want}".`);
+}
+
 /** A two-finger pinch through the DevTools protocol (Playwright has no pinch). */
 async function pinch(page, factor) {
     const client = await page.context().newCDPSession(page);
@@ -211,7 +240,11 @@ async function checkLevels(page, out, viewport, data) {
         await page.locator(".o_pan_sl_zoom_in").click();
     }
     await atZoom(page, viewport, 1);
-    check((await layers(page)) === "caption,legend,projectBar,systems,timeline", `${viewport.name}: z1 layers ${await layers(page)}`);
+    const z1 = data.ideal ? "burnup,caption,legend,projectBar,systems" : "caption,legend,projectBar,systems,timeline";
+    check((await layers(page)) === z1, `${viewport.name}: z1 layers ${await layers(page)}`);
+    if (data.ideal) {
+        await checkBurnup(page, viewport, data);
+    }
     const legend = (await page.locator(".o_pan_sl_legend li").allTextContents()).map((item) => item.trim()).join("|");
     check(legend === "Open|Decided|Built|Tested|Trained|Live", `${viewport.name}: legend ${legend}`);
     await checkLayout(page, viewport, "z1");
@@ -317,6 +350,8 @@ async function runViewport(browser, db, out, viewport, problems) {
             await useDarkTokens(page);
             await page.locator(".o_pan_sl_zoom_in").click();
             await atZoom(page, viewport, 1);
+            await checkLayout(page, viewport, "z1");
+            await shot(page, out, viewport, "z1_project");
             await page.locator(".o_pan_sl_zoom_in").click();
             await atZoom(page, viewport, 2);
             await checkLayout(page, viewport, "z2");

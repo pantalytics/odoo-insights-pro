@@ -174,10 +174,18 @@ class TestMapUi(HttpCase):
 
     $(".o_pan_sl_zoom_in").click();
     await atZoom(1);
-    expect(layers() === "caption,legend,projectBar,systems,timeline", "z1 layers: " + layers());
+    // z1 (round 6): the burn-up replaces the timeline, the verdict is its own.
+    expect(layers() === "burnup,caption,legend,projectBar,systems", "z1 layers: " + layers());
     expect($$(".o_pan_sl_legend li").map(text).join("|") === "Open|Decided|Built|Tested|Trained|Live", "legend");
+    // Started 60 days ago: nine weekly points and today.
+    expect($(".o_pan_sl_burnup_actual").getAttribute("points").trim().split(" ").length === 10, "burn-up points");
+    expect(getComputedStyle($(".o_pan_sl_burnup_ideal")).strokeDasharray !== "none", "ideal line dashed");
+    expect($$(".o_pan_sl_burnup_tick").length === 2 && $(".o_pan_sl_burnup_tick_reached"), "milestone ticks");
+    expect(text($(".o_pan_sl_burnup_today")) === "Today" && text($(".o_pan_sl_burnup_value")) === "30%", "today and value");
+    // 9 steps of 30 done (30%) against 50% planned: the ideal was at 30% 24 days ago.
     const caption = text($(".o_pan_sl_caption"));
-    expect(/^UI go-live · Due .+At risk \\(1 flow late\\)$/.test(caption), "caption: " + caption);
+    expect(/^UI go-live · Due .+Behind · 3 weeks$/.test(caption), "caption: " + caption);
+    expect($(".o_pan_sl_caption_status.o_pan_sl_status_late"), "more than two weeks behind is red");
     const parts = $$(".o_pan_sl_project_bar .o_pan_sl_stack > span").map((el) => el.className.match(/s\\d/)[0] + ":" + el.style.flexGrow);
     expect(parts.join("|") === "s0:2|s1:2|s3:1|s4:1", "project bar: " + parts.join("|"));
 
@@ -365,6 +373,8 @@ class TestMapUi(HttpCase):
     await waitFor(() => $$(".o_pan_sl_flow").length === 1, "one flow left");
     expect(text($(".o_pan_sl_flow_name")) === "UI late flow", "flow under the filter");
     expect($(".o_pan_sl_project_bar").getAttribute("aria-label") === "2 tasks by step", "project bar: " + $(".o_pan_sl_project_bar").getAttribute("aria-label"));
+    // The verdict follows the search: two tasks at Open, nine weeks behind.
+    expect(text($(".o_pan_sl_caption_status")) === "Behind · 9 weeks", "verdict under the filter: " + text($(".o_pan_sl_caption_status")));
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
@@ -401,6 +411,21 @@ class TestMapUi(HttpCase):
     const rows = await waitFor(() => $$(".o_data_row").length === 3 && $$(".o_data_row"), "expanded group rows");
     const people = rows[0].querySelector("td.o_pan_sl_wrap");
     expect(people && text(people) === "UI person" && getComputedStyle(people).whiteSpace === "normal", "people do not wrap");
+    console.log("test successful");
+})().catch((error) => console.error(error.message));
+"""
+        self.browser_js("/odoo/project", code, login=self.user.login)
+
+    def test_no_dates_no_burnup(self):
+        """Without start and target dates z1 has no chart and keeps the milestone verdict."""
+        self.project.write({"date_start": False, "date": False})
+        code = WAIT_JS + """
+(async () => {
+    await openMap();
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(1);
+    expect(layers() === "caption,legend,projectBar,systems", "z1 layers: " + layers());
+    expect(text($(".o_pan_sl_caption_status")) === "At risk (1 flow late)", "verdict: " + text($(".o_pan_sl_caption_status")));
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """

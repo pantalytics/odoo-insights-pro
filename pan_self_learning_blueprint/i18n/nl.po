@@ -264,6 +264,18 @@ msgid "BEMET/PDC-Win, Excel"
 msgstr "BEMET/PDC-Win, Excel"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Behind · %s weeks"
+msgstr "Achter · %s weken"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Behind · 1 week"
+msgstr "Achter · 1 week"
+
+#. module: pan_self_learning_blueprint
 #: model:ir.module.category,name:pan_self_learning_blueprint.module_category_blueprint
 #: model:res.groups.privilege,name:pan_self_learning_blueprint.res_groups_privilege_blueprint
 msgid "Blueprint"
@@ -884,6 +896,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task_type__pan_rung
 msgid "Progress"
 msgstr "Voortgang"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Progress over time: %(actual)s done today, %(ideal)s planned"
+msgstr "Voortgang in de tijd: vandaag %(actual)s klaar, %(ideal)s gepland"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_rung

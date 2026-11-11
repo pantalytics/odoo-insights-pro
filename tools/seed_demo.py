@@ -17,12 +17,18 @@ once at least three of its people have a score. The latest scores differ per rol
 (low, medium, high), so the role panel shows each band. Rerunning creates
 nothing new: demo people are found again by their reference.
 
+The burn-up at z1 (round 6) needs history: every task gets the project's
+start as its create date and its stage changes are rebuilt as one step at a
+time, back-dated over the weeks since the start (stage tracking values with
+an older create date), so the chart draws a real line. Only done while no
+stage change is older than today, so a rerun keeps the history.
+
 With BLUEPRINT_SEED_SIZE=large it also adds a ninth phase, eight more flows
 and four steps with long Dutch titles to every flow (18 flows, about 110
 tasks, like a real project), to check that a big map still fits the screen.
 """
 import os
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from odoo import fields
 from odoo.fields import Command
@@ -188,5 +194,54 @@ if not project.pan_brief:
     )
 if not project.date_start:
     project.write({"date_start": today - timedelta(days=75), "date": today + timedelta(days=105)})
+# Burn-up history (round 6): back-dated stage changes, one step at a time.
+env.flush_all()
+env.cr.precommit.run()  # write the tracking of the stage changes above first
+work = env["project.task"].search([("project_id", "=", project.id), ("child_ids", "=", False)], order="id")
+stage_field = env["ir.model.fields"]._get("project.task", "stage_id")
+Tracking = env["mail.tracking.value"].sudo()
+stage_tracking = Tracking.search(
+    [
+        ("field_id", "=", stage_field.id),
+        ("mail_message_id.model", "=", "project.task"),
+        ("mail_message_id.res_id", "in", work.ids),
+    ]
+)
+start_day = project.date_start
+elapsed = (today - start_day).days
+if work and elapsed > 7 and not any(tracking.create_date.date() < today for tracking in stage_tracking):
+    stage_tracking.unlink()
+    env.cr.execute(
+        "UPDATE project_task SET create_date = %s WHERE id IN %s", (datetime.combine(start_day, time(8)), tuple(work.ids))
+    )
+    open_stage = stage_by_rung.get("0")
+    for index, task in enumerate(work):
+        target = int(task.pan_rung or 0)
+        previous = open_stage
+        for step in range(1, target + 1):
+            stage = stage_by_rung.get(str(step))
+            if not stage:
+                continue
+            # Step k of n lands at k/(n+1) of the time so far, spread a few days per task.
+            day = max(1, min(elapsed - 1, round(elapsed * step / (target + 1)) + index % 9 - 4))
+            when = datetime.combine(start_day + timedelta(days=day), time(10))
+            message = task.sudo()._message_log(
+                tracking_value_ids=[
+                    Command.create(
+                        {
+                            "field_id": stage_field.id,
+                            "old_value_integer": previous.id if previous else 0,
+                            "old_value_char": previous.name if previous else "",
+                            "new_value_integer": stage.id,
+                            "new_value_char": stage.name,
+                        }
+                    )
+                ]
+            )
+            env.flush_all()
+            env.cr.execute("UPDATE mail_message SET date = %s, create_date = %s WHERE id = %s", (when, when, message.id))
+            env.cr.execute("UPDATE mail_tracking_value SET create_date = %s WHERE mail_message_id = %s", (when, message.id))
+            previous = stage
+    env.invalidate_all()
 env.cr.commit()
 print("seeded", env["project.task"].search_count([("project_id", "=", project.id)]), "tasks")

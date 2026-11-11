@@ -62,9 +62,11 @@
         </div>
     </t>
 
-    <!-- z0 and z1: the company, where it goes from and to, the timeline and the project's bar by step. -->
+    <!-- z0 and z1: the company, where it goes from and to, the timeline (z0) or
+         the burn-up (z1) and the project's bar by step. -->
     <t t-name="pan_self_learning_blueprint.Map.Company">
         <t t-set="line" t-value="timeline"/>
+        <t t-set="chart" t-value="show('burnup') and burnup"/>
         <section t-if="show('company')" class="o_pan_sl_company" data-layer="company" aria-label="Company">
             <h2 t-if="headline" class="o_pan_sl_headline" t-esc="headline"/>
             <ul t-if="state.data.project.keywords.length" class="o_pan_sl_keywords list-unstyled">
@@ -82,7 +84,7 @@
         <p t-if="show('systems') and systems" class="o_pan_sl_systems" data-layer="systems">
             <span t-esc="systems.from"/> <span class="o_pan_sl_systems_arrow" aria-hidden="true">→</span><span class="visually-hidden">to</span> <span t-esc="systems.to"/>
         </p>
-        <button t-if="show('timeline') and line" type="button" class="o_pan_sl_timeline" data-layer="timeline"
+        <button t-if="show('timeline') and line and !chart" type="button" class="o_pan_sl_timeline" data-layer="timeline"
                 t-att-aria-label="line.start + ' – ' + line.end" t-on-click="(ev) => this.zoomTo(level + 1, { point: { x: ev.clientX, y: ev.clientY } })">
             <span class="o_pan_sl_timeline_track"/>
             <span class="o_pan_sl_timeline_edge o_pan_sl_timeline_start" t-esc="line.start"/>
@@ -95,6 +97,28 @@
             </span>
             <span class="o_pan_sl_today" t-attf-style="left: {{ line.today }}%"><span>Today</span></span>
         </button>
+        <figure t-if="chart" class="o_pan_sl_burnup" data-layer="burnup" role="img" t-att-aria-label="chart.label">
+            <div class="o_pan_sl_burnup_plot">
+                <svg class="o_pan_sl_burnup_svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <line class="o_pan_sl_burnup_rule" x1="0" y1="0" x2="100" y2="0"/>
+                    <line class="o_pan_sl_burnup_rule" x1="0" y1="100" x2="100" y2="100"/>
+                    <line class="o_pan_sl_burnup_now" t-att-x1="chart.today" y1="0" t-att-x2="chart.today" y2="100"/>
+                    <polyline class="o_pan_sl_burnup_ideal" t-att-points="chart.ideal"/>
+                    <polyline class="o_pan_sl_burnup_actual" t-att-points="chart.actual"/>
+                </svg>
+                <span class="o_pan_sl_burnup_y o_pan_sl_burnup_y_top" aria-hidden="true">100%</span>
+                <span class="o_pan_sl_burnup_y o_pan_sl_burnup_y_bottom" aria-hidden="true">0%</span>
+                <span t-foreach="chart.ticks" t-as="tick" t-key="tick.id" class="o_pan_sl_burnup_tick"
+                      t-att-class="{ o_pan_sl_burnup_tick_reached: tick.reached }" t-attf-style="left: {{ tick.at }}%" t-att-title="tick.title"/>
+                <span class="o_pan_sl_burnup_end" t-attf-style="left: {{ chart.end.x }}%; top: {{ chart.end.y }}%"/>
+                <span class="o_pan_sl_burnup_value" t-attf-style="left: {{ chart.end.x }}%; top: {{ chart.end.y }}%" t-esc="chart.end.label"/>
+                <span class="o_pan_sl_burnup_today" t-attf-style="left: {{ chart.today }}%">Today</span>
+            </div>
+            <div class="o_pan_sl_burnup_axis" aria-hidden="true">
+                <span t-esc="chart.start"/>
+                <span t-esc="chart.target"/>
+            </div>
+        </figure>
         <t t-if="show('projectBar')">
             <t t-set="summary" t-value="project"/>
             <button type="button" class="o_pan_sl_project_bar" data-layer="projectBar" t-att-aria-label="summary.label"
