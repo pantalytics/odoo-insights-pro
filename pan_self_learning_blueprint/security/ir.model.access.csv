@@ -1,10 +1,10 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_pan_sl_phase_user,pan.sl.phase user,model_pan_sl_phase,group_blueprint_user,1,0,0,0
-access_pan_sl_phase_manager,pan.sl.phase manager,model_pan_sl_phase,group_blueprint_manager,1,1,1,1
-access_pan_sl_role_user,pan.sl.role user,model_pan_sl_role,group_blueprint_user,1,0,0,0
-access_pan_sl_role_manager,pan.sl.role manager,model_pan_sl_role,group_blueprint_manager,1,1,1,1
-access_pan_sl_adkar_score_user,pan.sl.adkar.score user,model_pan_sl_adkar_score,group_blueprint_user,1,0,0,0
-access_pan_sl_adkar_score_manager,pan.sl.adkar.score manager,model_pan_sl_adkar_score,group_blueprint_manager,1,1,1,1
-access_pan_sl_blueprint_wizard_manager,pan.sl.blueprint.wizard manager,model_pan_sl_blueprint_wizard,group_blueprint_manager,1,1,1,1
-access_pan_sl_blueprint_manager,pan.sl.blueprint manager,model_pan_sl_blueprint,group_blueprint_manager,1,1,1,1
-access_ir_module_module_blueprint_user,ir.module.module blueprint user,base.model_ir_module_module,group_blueprint_user,1,0,0,0
+access_pan_sl_phase_user,pan.sl.phase user,model_pan_sl_phase,project.group_project_user,1,0,0,0
+access_pan_sl_phase_manager,pan.sl.phase manager,model_pan_sl_phase,project.group_project_manager,1,1,1,1
+access_pan_sl_role_user,pan.sl.role user,model_pan_sl_role,project.group_project_user,1,0,0,0
+access_pan_sl_role_manager,pan.sl.role manager,model_pan_sl_role,project.group_project_manager,1,1,1,1
+access_pan_sl_adkar_score_user,pan.sl.adkar.score user,model_pan_sl_adkar_score,project.group_project_user,1,0,0,0
+access_pan_sl_adkar_score_manager,pan.sl.adkar.score manager,model_pan_sl_adkar_score,project.group_project_manager,1,1,1,1
+access_pan_sl_blueprint_wizard_manager,pan.sl.blueprint.wizard manager,model_pan_sl_blueprint_wizard,project.group_project_manager,1,1,1,1
+access_pan_sl_blueprint_manager,pan.sl.blueprint manager,model_pan_sl_blueprint,project.group_project_manager,1,1,1,1
+access_ir_module_module_project_user,ir.module.module project user,base.model_ir_module_module,project.group_project_user,1,0,0,0

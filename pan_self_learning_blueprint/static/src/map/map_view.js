@@ -27,8 +27,8 @@ import { BlueprintTaskPanel } from "./task_panel";
 // scrolls. Clicking an element flies to it. Odoo's search bar filters every level.
 
 export const MAP_VIEW_TYPE = "pan_blueprint";
-const USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user";
-const MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager";
+const USER_GROUP = "project.group_project_user";
+const MANAGER_GROUP = "project.group_project_manager";
 const MEMORY_KEY = "pan_sl_blueprint_map:zoom:";
 const TESTED_RUNG = 3;
 const MAX_ZOOM = 4;
@@ -576,15 +576,13 @@ export class BlueprintMapController extends Component {
         return from || to ? { from: from || "?", to: to || "?" } : false;
     }
 
-    /** From the project's start to its target: milestones as ticks, today as a line. False without both dates. */
-    get timeline() {
-        const { date_start: start, date_end: end } = this.state.data.project;
-        if (!start || !end) {
-            return false;
-        }
-        const from = deserializeDate(start);
-        const span = Math.max(1, deserializeDate(end).diff(from, "days").days);
-        const at = (date) => clamp((100 * deserializeDate(date).diff(from, "days").days) / span, 0, 100);
+    /**
+     * The project's dated milestones as ticks on a time axis (`at` maps a date
+     * to a % of the axis). Like a map at low zoom, milestones less than
+     * CLUSTER_GAP % apart (chained) merge into one labelled tick
+     * ("4 milestones, Nov 16 – Dec 1"); every name stays in the title.
+     */
+    milestoneTicks(at) {
         const points = this.state.data.milestones
             .filter((milestone) => milestone.deadline)
             .map((milestone) => ({
@@ -595,9 +593,6 @@ export class BlueprintMapController extends Component {
                 reached: milestone.reached,
             }))
             .sort((a, b) => a.at - b.at);
-        // Generalise like a map at low zoom: milestones less than
-        // CLUSTER_GAP % of the axis apart (chained) merge into one tick ("4 milestones,
-        // 16 Nov – 1 Dec"); the names stay in the tooltip.
         const groups = [];
         for (const point of points) {
             const group = groups.at(-1);
@@ -607,7 +602,7 @@ export class BlueprintMapController extends Component {
                 groups.push([point]);
             }
         }
-        const ticks = groups.map((group) => {
+        return groups.map((group) => {
             const first = group[0];
             const last = group.at(-1);
             if (group.length === 1) {
@@ -622,6 +617,18 @@ export class BlueprintMapController extends Component {
                 title: group.map((point) => `${point.name}, ${point.date}`).join("\n"),
             };
         });
+    }
+
+    /** From the project's start to its target: milestones as ticks, today as a line. False without both dates. */
+    get timeline() {
+        const { date_start: start, date_end: end } = this.state.data.project;
+        if (!start || !end) {
+            return false;
+        }
+        const from = deserializeDate(start);
+        const span = Math.max(1, deserializeDate(end).diff(from, "days").days);
+        const at = (date) => clamp((100 * deserializeDate(date).diff(from, "days").days) / span, 0, 100);
+        const ticks = this.milestoneTicks(at);
         const now = clamp((100 * today().diff(from, "days").days) / span, 0, 100);
         return { start: this.dayMonth(start), end: this.dayMonth(end), today: now, ticks };
     }
@@ -646,14 +653,7 @@ export class BlueprintMapController extends Component {
         const y = (value) => 100 - 100 * clamp(value, 0, 1);
         const pair = (point) => `${x(point.date).toFixed(2)},${y(point.value).toFixed(2)}`;
         const last = history.at(-1);
-        const ticks = milestones
-            .filter((milestone) => milestone.deadline)
-            .map((milestone) => ({
-                id: milestone.id,
-                at: x(milestone.deadline),
-                reached: milestone.reached,
-                title: `${milestone.name}, ${this.dayMonth(milestone.deadline)}`,
-            }));
+        const ticks = this.milestoneTicks(x);
         const idealNow = clamp(now / Math.max(1, days(ideal[1].date)), 0, 1);
         const percent = (value) => `${Math.round(100 * value)}%`;
         return {

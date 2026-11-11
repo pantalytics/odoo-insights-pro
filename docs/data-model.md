@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.6, 11-11-2026)
+# Data model behind an Odoo implementation (v2.7, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -21,7 +21,7 @@ erDiagram
 | Map | One project: the "Map" view (type `pan_blueprint`) of the project's tasks, next to Kanban and List, with Odoo's search bar. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
 | Activity / work | A task with a role and a phase: one chip on the map. At z4 the task itself opens over the map: Odoo's own task form with its chatter under it, saved when you leave it. |
-| Odoo apps | On a task: `pan_app_ids`, the Odoo apps (`ir.module.module` with `application`) the work is done in, e.g. Sales and Inventory. Picked on the task form (also the form that opens over the map at z4); search and group by "Odoo app". Blueprint users may read the module list (read-only ACL), nothing more. |
+| Odoo apps | On a task: `pan_app_ids`, the Odoo apps (`ir.module.module` with `application`) the work is done in, e.g. Sales and Inventory. Picked on the task form (also the form that opens over the map at z4); search and group by "Odoo app". Project users may read the module list (read-only ACL), nothing more. |
 | Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows one colour per step, from grey (Open) to dark green (Live); bars are stacked by step. Tasks may move back a step; the bars show the current step. |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |

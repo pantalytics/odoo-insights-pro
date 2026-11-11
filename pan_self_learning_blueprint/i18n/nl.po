@@ -135,15 +135,6 @@ msgid "A blueprint JSON file (version 2) of at most 5 MB."
 msgstr "Een blueprint-JSON-bestand (versie 2) van maximaal 5 MB."
 
 #. module: pan_self_learning_blueprint
-#: model:ir.module.category,description:pan_self_learning_blueprint.module_category_blueprint
-msgid ""
-"A company map per project: every activity is a task with a role, a phase and"
-" a progress."
-msgstr ""
-"Een bedrijfskaart per project: elke activiteit is een taak met een rol, een "
-"fase en een voortgang."
-
-#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_keywords
 msgid "A few words, separated by commas, shown on the map (up to three)."
 msgstr ""
@@ -217,21 +208,6 @@ msgid "Add the company in one page on the project"
 msgstr "Zet het bedrijf op één pagina op het project"
 
 #. module: pan_self_learning_blueprint
-#: model:res.groups,name:pan_self_learning_blueprint.group_blueprint_manager
-msgid "Administrator"
-msgstr "Beheerder"
-
-#. module: pan_self_learning_blueprint
-#: model:res.groups,comment:pan_self_learning_blueprint.group_blueprint_manager
-msgid ""
-"Administrator: can edit phases and roles, read and record everyone's ADKAR "
-"scores and notes, and load, import or export a project's blueprint."
-msgstr ""
-"Beheerder: kan fasen en rollen bewerken, ieders ADKAR-scores en notities "
-"lezen en vastleggen, en de blueprint van een project laden, importeren of "
-"exporteren."
-
-#. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "All milestones reached"
@@ -274,12 +250,6 @@ msgstr "Achter · %s weken"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Behind · 1 week"
 msgstr "Achter · 1 week"
-
-#. module: pan_self_learning_blueprint
-#: model:ir.module.category,name:pan_self_learning_blueprint.module_category_blueprint
-#: model:res.groups.privilege,name:pan_self_learning_blueprint.res_groups_privilege_blueprint
-msgid "Blueprint"
-msgstr "Blueprint"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_blueprint_wizard
@@ -814,15 +784,15 @@ msgstr "Eén regel, getoond op de kaart"
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/adkar.py:0
-msgid "Only a Blueprint administrator can change who holds a role."
-msgstr "Alleen een Blueprint-beheerder kan wijzigen wie een rol heeft."
+msgid "Only a Project administrator can change who holds a role."
+msgstr "Alleen een Project-beheerder kan wijzigen wie een rol heeft."
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-msgid "Only a Blueprint administrator can import or export a blueprint."
+msgid "Only a Project administrator can import or export a blueprint."
 msgstr ""
-"Alleen een Blueprint-beheerder kan een blueprint importeren of exporteren."
+"Alleen een Project-beheerder kan een blueprint importeren of exporteren."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -1126,8 +1096,8 @@ msgstr "Het bestand"
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
-msgid "The map needs Blueprint access. Ask your administrator."
-msgstr "Voor de kaart is Blueprint-toegang nodig. Vraag het je beheerder."
+msgid "The map needs access to Projects. Ask your administrator."
+msgstr "Voor de kaart is toegang tot Projecten nodig. Vraag het je beheerder."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_role_people
@@ -1366,20 +1336,6 @@ msgstr ""
 "        !!! Geef de taak een urgente prioriteit\n"
 "\n"
 "        Zorg ervoor dat je de juiste indeling en volgorde gebruikt, bv.: Verbeter het configuratiescherm 5h #feature #v16 @Mitchell !"
-
-#. module: pan_self_learning_blueprint
-#: model:res.groups,name:pan_self_learning_blueprint.group_blueprint_user
-msgid "User"
-msgstr "Gebruiker"
-
-#. module: pan_self_learning_blueprint
-#: model:res.groups,comment:pan_self_learning_blueprint.group_blueprint_user
-msgid ""
-"User: can open the map of a project, set role, phase and progress on tasks, "
-"read phases and roles, and read their own ADKAR scores."
-msgstr ""
-"Gebruiker: kan de kaart van een project openen, rol, fase en voortgang op "
-"taken zetten, fasen en rollen lezen en de eigen ADKAR-scores lezen."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model,name:pan_self_learning_blueprint.model_ir_ui_view

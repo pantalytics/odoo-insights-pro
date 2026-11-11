@@ -15,7 +15,7 @@
                 <field name="ability"/>
                 <field name="reinforcement"/>
                 <field name="average" optional="show"/>
-                <field name="note" optional="hide" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                <field name="note" optional="hide" groups="project.group_project_manager"/>
             </list>
         </field>
     </record>
@@ -45,7 +45,7 @@
                             <field name="average"/>
                         </group>
                     </group>
-                    <field name="note" placeholder="Main blocker or context for this score..." groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                    <field name="note" placeholder="Main blocker or context for this score..." groups="project.group_project_manager"/>
                 </sheet>
             </form>
         </field>

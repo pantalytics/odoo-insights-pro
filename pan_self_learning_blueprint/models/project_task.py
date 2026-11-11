@@ -2,7 +2,7 @@ from odoo import api, fields, models
 
 from .structure import CANCELLED_STATE, TESTED_RUNG
 
-USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user"
+USER_GROUP = "project.group_project_user"
 
 # A change to one of these fields of a subtask can move its flow's stage.
 _ROLLUP_FIELDS = frozenset({"stage_id", "state", "parent_id", "active", "project_id"})
