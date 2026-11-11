@@ -84,9 +84,10 @@ plain list (`pan_sl_blueprint_map_list`). The client action with
 
 Search filters on tasks (also in the Map view): Activity (`pan_activity`,
 a task with a role and a phase), No place on the map (`pan_unplaced`),
-Not decided (`pan_not_decided`, step Open), Not tested (`pan_not_tested`,
+Not decided (`pan_not_decided`, step Open), Still to do (`pan_not_tested`,
 below Tested), Still to train (`pan_still_to_train`), Not live; group by
-Role, Phase, Progress step.
+Role, Phase, Progress step. The progress step (`pan_rung`) is also a
+search field, so typing "test" offers "Search Progress step for: test".
 
 `project.project.get_blueprint_map_data(domain=None, order=None)` on one
 project returns:
@@ -97,6 +98,7 @@ project returns:
   "milestones": [{"id": 2, "name": "Go-live", "deadline": "2026-12-11" | false,
                   "reached": false}],
   "phases": [{"id": 1, "code": "quotation", "name": "Quotation"}],
+  "stages": [{"id": 7, "name": "Built", "rung": 2}],
   "roles":  [{"id": 3, "code": "sales", "name": "Sales", "is_external": false,
               "people": ["Name"], "adkar": "low" | "medium" | "high" | false,
               "open_training_task_ids": [1300]}],
@@ -105,7 +107,7 @@ project returns:
               "days_late": 5, "open_count": 2,
               "task_ids": [1300, 1301]}],
   "tasks":  [{"id": 1300, "name": "...", "role_id": 3 | false, "phase_id": 1 | false,
-              "flow_id": 1245 | false, "stage": "Built" | false, "rung": 2,
+              "flow_id": 1245 | false, "stage_id": 7 | false, "stage": "Built" | false, "rung": 2,
               "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5,
               "description": "first line or false"}]
 }
@@ -118,7 +120,10 @@ project returns:
   always known from all tasks, so a domain on the flow itself does not hide
   its tasks. `order` (optional) orders `tasks`; `task_ids` keep the sequence.
 - `milestones`: the project's milestones, by deadline (undated last).
-- `phases`: all phases, by sequence. `roles`: the project's roles, by
+- `phases`: all phases, by sequence. `stages`: the project's stages by
+  sequence, with their step; the task panel's "Move to <stage>" button
+  writes the next one with a higher step to the task's `stage_id`, as an
+  ordinary write with the user's rights. `roles`: the project's roles, by
   sequence. `people`: names of the role's contacts. `open_training_task_ids`:
   the role's tasks below Trained (rung < 4), the same list for each person.
 - `flows`: parent tasks of the project that have subtasks, worst first:

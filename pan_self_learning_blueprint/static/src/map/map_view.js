@@ -150,16 +150,22 @@ export class BlueprintMapController extends Component {
         this.gridArea = useRef("gridArea");
         this.grid = useRef("grid");
         this.searchBarToggler = useSearchBarToggler();
-        this.scrollFlowIntoView = false;
+        this.scrollFlowIntoView = Boolean(restored.flowId);
         this.fade = useState({ right: false });
         this.resizeObserver = new ResizeObserver(() => this.redraw());
         useExternalListener(window, "resize", () => this.redraw());
-        onMounted(() => this.redraw());
+        onMounted(() => {
+            this.redraw();
+            if (this.scrollFlowIntoView) {
+                this.scrollFlowIntoView = false;
+                this.root.el?.querySelector(".o_pan_sl_flow[aria-pressed='true']")?.scrollIntoView({ block: "start" });
+            }
+        });
         onPatched(() => {
             this.redraw();
             if (this.scrollFlowIntoView) {
                 this.scrollFlowIntoView = false;
-                this.root.el?.querySelector(".o_pan_sl_flows .o_pan_sl_open_tasks")?.scrollIntoView({ block: "nearest" });
+                this.root.el?.querySelector(".o_pan_sl_flow[aria-pressed='true']")?.scrollIntoView({ block: "start" });
             }
         });
         onWillUnmount(() => this.resizeObserver.disconnect());
@@ -242,16 +248,26 @@ export class BlueprintMapController extends Component {
      */
     get columns() {
         if (!this.isFlowLevel) {
-            return this.state.data.phases.map((phase) => ({ key: `phase-${phase.id}`, match: (task) => task.phase_id === phase.id }));
+            return this.phases.map((phase) => ({ key: `phase-${phase.id}`, match: (task) => task.phase_id === phase.id }));
         }
         return this.gridTasks.map((step) => ({ key: `step-${step.id}`, match: (task) => task.id === step.id }));
+    }
+
+    /** All phases; under a search only those with a matching task, so a filter shrinks the grid. */
+    get phases() {
+        const { phases } = this.state.data;
+        if (!this.env.searchModel?.facets?.length) {
+            return phases;
+        }
+        const used = new Set(this.gridTasks.map((task) => task.phase_id));
+        return phases.filter((phase) => used.has(phase.id));
     }
 
     /** Column headers: the phases; at the flow level the phase of each step, adjacent steps of one phase merged. */
     get headers() {
         const { phases } = this.state.data;
         if (!this.isFlowLevel) {
-            return phases.map((phase) => ({ key: phase.id, name: phase.name, span: 1 }));
+            return this.phases.map((phase) => ({ key: phase.id, name: phase.name, span: 1 }));
         }
         const headers = [];
         for (const task of this.gridTasks) {
@@ -288,20 +304,26 @@ export class BlueprintMapController extends Component {
         return `grid-template-columns: minmax(8.5rem, 10rem) repeat(${this.columns.length}, ${width})`;
     }
 
-    /** The open tasks of the selected flow (below Tested), or every task without a place. */
+    /** Every step of the selected flow in task order (as in its chart), or every task without a place. */
     get listedTasks() {
         if (this.state.flowId === UNPLACED) {
             return this.unplaced;
         }
         const byId = this.tasksById;
-        return (this.selectedFlow?.task_ids || []).map((id) => byId[id]).filter((task) => task && task.rung < TESTED_RUNG);
+        return (this.selectedFlow?.task_ids || []).map((id) => byId[id]).filter(Boolean);
+    }
+
+    /** A step at Tested or further: muted in the list, with its stage word. */
+    isDone(task) {
+        return task.rung >= TESTED_RUNG;
     }
 
     get announcement() {
         if (this.state.flowId === UNPLACED) {
             return _t("Showing %s tasks without a place", this.unplaced.length);
         }
-        return this.selectedFlow ? _t("Showing flow %(flow)s, %(count)s open tasks", { flow: this.selectedFlow.name, count: this.listedTasks.length }) : "";
+        const open = this.listedTasks.filter((task) => !this.isDone(task)).length;
+        return this.selectedFlow ? _t("Showing flow %(flow)s, %(count)s open tasks", { flow: this.selectedFlow.name, count: open }) : "";
     }
 
     /** "3 of 10 flows late" */
@@ -332,8 +354,10 @@ export class BlueprintMapController extends Component {
         return _t("%s open", flow.open_count);
     }
 
+    /** "0:00 spent of 5:00 planned" */
     hours(task) {
-        return _t("%(spent)s of %(planned)s h", { spent: formatFloatTime(task.spent_hours), planned: formatFloatTime(task.planned_hours) });
+        const clock = (hours) => formatFloatTime(hours).replace(/^0(?=\d:)/, "");
+        return _t("%(spent)s spent of %(planned)s planned", { spent: clock(task.spent_hours), planned: clock(task.planned_hours) });
     }
 
     // ------------------------------------------------------------------
@@ -380,19 +404,29 @@ export class BlueprintMapController extends Component {
         ];
     }
 
-    /** The next milestone not reached, on track or late, and the late flows. */
+    /**
+     * The next milestone not reached and one verdict: "Late · N days" (red)
+     * when its date has passed; else "At risk" (amber) when a flow is late;
+     * else "On track".
+     */
     schedule(milestones, flows) {
         const next = milestones.find((milestone) => !milestone.reached);
-        const late = this.flowSummary;
-        if (!next) {
-            return { value: milestones.length ? _t("All milestones reached") : _t("No milestones"), detail: late, late: false };
+        const lateFlows = flows.filter((flow) => flow.late).length;
+        const days = next?.deadline ? Math.round(today().diff(deserializeDate(next.deadline), "days").days) : 0;
+        let verdict = { word: _t("On track"), tone: "ok" };
+        if (days > 0) {
+            verdict = { word: this.lateDays(days), tone: "late" };
+        } else if (lateFlows) {
+            verdict = { word: _t("At risk"), tone: "risk" };
         }
-        if (!next.deadline) {
-            return { value: next.name, detail: late, late: false };
-        }
-        const days = Math.round(today().diff(deserializeDate(next.deadline), "days").days);
-        const status = days > 0 ? this.lateDays(days) : _t("On track");
-        return { value: next.name, status: `${_t("Due %s", this.dayMonth(next.deadline))} · ${status}`, detail: late, late: days > 0 };
+        const value = next ? next.name : milestones.length ? _t("All milestones reached") : _t("No milestones");
+        const due = next?.deadline ? `${_t("Due %s", this.dayMonth(next.deadline))} · ` : "";
+        return {
+            value,
+            status: due + verdict.word,
+            tone: verdict.tone,
+            detail: lateFlows === 1 ? _t("1 flow late") : lateFlows ? _t("%s flows late", lateFlows) : _t("No flows late"),
+        };
     }
 
     searchItem(name) {
@@ -474,6 +508,27 @@ export class BlueprintMapController extends Component {
     progressWord(task) {
         const word = String(PROGRESS_WORDS[task.rung]); // _t gives a lazy string
         return task.stage && task.stage !== word ? `${task.stage} (${word})` : word;
+    }
+
+    /** The project's next stage by sequence with a higher step, or nothing at the end. */
+    nextStage(task) {
+        const { stages } = this.state.data;
+        const index = stages.findIndex((stage) => stage.id === task.stage_id);
+        return stages.slice(index + 1).find((stage) => stage.rung > task.rung) || null;
+    }
+
+    moveLabel(stage) {
+        return _t("Move to %s", stage.name);
+    }
+
+    /** One step forward without leaving the map: a normal write with the user's rights, then a refresh. */
+    async moveTask(task) {
+        const stage = this.nextStage(task);
+        if (!stage) {
+            return;
+        }
+        await this.orm.write("project.task", [task.id], { stage_id: stage.id });
+        await this.load(this.props, this.state.flowId);
     }
 
     firstLine(text) {

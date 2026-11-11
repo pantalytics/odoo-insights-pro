@@ -46,6 +46,9 @@
 
     // Overview band: five plain answers, each a way into the detail ------
     .o_pan_sl_overview {
+        position: relative;
+        z-index: 2;
+        background: var(--pan-bg);
         flex: none;
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -56,18 +59,23 @@
     }
 
     .o_pan_sl_answer {
+        position: relative;
+        cursor: pointer;
         display: flex;
         flex-direction: column;
         gap: 0.125rem;
         width: 100%;
         height: 100%;
         min-height: var(--pan-tap);
-        padding: 0.5rem 0.75rem;
+        padding: 0.5rem 1.75rem 0.5rem 0.75rem;
         border: 1px solid var(--pan-border);
         border-radius: 0.5rem;
         background: var(--pan-bg);
+        transition: border-color 150ms, background-color 150ms;
 
-        &:hover {
+        &:hover,
+        &:focus-visible {
+            border-color: var(--pan-muted);
             background: var(--pan-soft);
         }
 
@@ -89,6 +97,48 @@
     }
 
     .o_pan_sl_answer_status {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.85em;
+
+        .o_pan_sl_dot {
+            margin-top: 0;
+            align-self: center;
+        }
+    }
+
+    .o_pan_sl_status_late {
+        font-weight: 500;
+        color: var(--pan-late);
+    }
+
+    .o_pan_sl_dot.o_pan_sl_tone_late {
+        background: var(--pan-late);
+    }
+
+    .o_pan_sl_dot.o_pan_sl_tone_risk {
+        background: var(--pan-warn);
+    }
+
+    .o_pan_sl_answer_chevron {
+        position: absolute;
+        top: 50%;
+        right: 0.75rem;
+        transform: translateY(-50%);
+        color: var(--pan-muted);
+    }
+
+    .o_pan_sl_answer[aria-pressed="true"] .o_pan_sl_answer_chevron {
+        color: var(--pan-accent);
+    }
+
+    // Steps of the selected flow that are tested or further: muted, with their stage word.
+    .o_pan_sl_step_done {
+        color: var(--pan-muted);
+    }
+
+    .o_pan_sl_step_word {
         font-size: 0.85em;
     }
 
@@ -159,6 +209,10 @@
 
     .o_pan_sl_tone_done {
         background: var(--pan-done);
+    }
+
+    .o_pan_sl_move {
+        min-height: var(--pan-tap);
     }
 
     // Body: flows | grid, the panel over the grid on the right -------------
@@ -271,6 +325,7 @@
 
     .o_pan_sl_grid_wrap {
         position: relative;
+        isolation: isolate; // the sticky role column stays inside the grid area
         flex: 1 1 0;
         min-width: 0;
         min-height: 0;
@@ -304,6 +359,9 @@
     .o_pan_sl_grid {
         position: relative;
         display: grid;
+        // As wide as its columns, so the sticky role column sticks all the way when the grid scrolls sideways.
+        width: fit-content;
+        min-width: 100%;
         border-top: 1px solid var(--pan-border);
         border-left: 1px solid var(--pan-border);
     }
@@ -420,18 +478,19 @@
     }
 
     // Panel ----------------------------------------------------------------
+    // Docked at the right of the grid area: it narrows the chart, never covers it.
     .o_pan_sl_panel {
-        position: absolute;
-        top: 0.75rem;
-        right: 0.75rem;
-        z-index: 2;
+        flex: none;
         width: 21rem;
-        max-height: calc(100% - 1.5rem);
         overflow-y: auto;
         padding: 1rem;
-        border: 1px solid var(--pan-border);
-        border-radius: 0.5rem;
+        border-left: 1px solid var(--pan-border);
         background: var(--pan-bg);
+    }
+
+    .o_pan_sl_description {
+        color: var(--pan-muted);
+        text-decoration: none;
     }
 
     .o_pan_sl_panel_title {
@@ -440,8 +499,8 @@
     }
 
     .o_pan_sl_close {
-        min-width: var(--pan-tap);
-        min-height: var(--pan-tap);
+        min-width: 44px;
+        min-height: 44px;
         color: var(--pan-muted);
     }
 
@@ -503,8 +562,10 @@
         .o_pan_sl_panel {
             position: fixed;
             inset: auto 0 0 0;
+            z-index: 3;
             width: auto;
             max-height: 65vh;
+            border: 1px solid var(--pan-border);
             border-radius: 0.75rem 0.75rem 0 0;
         }
     }

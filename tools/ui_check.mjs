@@ -215,16 +215,19 @@ async function checkFlows(page, out, viewport, data) {
         return count;
     });
     check(columns === placed, `${viewport.name}: ${columns} step columns for ${placed} placed tasks.`);
-    const open = data.tasks.filter((task) => flow.task_ids.includes(task.id) && task.rung < TESTED_RUNG).length;
+    // Every step of the flow is listed (done ones muted), as in its chart.
+    const open = data.tasks.filter((task) => flow.task_ids.includes(task.id)).length;
     const listed = await page.locator(".o_pan_sl_flows .o_pan_sl_open_task").count();
-    check(listed === open, `${viewport.name}: ${listed} open tasks listed, expected ${open}.`);
+    check(listed === open, `${viewport.name}: ${listed} steps listed, expected ${open}.`);
     if (open) {
         const list = page.locator(".o_pan_sl_flows .o_pan_sl_open_tasks");
         check(await list.evaluate((el) => el.previousElementSibling?.classList.contains("o_pan_sl_flow")), `${viewport.name}: open tasks not under the flow.`);
         const box = await list.boundingBox();
         check(box && box.y < viewport.height && box.y + 20 > 0, `${viewport.name}: the open tasks are out of view.`);
         const hours = await page.locator(".o_pan_sl_flows .o_pan_sl_hours").count();
-        check(hours === open, `${viewport.name}: ${hours} hour lines for ${open} open tasks.`);
+        check(hours === open, `${viewport.name}: ${hours} hour lines for ${open} steps.`);
+        const label = (await page.locator(".o_pan_sl_flows .o_pan_sl_hours").first().textContent()).trim();
+        check(/^\d+:\d\d spent of \d+:\d\d planned$/.test(label), `${viewport.name}: hours read "${label}"`);
     }
     const status = (await page.locator(".o_pan_sl_status").textContent()).trim();
     check(status.includes(flow.name), `${viewport.name}: flow not announced: "${status}".`);
@@ -251,6 +254,10 @@ async function checkOverview(page, out, viewport, data) {
     const next = data.milestones.find((milestone) => !milestone.reached);
     if (next) {
         check((await value("schedule")) === next.name, `${viewport.name}: next milestone "${await value("schedule")}"`);
+        const status = (await page.locator(".o_pan_sl_answer_schedule .o_pan_sl_answer_status").textContent()).trim();
+        const past = next.deadline && new Date(next.deadline) < new Date(new Date().toDateString());
+        const want = past ? "Late" : data.flows.some((flow) => flow.late) ? "At risk" : "On track";
+        check(status.includes(want), `${viewport.name}: schedule says "${status}", expected ${want}.`);
     }
 
     // "Choices" is the filter "Not decided": a facet, and only the tasks still Open.
@@ -274,6 +281,11 @@ async function checkPanels(page, out, viewport, data) {
         await chip.click();
         const panel = page.locator(".o_pan_sl_task_panel");
         await panel.waitFor({ timeout: TIMEOUT });
+        const docked = await page.evaluate(() => {
+            const panel = document.querySelector(".o_pan_sl_task_panel").getBoundingClientRect();
+            return panel.left >= document.querySelector(".o_pan_sl_grid_wrap").getBoundingClientRect().right - 1;
+        });
+        check(viewport.name === "phone" || docked, `${viewport.name}: the task panel covers the chart.`);
         const primary = await page.locator(".o_pan_sl_map .o_content .btn-primary").allTextContents();
         check(primary.length === 1 && primary[0].trim() === "Open task", `${viewport.name}: primary buttons: ${primary.join(", ")}`);
         const facts = await panel.locator("dt").allTextContents();
@@ -335,6 +347,19 @@ async function checkFade(page, viewport) {
         fade: el.parentElement.classList.contains("o_pan_sl_fade_right"),
     }));
     check(scrolls === fade, `${viewport.name}: the grid ${scrolls ? "scrolls" : "does not scroll"} sideways, the fade is ${fade ? "on" : "off"}.`);
+    if (scrolls) {
+        // Scrolled to the end, the role column still sticks inside the grid area, under the overview.
+        await area.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+        await page.waitForTimeout(200);
+        const inside = await area.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const role = el.querySelector(".o_pan_sl_role").getBoundingClientRect();
+            const overview = document.querySelector(".o_pan_sl_overview").getBoundingClientRect();
+            return role.left >= box.left - 1 && role.left < box.left + 40 && (role.top >= overview.bottom - 1 || role.bottom <= overview.top);
+        });
+        check(inside, `${viewport.name}: the role column leaves the grid area when it scrolls sideways.`);
+        await area.evaluate((el) => el.scrollTo({ left: 0 }));
+    }
 }
 
 async function checkTraining(page, out, viewport, data) {

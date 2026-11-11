@@ -80,8 +80,14 @@ msgstr ""
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
-msgid "%(spent)s of %(planned)s h"
-msgstr "%(spent)s van %(planned)s u"
+msgid "%(spent)s spent of %(planned)s planned"
+msgstr "%(spent)s besteed van %(planned)s gepland"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s flows late"
+msgstr "%s flows te laat"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -122,6 +128,12 @@ msgid ""
 msgstr ""
 "'%(value)s' komt twee keer voor in '%(section)s'. Maak elke %(key)s uniek en"
 " importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "1 flow late"
+msgstr "1 flow te laat"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -259,6 +271,12 @@ msgstr ""
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "All milestones reached"
 msgstr "Alle mijlpalen bereikt"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "At risk"
+msgstr "Risico"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__average
@@ -678,6 +696,12 @@ msgid "Milestones"
 msgstr "Mijlpalen"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Move to %s"
+msgstr "Naar %s"
+
+#. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
 msgid "My scores"
 msgstr "Mijn scores"
@@ -720,6 +744,12 @@ msgstr "Heeft drie mensen met een score nodig"
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "No flows late"
+msgstr "Geen flows te laat"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "No flows yet"
 msgstr "Nog geen flows"
 
@@ -734,12 +764,6 @@ msgstr "Nog geen flows."
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "No milestones"
 msgstr "Geen mijlpalen"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
-msgid "No open tasks."
-msgstr "Geen open taken."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -773,6 +797,12 @@ msgstr "Nog geen taken met een rol en een fase."
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "No tasks."
+msgstr "Geen taken."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Nobody in this role yet."
 msgstr "Nog niemand in deze rol."
 
@@ -791,11 +821,6 @@ msgstr "Niet besloten"
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
 msgid "Not live"
 msgstr "Niet live"
-
-#. module: pan_self_learning_blueprint
-#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
-msgid "Not tested"
-msgstr "Niet getest"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__note
@@ -1018,6 +1043,7 @@ msgstr "Flow %(flow)s getoond, %(count)s open taken"
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
 msgid "Still to do"
 msgstr "Nog te doen"
 

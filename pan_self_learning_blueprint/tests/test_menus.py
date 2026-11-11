@@ -87,12 +87,14 @@ class TestMenus(TransactionCase):
             ("pan_activity", "Activity"),
             ("pan_unplaced", "No place on the map"),
             ("pan_not_decided", "Not decided"),
-            ("pan_not_tested", "Not tested"),
+            ("pan_not_tested", "Still to do"),
             ("pan_still_to_train", "Still to train"),
             ("pan_groupby_role", "Role"),
             ("pan_groupby_phase", "Phase"),
         ):
             self.assertEqual(names.get(name), label, name)
+        fields = {node.get("name"): node.get("string") for node in etree.fromstring(arch).iter("field")}
+        self.assertEqual(fields.get("pan_rung"), "Progress step", "progress is searchable by its step")
 
     def test_kanban_card_has_a_visible_map_button(self):
         """On an iPad there is no hover: the card shows "Map" next to the task count."""
