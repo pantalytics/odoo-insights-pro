@@ -1552,3 +1552,35 @@ msgstr "zonder plek"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "%s milestones"
 msgstr "%s mijlpalen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_app_ids
+msgid "Odoo apps"
+msgstr "Odoo-apps"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Odoo app"
+msgstr "Odoo-app"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_app_ids
+msgid "The Odoo apps this work is done in, e.g. Sales or Inventory."
+msgstr "De Odoo-apps waarin dit werk gebeurt, bijv. Verkoop of Voorraad."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_form_blueprint
+msgid "e.g. Sales, Inventory"
+msgstr "bijv. Verkoop, Voorraad"
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
+msgid ""
+"Task '%(task)s' has apps that are not a list of technical names, such as "
+"[\"sale_management\", \"stock\"]. Fix it and import again."
+msgstr ""
+"Taak '%(task)s' heeft apps die geen lijst van technische namen zijn, zoals "
+"[\"sale_management\", \"stock\"]. Pas het aan en importeer opnieuw."

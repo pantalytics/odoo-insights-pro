@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.5, 11-11-2026)
+# Data model behind an Odoo implementation (v2.6, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -21,6 +21,7 @@ erDiagram
 | Map | One project: the "Map" view (type `pan_blueprint`) of the project's tasks, next to Kanban and List, with Odoo's search bar. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
 | Activity / work | A task with a role and a phase: one chip on the map. At z4 the task itself opens over the map: Odoo's own task form with its chatter under it, saved when you leave it. |
+| Odoo apps | On a task: `pan_app_ids`, the Odoo apps (`ir.module.module` with `application`) the work is done in, e.g. Sales and Inventory. Picked on the task form (also the form that opens over the map at z4); search and group by "Odoo app". Blueprint users may read the module list (read-only ACL), nothing more. |
 | Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows one colour per step, from grey (Open) to dark green (Live); bars are stacked by step. Tasks may move back a step; the bars show the current step. |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
@@ -120,7 +121,8 @@ project returns:
               "flow_id": 1245 | false, "stage": "Built" | false, "rung": 2,
               "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5,
               "summary": "one line" | false,
-              "keywords": ["x"]}],
+              "keywords": ["x"],
+              "apps": [{"name": "sale_management", "label": "Sales"}]}],
   "progress_history": [{"date": "2026-09-01", "value": 0.0},
                        {"date": "2026-09-08", "value": 0.017}],
   "ideal": [{"date": "2026-09-01", "value": 0.0},
@@ -156,7 +158,8 @@ project returns:
 - `tasks`: every task of the project that is not a flow, placed or not
   (role and phase may be `false`); cancelled tasks left out. The map places
   only tasks with a role and a phase. `rung` is the stage's progress step,
-  0 when the task has no stage.
+  0 when the task has no stage. `apps`: its Odoo apps by name people see
+  (`label`, in the user's language), with the technical `name`.
 - Burn-up (2.5, round 6), over the same tasks as `tasks` (so it follows
   `domain`; flows and cancelled tasks left out). `progress_history`: one
   point per week from the start, and a last one today; `value` is the mean
@@ -194,6 +197,7 @@ project returns:
  "roles":  [{"code": "sales", "name": "Sales", "sequence": 30, "external": false, "description": "..."}],
  "flows":  [{"name": "S13 Approve a quotation", "sequence": 130, "description": "...",
              "tasks": [{"name": "Draft the quotation", "role": "sales", "phase": "quotation",
+                        "apps": ["sale_management"],
                         "description": "<ol><li>Sales, New</li></ol>"}]}]}
 ```
 
@@ -201,4 +205,6 @@ Imported into one project. Phases match on code (shared), roles on code
 within the project, flows on name within the project, tasks on name within
 their flow. Import creates and fills, never deletes. Loading the template
 only fills what is empty. Export writes the project in this format. A
-phase's `apps` (2.0 files) is accepted and ignored.
+phase's `apps` (2.0 files) is accepted and ignored; a task's `apps` names its
+Odoo apps by technical module name, and a name that is no app in this
+database (an Enterprise app on Community, a typo) is skipped.

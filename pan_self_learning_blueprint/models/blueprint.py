@@ -103,6 +103,7 @@ class PanSlBlueprint(models.AbstractModel):
                             "name": task.name,
                             "role": task.pan_role_id.code or "",
                             "phase": task.pan_phase_id.code or "",
+                            "apps": task.pan_app_ids.sorted("name").mapped("name"),
                             "description": self._html_out(task.description),
                         }
                         for task in subtasks
@@ -175,6 +176,7 @@ class PanSlBlueprint(models.AbstractModel):
             )
         role_ids = {code: role.id for code, role in existing.items()}
         self._resolve_refs(tasks_per_flow, project, phase_ids, role_ids)
+        app_ids = self._resolve_apps(tasks_per_flow)
 
         existing_flows = {}
         for flow in Task.search(
@@ -199,6 +201,8 @@ class PanSlBlueprint(models.AbstractModel):
                     vals["pan_role_id"] = role_ids[task_item["role"]]
                 if task_item.get("phase"):
                     vals["pan_phase_id"] = phase_ids[task_item["phase"]]
+                if "apps" in task_item:
+                    vals["pan_app_ids"] = [app_ids[name] for name in task_item["apps"] if name in app_ids]
                 self._upsert(Task, existing_tasks.get(task_item["name"]), vals, summary["tasks"], fill_empty_only)
         return summary
 
@@ -243,19 +247,22 @@ class PanSlBlueprint(models.AbstractModel):
         """
         if not record:
             counts["created"] += 1
-            return Model.create(vals)
+            many2many = {name for name in vals if Model._fields[name].type == "many2many"}
+            return Model.create({name: [(6, 0, v)] if name in many2many else v for name, v in vals.items()})
         changes = {}
         for name, value in vals.items():
             field = record._fields[name]
             current = record[name]
             if field.type == "many2one":
                 current = current.id
+            elif field.type == "many2many":
+                current, value = sorted(current.ids), sorted(value)
             elif field.type == "html":
                 current, value = ("" if is_html_empty(current) else str(current)), str(html_sanitize(value or ""))
             if fill_empty_only and (field.type in ("integer", "boolean") or current):
                 continue
             if (current or False) != (value or False):
-                changes[name] = value
+                changes[name] = [(6, 0, value)] if field.type == "many2many" else value
         if changes:
             record.write(changes)
             counts["updated"] += 1
@@ -367,6 +374,31 @@ class PanSlBlueprint(models.AbstractModel):
                     codes=", ".join(missing),
                 )
             )
+
+    @api.model
+    def _resolve_apps(self, tasks_per_flow):
+        """Module id per technical name in the tasks' ``apps``. A name that is
+        no app here (an Enterprise app on Community, a typo) is skipped, so
+        one file works on every Odoo."""
+        names = set()
+        for tasks in tasks_per_flow:
+            for task in tasks:
+                apps = task.get("apps", [])
+                if not isinstance(apps, list) or not all(isinstance(name, str) for name in apps):
+                    raise UserError(
+                        self.env._(
+                            "Task '%(task)s' has apps that are not a list of technical names, "
+                            'such as ["sale_management", "stock"]. Fix it and import again.',
+                            task=task["name"],
+                        )
+                    )
+                names.update(apps)
+        modules = (
+            self.env["ir.module.module"].sudo().search([("name", "in", sorted(names)), ("application", "=", True)])
+            if names
+            else []
+        )
+        return {module.name: module.id for module in modules}
 
     @api.model
     def _get_import_lang(self, data):
