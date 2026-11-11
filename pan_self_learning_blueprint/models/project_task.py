@@ -34,6 +34,16 @@ class ProjectTask(models.Model):
         groups=USER_GROUP,
         help="Where in the document chain this work happens: the column of the task on the map.",
     )
+    pan_summary = fields.Char(
+        string="Summary",
+        groups=USER_GROUP,
+        help="One line on what this flow or task is about, shown on the map. Empty: the first line of the description.",
+    )
+    pan_keywords = fields.Char(
+        string="Keywords",
+        groups=USER_GROUP,
+        help="A few words, separated by commas, shown on the map (up to three).",
+    )
     pan_rung = fields.Selection(
         related="stage_id.pan_rung",
         string="Progress step",

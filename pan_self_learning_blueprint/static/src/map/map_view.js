@@ -1,4 +1,4 @@
-import { Component, onMounted, onPatched, onWillStart, onWillUnmount, onWillUpdateProps, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, markup, onMounted, onPatched, onWillStart, onWillUnmount, onWillUpdateProps, useExternalListener, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { deserializeDate, today } from "@web/core/l10n/dates";
@@ -13,60 +13,79 @@ import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardViewProps } from "@web/views/standard_view_props";
 
-// The map of one project as a view type on project.task (Blueprint 2.3,
-// docs/ux-test-2026-11-11.md). Odoo's search bar filters the tasks; on top an
-// overview band answers five questions; below, the flows (worst first) and a
-// plain grid of phases (columns) by roles (rows) with a chip per task.
-// Clicking a flow shows it as a swimlane: only its tasks, joined by arrows in
-// task order, like the client's swimlane charts.
+// The map of one project as a view type on project.task (Blueprint 2.3.1,
+// docs/ux-test-2026-11-11.md, round 5). It works like a vector map: one stage
+// with a continuous zoom from 0 to 4, and every element declares the zoom
+// range it appears in (LAYERS), so each level shows only what matters there:
+//   z0 Company   the brief's first sentence, keywords, from -> to, timeline
+//   z1 Project   the timeline with milestones and the bar by step
+//   z2 Flows     every flow as a bar with a one-line summary and keywords
+//   z3 Flow      the swimlane: its tasks by role and step, joined by arrows
+//   z4 Task      owner, hours, stage, first line, "Move to <next stage>"
+// + and - (44 px), pinch and Ctrl/Cmd + wheel zoom; a plain wheel or swipe
+// scrolls. Clicking an element flies to it. Odoo's search bar filters every level.
 
 export const MAP_VIEW_TYPE = "pan_blueprint";
 const USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user";
-const FLOW_KEY = "pan_sl_blueprint_map:flow:";
-const DECIDED_RUNG = 1;
+const MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager";
+const MEMORY_KEY = "pan_sl_blueprint_map:zoom:";
 const TESTED_RUNG = 3;
-const TRAINED_RUNG = 4;
-export const UNPLACED = "unplaced";
+const MAX_ZOOM = 4;
+const FLY_MS = 220;
+const SNAP_MS = 250;
 export const PROGRESS_WORDS = [_t("Open"), _t("Decided"), _t("Built"), _t("Tested"), _t("Trained"), _t("Live")];
 const ADKAR_WORDS = { low: _t("Low"), medium: _t("Medium"), high: _t("High") };
 
-/** Four colours named after the stages: grey Open, amber Decided or Built,
- * green Tested, dark green Trained or Live. */
+/** The zoom range of every layer (like minzoom/maxzoom in a vector tile set). */
+export const LAYERS = {
+    company: { minZoom: 0, maxZoom: 0 },
+    systems: { minZoom: 0, maxZoom: 1 },
+    timeline: { minZoom: 0, maxZoom: 1 },
+    projectBar: { minZoom: 1, maxZoom: 2 },
+    caption: { minZoom: 1, maxZoom: 2 },
+    legend: { minZoom: 1, maxZoom: 4 },
+    flows: { minZoom: 2, maxZoom: 2 },
+    unplaced: { minZoom: 2, maxZoom: 2 },
+    steps: { minZoom: 3, maxZoom: 3 },
+    swimlane: { minZoom: 3, maxZoom: 4 },
+    task: { minZoom: 4, maxZoom: 4 },
+};
+export const LEVEL_NAMES = [_t("Company"), _t("Project"), _t("Flows")];
+
+/** One colour per step, a sequence from grey (Open) to dark green (Live):
+ * the dots, the bars and the legend all use it. */
 export function tone(rung) {
-    if (rung >= TRAINED_RUNG) {
-        return "done";
-    }
-    if (rung >= TESTED_RUNG) {
-        return "ok";
-    }
-    return rung > 0 ? "warn" : "off";
+    return `s${Math.max(0, Math.min(5, rung || 0))}`;
 }
 
+const STEPS = [0, 1, 2, 3, 4, 5];
 const isPlaced = (task) => Boolean(task.role_id && task.phase_id);
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
-/** The flow last opened on this project, for this browser tab. */
-function rememberedFlow(projectId, value) {
+/** Zoom and focus last used on this project, for this browser tab. */
+function memory(projectId, value) {
     try {
-        const key = FLOW_KEY + projectId;
+        const key = MEMORY_KEY + projectId;
         if (value === undefined) {
-            return JSON.parse(browser.sessionStorage.getItem(key) || "false");
+            return JSON.parse(browser.sessionStorage.getItem(key) || "null") || {};
         }
         browser.sessionStorage.setItem(key, JSON.stringify(value));
     } catch {
         // Private mode or blocked storage: the map works without memory.
     }
-    return false;
+    return {};
+}
+
+function prefersReducedMotion() {
+    return Boolean(browser.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 }
 
 /**
  * An SVG path from box ``a`` to box ``b`` (x, y, w, h in the grid's own
  * coordinates), as in a swimlane chart: out of the side facing the target,
- * straight lines with rounded corners, the turn just before the target so
- * the line runs in the gap between columns (or rows). Within one column, a
- * step that skips other chips (``others``) goes round them on the right, in
- * its own ``lane``, instead of through them.
+ * straight lines with rounded corners, the turn just before the target.
  */
-export function arrowPath(a, b, others = [], lane = 0) {
+export function arrowPath(a, b) {
     const round = (value) => Math.round(value * 10) / 10;
     const elbow = (x1, y1, x2, y2, horizontal) => {
         const [p1, q1, p2, q2] = horizontal ? [x1, y1, x2, y2] : [y1, x1, y2, x2];
@@ -87,33 +106,11 @@ export function arrowPath(a, b, others = [], lane = 0) {
             `L${point(p2, q2)}`,
         ].join(" ");
     };
-    const gap = 8;
-    if (b.x >= a.x + a.w + gap) {
+    if (b.x >= a.x + a.w + 8) {
         return elbow(a.x + a.w, a.y + a.h / 2, b.x, b.y + b.h / 2, true);
     }
-    if (b.x + b.w <= a.x - gap) {
+    if (b.x + b.w <= a.x - 8) {
         return elbow(a.x, a.y + a.h / 2, b.x + b.w, b.y + b.h / 2, true);
-    }
-    const [top, bottom] = b.y >= a.y ? [a.y + a.h, b.y] : [b.y + b.h, a.y];
-    const between = others.some(
-        (box) => box.x < Math.max(a.x + a.w, b.x + b.w) && box.x + box.w > Math.min(a.x, b.x) && box.y >= top - 1 && box.y + box.h <= bottom + 1
-    );
-    if (between) {
-        const x1 = a.x + a.w;
-        const x2 = b.x + b.w;
-        const y1 = round(a.y + a.h / 2);
-        const y2 = round(b.y + b.h / 2);
-        const side = round(Math.max(x1, x2) + 10 + 7 * (lane % 3));
-        const r = Math.min(6, Math.abs(y2 - y1) / 2);
-        const dy = Math.sign(y2 - y1);
-        return [
-            `M${round(x1)},${y1}`,
-            `L${side - r},${y1}`,
-            `Q${side},${y1} ${side},${y1 + dy * r}`,
-            `L${side},${y2 - dy * r}`,
-            `Q${side},${y2} ${side - r},${y2}`,
-            `L${round(x2)},${y2}`,
-        ].join(" ");
     }
     if (b.y >= a.y + a.h) {
         return elbow(a.x + a.w / 2, a.y + a.h, b.x + b.w / 2, b.y, false);
@@ -131,61 +128,66 @@ export class BlueprintMapController extends Component {
     setup() {
         this.orm = useService("orm");
         this.actionService = useService("action");
-        const restored = this.props.state?.blueprintMap || {};
+        const restored = this.props.state?.blueprintMap;
         this.state = useState({
             allowed: true,
+            isManager: false,
             data: null,
-            flowId: restored.flowId || false,
-            selected: null, // { type: "task" | "role", id }
+            zoom: 0, // continuous, 0..4
+            flowId: false, // the flow in focus (z3)
+            taskId: false, // the task in focus (z4)
+            selected: null, // side panel: { type: "role" | "unplaced", id }
+            briefOpen: false,
+            origin: "50% 0",
         });
+        this.restored = restored;
         this.arrows = useState({ width: 0, height: 0, paths: [] });
         this.markerId = `o_pan_sl_arrow_${++markerCount}`;
-        this.tones = [
-            { tone: "off", label: _t("Open") },
-            { tone: "warn", label: _t("Decided or Built") },
-            { tone: "ok", label: _t("Tested") },
-            { tone: "done", label: _t("Trained or Live") },
-        ];
+        this.tones = STEPS.map((rung) => ({ tone: tone(rung), label: PROGRESS_WORDS[rung] }));
         this.root = useRef("root");
+        this.stage = useRef("stage");
         this.gridArea = useRef("gridArea");
         this.grid = useRef("grid");
         this.searchBarToggler = useSearchBarToggler();
-        this.scrollFlowIntoView = Boolean(restored.flowId);
         this.fade = useState({ right: false });
+        this.flyTarget = null;
+        this.pinch = null;
+        this.wheelSum = 0;
         this.resizeObserver = new ResizeObserver(() => this.redraw());
         useExternalListener(window, "resize", () => this.redraw());
-        onMounted(() => {
-            this.redraw();
-            if (this.scrollFlowIntoView) {
-                this.scrollFlowIntoView = false;
-                this.root.el?.querySelector(".o_pan_sl_flow[aria-pressed='true']")?.scrollIntoView({ block: "start" });
-            }
+        onMounted(() => this.afterRender());
+        onPatched(() => this.afterRender());
+        onWillUnmount(() => {
+            this.resizeObserver.disconnect();
+            browser.clearTimeout(this.snapTimer);
+            browser.cancelAnimationFrame(this.frame);
         });
-        onPatched(() => {
-            this.redraw();
-            if (this.scrollFlowIntoView) {
-                this.scrollFlowIntoView = false;
-                this.root.el?.querySelector(".o_pan_sl_flow[aria-pressed='true']")?.scrollIntoView({ block: "start" });
-            }
-        });
-        onWillUnmount(() => this.resizeObserver.disconnect());
         useSetupAction({
             rootRef: this.root,
-            getLocalState: () => ({ blueprintMap: { flowId: this.state.flowId } }),
+            getLocalState: () => ({ blueprintMap: this.snapshot() }),
         });
-        useHotkey("escape", () => (this.state.selected = null), {
-            bypassEditableProtection: true,
-            isAvailable: () => Boolean(this.state.selected),
-        });
+        useHotkey(
+            "escape",
+            () => {
+                if (this.state.selected) {
+                    this.state.selected = null;
+                } else {
+                    this.zoomTo(this.level - 1);
+                }
+            },
+            { bypassEditableProtection: true, isAvailable: () => Boolean(this.state.selected) || this.level >= 3 }
+        );
         onWillStart(async () => {
-            this.state.allowed = await user.hasGroup(USER_GROUP);
+            [this.state.allowed, this.state.isManager] = await Promise.all([user.hasGroup(USER_GROUP), user.hasGroup(MANAGER_GROUP)]);
             if (this.state.allowed && this.projectId) {
-                await this.load(this.props, restored.flowId ?? rememberedFlow(this.projectId));
+                const view = restored || memory(this.projectId);
+                Object.assign(this.state, { zoom: view.zoom || 0, flowId: view.flowId || false, taskId: view.taskId || false });
+                await this.load(this.props);
             }
         });
         onWillUpdateProps(async (next) => {
             if (this.state.allowed && this.projectId) {
-                await this.load(next, this.state.flowId);
+                await this.load(next);
             }
         });
     }
@@ -196,17 +198,197 @@ export class BlueprintMapController extends Component {
         return context.default_project_id || (context.active_model === "project.project" && context.active_id) || false;
     }
 
-    async load(props, flowId) {
+    async load(props) {
         const order = props.orderBy.map((item) => `${item.name} ${item.asc ? "ASC" : "DESC"}`).join(", ");
         const data = await this.orm.call("project.project", "get_blueprint_map_data", [[this.projectId]], {
             domain: props.domain,
             order: order || null,
         });
-        const known = flowId === UNPLACED || data.flows.some((flow) => flow.id === flowId);
-        Object.assign(this.state, { data, flowId: known ? flowId : false });
-        if (this.state.selected?.type === "task" && !data.tasks.some((task) => task.id === this.state.selected.id)) {
-            this.state.selected = null;
+        const flowId = data.flows.some((flow) => flow.id === this.state.flowId) ? this.state.flowId : false;
+        const taskId = data.tasks.some((task) => task.id === this.state.taskId) ? this.state.taskId : false;
+        Object.assign(this.state, { data, flowId, taskId });
+        this.state.zoom = clamp(this.state.zoom, 0, this.maxZoom);
+    }
+
+    snapshot() {
+        return { zoom: this.level, flowId: this.state.flowId, taskId: this.state.taskId };
+    }
+
+    // ------------------------------------------------------------------
+    // Zoom: one continuous value, levels of detail at whole numbers
+    // ------------------------------------------------------------------
+
+    /** The level of detail shown: the zoom rounded to a whole level. */
+    get level() {
+        return clamp(Math.round(this.state.zoom), 0, MAX_ZOOM);
+    }
+
+    /** z3 needs a flow in focus, z4 a task. */
+    get maxZoom() {
+        return this.state.taskId ? 4 : this.state.flowId ? 3 : 2;
+    }
+
+    /** Whether an element of this layer shows at the current level. */
+    show(layer) {
+        const { minZoom, maxZoom } = LAYERS[layer];
+        return this.level >= minZoom && this.level <= maxZoom;
+    }
+
+    /** Between two levels the stage scales a little, like a map between zoom levels. */
+    get stageStyle() {
+        const scale = clamp(2 ** (this.state.zoom - this.level), 0.85, 1.2);
+        return `transform: scale(${scale.toFixed(3)}); transform-origin: ${this.state.origin};`;
+    }
+
+    get canZoomIn() {
+        return this.level < MAX_ZOOM && (this.level < 2 || this.state.data.flows.length > 0);
+    }
+
+    get canZoomOut() {
+        return this.level > 0;
+    }
+
+    /** Before zooming into z3 or z4, pick what to zoom into: what is under the point, else the obvious one. */
+    focusFor(level, point) {
+        const under = point && document.elementFromPoint(point.x, point.y);
+        if (level >= 3 && !this.state.flowId) {
+            const id = Number(under?.closest("[data-flow-id]")?.dataset.flowId);
+            const flow = this.state.data.flows.find((item) => item.id === id) || this.state.data.flows[0];
+            this.state.flowId = flow ? flow.id : false;
         }
+        if (level >= 4 && !this.state.taskId) {
+            const id = Number(under?.closest(".o_pan_sl_chip")?.dataset.taskId);
+            const steps = this.listedTasks;
+            const task = steps.find((item) => item.id === id) || steps.find((item) => item.rung < TESTED_RUNG) || steps[0];
+            this.state.taskId = task ? task.id : false;
+        }
+    }
+
+    /** Zoom (animated, unless reduced motion) to a whole level. */
+    zoomTo(target, { point, flyTo } = {}) {
+        target = clamp(Math.round(target), 0, MAX_ZOOM);
+        this.focusFor(target, point);
+        target = Math.min(target, this.maxZoom);
+        if (target < 4) {
+            this.state.taskId = false;
+        }
+        if (point) {
+            this.setOrigin(point);
+        }
+        this.flyTarget = flyTo || null;
+        browser.cancelAnimationFrame(this.frame);
+        const from = this.state.zoom;
+        if (prefersReducedMotion() || from === target) {
+            this.state.zoom = target;
+            this.remember();
+            return;
+        }
+        const started = browser.performance?.now?.() ?? Date.now();
+        const step = (now) => {
+            const t = clamp((now - started) / FLY_MS, 0, 1);
+            const eased = 1 - (1 - t) ** 3;
+            this.state.zoom = from + (target - from) * eased;
+            if (t < 1) {
+                this.frame = browser.requestAnimationFrame(step);
+            } else {
+                this.state.zoom = target;
+                this.remember();
+            }
+        };
+        this.frame = browser.requestAnimationFrame(step);
+    }
+
+    /** A gesture (pinch, Ctrl + wheel) moves the zoom freely; it snaps to a level when the gesture rests. */
+    zoomBy(delta, point) {
+        const next = clamp(this.state.zoom + delta, 0, MAX_ZOOM);
+        if (Math.round(next) > this.level) {
+            this.focusFor(Math.round(next), point);
+        }
+        this.state.zoom = Math.min(next, this.maxZoom + 0.49);
+        if (point) {
+            this.setOrigin(point);
+        }
+        browser.clearTimeout(this.snapTimer);
+        this.snapTimer = browser.setTimeout(() => this.zoomTo(this.state.zoom, { point }), SNAP_MS);
+    }
+
+    setOrigin(point) {
+        const el = this.stage.el;
+        if (el) {
+            const box = el.getBoundingClientRect();
+            this.state.origin = `${Math.round(point.x - box.left)}px ${Math.round(point.y - box.top + el.scrollTop)}px`;
+        }
+    }
+
+    zoomIn() {
+        this.zoomTo(this.level + 1);
+    }
+
+    zoomOut() {
+        this.zoomTo(this.level - 1);
+    }
+
+    /** Ctrl/Cmd + wheel (and a trackpad pinch, which sends it) zooms; a plain wheel scrolls. */
+    onWheel(ev) {
+        if (!ev.ctrlKey && !ev.metaKey) {
+            return;
+        }
+        ev.preventDefault();
+        this.zoomBy(-ev.deltaY / 250, { x: ev.clientX, y: ev.clientY });
+    }
+
+    onTouchStart(ev) {
+        if (ev.touches.length === 2) {
+            this.pinch = { distance: this.touchDistance(ev.touches) };
+        }
+    }
+
+    /** Two fingers zoom; one finger scrolls (the browser does that, see touch-action). */
+    onTouchMove(ev) {
+        if (!this.pinch || ev.touches.length !== 2) {
+            return;
+        }
+        const distance = this.touchDistance(ev.touches);
+        const [a, b] = ev.touches;
+        this.zoomBy(Math.log2(distance / this.pinch.distance), { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+        this.pinch.distance = distance;
+    }
+
+    onTouchEnd(ev) {
+        if (ev.touches.length < 2) {
+            this.pinch = null;
+        }
+    }
+
+    touchDistance([a, b]) {
+        return Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY));
+    }
+
+    /** Clicking an element flies to it: the next level, centred on it. */
+    flyToFlow(flowId, ev) {
+        Object.assign(this.state, { flowId, taskId: false });
+        this.zoomTo(3, { point: ev && { x: ev.clientX, y: ev.clientY }, flyTo: `[data-fly="flow"]` });
+    }
+
+    flyToTask(task, ev) {
+        Object.assign(this.state, { taskId: task.id, flowId: task.flow_id || false, selected: null });
+        this.zoomTo(4, { point: ev && { x: ev.clientX, y: ev.clientY }, flyTo: `.o_pan_sl_chip[data-task-id="${task.id}"]` });
+    }
+
+    remember() {
+        memory(this.projectId, this.snapshot());
+    }
+
+    /** The path so far; each crumb zooms back out to its level. */
+    get crumbs() {
+        const crumbs = LEVEL_NAMES.slice(0, Math.min(this.level, 2) + 1).map((label, zoom) => ({ label, zoom }));
+        if (this.level >= 3 && this.selectedFlow) {
+            crumbs.push({ label: this.selectedFlow.name, zoom: 3 });
+        }
+        if (this.level >= 4 && this.focusTask) {
+            crumbs.push({ label: this.focusTask.name, zoom: 4 });
+        }
+        return crumbs;
     }
 
     // ------------------------------------------------------------------
@@ -225,50 +407,24 @@ export class BlueprintMapController extends Component {
         return this.state.data.flows.find((flow) => flow.id === this.state.flowId);
     }
 
-    /** At the flow level, the swimlane of one flow; otherwise the whole map. */
-    get isFlowLevel() {
-        return Boolean(this.selectedFlow);
+    get focusTask() {
+        return this.state.taskId ? this.tasksById[this.state.taskId] : null;
     }
 
-    /** The placed tasks on the grid: all of them, or the selected flow's in task order. */
+    /** The placed tasks of the flow in focus, in task order: the swimlane's steps. */
     get gridTasks() {
-        const placed = this.state.data.tasks.filter(isPlaced);
-        if (!this.isFlowLevel) {
-            return placed;
-        }
-        const byId = Object.fromEntries(placed.map((task) => [task.id, task]));
-        return this.selectedFlow.task_ids.map((id) => byId[id]).filter(Boolean);
+        const byId = this.tasksById;
+        return (this.selectedFlow?.task_ids || []).map((id) => byId[id]).filter((task) => task && isPlaced(task));
     }
 
-    /**
-     * The grid columns. On the whole map: the phases, a cell per role and
-     * phase. At the flow level, as in the client's swimlane charts: one
-     * column per step (task) of the flow, left to right in task order, so
-     * every arrow runs to the right.
-     */
+    /** As in the client's swimlane charts: one column per step, left to right in task order. */
     get columns() {
-        if (!this.isFlowLevel) {
-            return this.phases.map((phase) => ({ key: `phase-${phase.id}`, match: (task) => task.phase_id === phase.id }));
-        }
         return this.gridTasks.map((step) => ({ key: `step-${step.id}`, match: (task) => task.id === step.id }));
     }
 
-    /** All phases; under a search only those with a matching task, so a filter shrinks the grid. */
-    get phases() {
-        const { phases } = this.state.data;
-        if (!this.env.searchModel?.facets?.length) {
-            return phases;
-        }
-        const used = new Set(this.gridTasks.map((task) => task.phase_id));
-        return phases.filter((phase) => used.has(phase.id));
-    }
-
-    /** Column headers: the phases; at the flow level the phase of each step, adjacent steps of one phase merged. */
+    /** The phase of each step, adjacent steps of one phase merged. */
     get headers() {
         const { phases } = this.state.data;
-        if (!this.isFlowLevel) {
-            return this.phases.map((phase) => ({ key: phase.id, name: phase.name, span: 1 }));
-        }
         const headers = [];
         for (const task of this.gridTasks) {
             const last = headers.at(-1);
@@ -282,7 +438,7 @@ export class BlueprintMapController extends Component {
         return headers;
     }
 
-    /** Internal roles first, external at the bottom; only roles with a task on the grid. */
+    /** Only the roles the flow uses: internal first, external at the bottom. */
     get rows() {
         const { roles } = this.state.data;
         const tasks = this.gridTasks;
@@ -300,36 +456,29 @@ export class BlueprintMapController extends Component {
     }
 
     get gridStyle() {
-        const width = this.isFlowLevel ? "minmax(9rem, 11rem)" : "minmax(9rem, 1fr)";
-        return `grid-template-columns: minmax(8.5rem, 10rem) repeat(${this.columns.length}, ${width})`;
+        return `grid-template-columns: minmax(7rem, 9rem) repeat(${this.columns.length}, minmax(10rem, 13rem))`;
     }
 
-    /** Every step of the selected flow in task order (as in its chart), or every task without a place. */
+    /** Every step of the flow in focus, in task order (also those without a place). */
     get listedTasks() {
-        if (this.state.flowId === UNPLACED) {
-            return this.unplaced;
-        }
         const byId = this.tasksById;
         return (this.selectedFlow?.task_ids || []).map((id) => byId[id]).filter(Boolean);
     }
 
-    /** A step at Tested or further: muted in the list, with its stage word. */
     isDone(task) {
         return task.rung >= TESTED_RUNG;
     }
 
     get announcement() {
-        if (this.state.flowId === UNPLACED) {
-            return _t("Showing %s tasks without a place", this.unplaced.length);
+        const names = [_t("Company"), _t("Project"), _t("Flows")];
+        if (this.level >= 4 && this.focusTask) {
+            return _t("Task %s", this.focusTask.name);
         }
-        const open = this.listedTasks.filter((task) => !this.isDone(task)).length;
-        return this.selectedFlow ? _t("Showing flow %(flow)s, %(count)s open tasks", { flow: this.selectedFlow.name, count: open }) : "";
-    }
-
-    /** "3 of 10 flows late" */
-    get flowSummary() {
-        const { flows } = this.state.data;
-        return _t("%(late)s of %(total)s flows late", { late: flows.filter((flow) => flow.late).length, total: flows.length });
+        if (this.level === 3 && this.selectedFlow) {
+            const open = this.listedTasks.filter((task) => !this.isDone(task)).length;
+            return _t("Showing flow %(flow)s, %(count)s open tasks", { flow: this.selectedFlow.name, count: open });
+        }
+        return names[this.level];
     }
 
     /** "6 Nov", day and month in the user's language. */
@@ -337,7 +486,6 @@ export class BlueprintMapController extends Component {
         return deserializeDate(date).toLocaleString({ day: "numeric", month: "short" });
     }
 
-    /** "Due 6 Nov" */
     deadline(flow) {
         return flow.deadline ? _t("Due %s", this.dayMonth(flow.deadline)) : "";
     }
@@ -361,47 +509,79 @@ export class BlueprintMapController extends Component {
     }
 
     // ------------------------------------------------------------------
-    // Overview band: five plain answers over the tasks of the search
+    // z0 and z1: the company and the project
     // ------------------------------------------------------------------
 
-    get overview() {
-        const { tasks, flows, roles, milestones } = this.state.data;
-        const count = (list, check) => list.filter(check).length;
-        const open = tasks.filter((task) => task.rung < TESTED_RUNG);
-        const internal = new Set(roles.filter((role) => !role.is_external).map((role) => role.id));
-        const trainable = tasks.filter((task) => internal.has(task.role_id));
-        const people = new Set(
-            roles.filter((role) => internal.has(role.id) && role.open_training_task_ids.length).flatMap((role) => role.people)
+    /** The brief's first sentence, the headline at z0. */
+    get headline() {
+        const { brief } = this.state.data.project;
+        if (!brief) {
+            return "";
+        }
+        // A space after each block, so paragraphs do not run into each other.
+        const spaced = brief.replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, "$& ");
+        const text = (new DOMParser().parseFromString(spaced, "text/html").body.textContent || "").replace(/\s+/g, " ").trim();
+        const end = text.search(/[.!?](\s|$)/);
+        return end > 0 ? text.slice(0, end + 1) : text;
+    }
+
+    get brief() {
+        const { brief } = this.state.data.project;
+        return brief ? markup(brief) : false;
+    }
+
+    get systems() {
+        const { from_systems: from, to_systems: to } = this.state.data.project;
+        return from || to ? { from: from || "?", to: to || "?" } : false;
+    }
+
+    /** From the project's start to its target: milestones as ticks, today as a line. False without both dates. */
+    get timeline() {
+        const { date_start: start, date_end: end } = this.state.data.project;
+        if (!start || !end) {
+            return false;
+        }
+        const from = deserializeDate(start);
+        const span = Math.max(1, deserializeDate(end).diff(from, "days").days);
+        const at = (date) => clamp((100 * deserializeDate(date).diff(from, "days").days) / span, 0, 100);
+        const ticks = this.state.data.milestones
+            .filter((milestone) => milestone.deadline)
+            .map((milestone) => ({
+                id: milestone.id,
+                name: milestone.name,
+                date: this.dayMonth(milestone.deadline),
+                at: at(milestone.deadline),
+                reached: milestone.reached,
+            }));
+        const now = clamp((100 * today().diff(from, "days").days) / span, 0, 100);
+        return { start: this.dayMonth(start), end: this.dayMonth(end), today: now, ticks };
+    }
+
+    /** Managers see one muted line when the company page or the dates are missing. */
+    get missingTop() {
+        const { project } = this.state.data;
+        return this.state.isManager && (!project.brief || !project.date_start || !project.date_end);
+    }
+
+    /** The share of tasks at each of the six steps, for a stacked bar. */
+    parts(tasks) {
+        return STEPS.map((rung) => ({ tone: tone(rung), count: tasks.filter((task) => task.rung === rung).length })).filter(
+            (part) => part.count
         );
-        return [
-            { key: "schedule", label: _t("On schedule?"), ...this.schedule(milestones, flows) },
-            {
-                key: "todo",
-                label: _t("Still to do"),
-                value: open.length === 1 ? _t("1 open task") : _t("%s open tasks", open.length),
-                detail: _t("%s without an owner", count(open, (task) => !task.user_names.length)),
-                filter: "pan_not_tested",
-            },
-            {
-                key: "flows",
-                label: _t("Flows"),
-                value: _t("%(done)s of %(total)s flows tested", { done: count(flows, (flow) => flow.progress >= 100), total: flows.length }),
-                detail: flows.length ? _t("Worst: %s", flows[0].name) : _t("No flows yet"),
-            },
-            {
-                key: "training",
-                label: _t("Training"),
-                value: _t("%(done)s of %(total)s tasks trained", { done: count(trainable, (task) => task.rung >= TRAINED_RUNG), total: trainable.length }),
-                detail: people.size === 1 ? _t("1 person still to train") : _t("%s people still to train", people.size),
-            },
-            {
-                key: "choices",
-                label: _t("Choices"),
-                value: _t("%(done)s of %(total)s tasks decided", { done: count(tasks, (task) => task.rung >= DECIDED_RUNG), total: tasks.length }),
-                detail: _t("%s still open", count(tasks, (task) => task.rung < DECIDED_RUNG)),
-                filter: "pan_not_decided",
-            },
-        ];
+    }
+
+    get project() {
+        const { tasks, milestones, flows } = this.state.data;
+        return {
+            parts: this.parts(tasks),
+            label: tasks.length === 1 ? _t("1 task by step") : _t("%s tasks by step", tasks.length),
+            ...this.schedule(milestones, flows),
+        };
+    }
+
+    flowTasks(flow) {
+        const byId = this.tasksById;
+        return flow.task_ids.map((id) => byId[id]).filter(Boolean);
     }
 
     /**
@@ -420,53 +600,17 @@ export class BlueprintMapController extends Component {
             verdict = { word: _t("At risk"), tone: "risk" };
         }
         const value = next ? next.name : milestones.length ? _t("All milestones reached") : _t("No milestones");
-        const due = next?.deadline ? `${_t("Due %s", this.dayMonth(next.deadline))} · ` : "";
+        const due = next?.deadline ? ` · ${_t("Due %s", this.dayMonth(next.deadline))}` : "";
+        const late = lateFlows === 1 ? _t("1 flow late") : lateFlows ? _t("%s flows late", lateFlows) : "";
         return {
-            value,
-            status: due + verdict.word,
+            milestone: value + due,
+            status: late && days <= 0 ? `${verdict.word} (${late})` : verdict.word,
             tone: verdict.tone,
-            detail: lateFlows === 1 ? _t("1 flow late") : lateFlows ? _t("%s flows late", lateFlows) : _t("No flows late"),
         };
     }
 
-    searchItem(name) {
-        return this.env.searchModel?.getSearchItems((item) => item.name === name)[0];
-    }
-
-    isActive(item) {
-        return item.filter ? String(Boolean(this.searchItem(item.filter)?.isActive)) : undefined;
-    }
-
-    async onOverview(item) {
-        if (item.filter) {
-            const filter = this.searchItem(item.filter);
-            if (filter) {
-                this.env.searchModel.toggleSearchItem(filter.id);
-            }
-        } else if (item.key === "schedule") {
-            await this.actionService.doAction({
-                type: "ir.actions.act_window",
-                name: _t("Milestones"),
-                res_model: "project.milestone",
-                views: [
-                    [false, "list"],
-                    [false, "form"],
-                ],
-                domain: [["project_id", "=", this.projectId]],
-                context: { default_project_id: this.projectId },
-            });
-        } else if (item.key === "flows") {
-            const flow = this.state.data.flows[0];
-            if (flow) {
-                this.openFlow(flow.id);
-            }
-        } else if (item.key === "training") {
-            await this.onTraining();
-        }
-    }
-
     // ------------------------------------------------------------------
-    // Grid helpers
+    // z3 and z4: the flow and the task
     // ------------------------------------------------------------------
 
     owners(task) {
@@ -479,11 +623,6 @@ export class BlueprintMapController extends Component {
 
     chipLabel(task) {
         return `${task.name}, ${PROGRESS_WORDS[task.rung]}`;
-    }
-
-    get selectedTask() {
-        const { selected } = this.state;
-        return selected?.type === "task" ? this.tasksById[selected.id] : null;
     }
 
     get selectedRole() {
@@ -528,11 +667,7 @@ export class BlueprintMapController extends Component {
             return;
         }
         await this.orm.write("project.task", [task.id], { stage_id: stage.id });
-        await this.load(this.props, this.state.flowId);
-    }
-
-    firstLine(text) {
-        return (text || "").trim().split("\n")[0];
+        await this.load(this.props);
     }
 
     roleTraining(role) {
@@ -545,8 +680,42 @@ export class BlueprintMapController extends Component {
     }
 
     // ------------------------------------------------------------------
-    // Drawing: the right-edge fade and the flow's arrows
+    // Drawing: arrows, the right-edge fade, flying to an element
     // ------------------------------------------------------------------
+
+    afterRender() {
+        this.redraw();
+        if (this.flyTarget && Number.isInteger(this.state.zoom)) {
+            const el = this.root.el?.querySelector(this.flyTarget);
+            this.flyTarget = null;
+            this.centre(el);
+        }
+    }
+
+    /**
+     * Brings the element in view without moving the page: the swimlane
+     * centres it sideways; the stage scrolls only when it is out of view,
+     * its top edge first.
+     */
+    centre(el) {
+        if (!el) {
+            return;
+        }
+        const area = this.gridArea.el;
+        if (area && area.contains(el)) {
+            const outer = area.getBoundingClientRect();
+            const inner = el.getBoundingClientRect();
+            area.scrollLeft += inner.left - outer.left - (outer.width - inner.width) / 2;
+        }
+        const stage = this.stage.el;
+        if (stage && stage.contains(el)) {
+            const outer = stage.getBoundingClientRect();
+            const inner = el.getBoundingClientRect();
+            if (inner.top < outer.top || inner.top > outer.bottom - 48) {
+                stage.scrollTop += inner.top - outer.top - 8;
+            }
+        }
+    }
 
     redraw() {
         this.updateFade();
@@ -559,7 +728,6 @@ export class BlueprintMapController extends Component {
         this.updateArrows();
     }
 
-    /** A fade at the right edge while the grid can scroll further right. */
     updateFade() {
         const el = this.gridArea.el;
         const right = Boolean(el) && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
@@ -570,21 +738,20 @@ export class BlueprintMapController extends Component {
 
     /**
      * Arrows between the chips of the flow, in task order. Measured with
-     * offsets inside the grid (which is the SVG's box too), so they scroll
-     * with the grid and ignore the zoom-in animation's transform.
+     * offsets inside the grid (the SVG's box too), so they scroll with the
+     * grid and ignore the stage's zoom transform.
      */
     updateArrows() {
         const grid = this.grid.el;
         let next = { width: 0, height: 0, paths: [] };
-        if (grid && this.isFlowLevel) {
+        if (grid && this.show("swimlane")) {
             const box = (el) => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight });
             const chips = this.gridTasks.map((task) => grid.querySelector(`.o_pan_sl_chip[data-task-id="${task.id}"]`)).filter(Boolean);
-            const boxes = chips.map(box);
             const paths = chips.slice(1).map((chip, index) => ({
                 key: `${chips[index].dataset.taskId}-${chip.dataset.taskId}`,
                 from: chips[index].dataset.taskId,
                 to: chip.dataset.taskId,
-                d: arrowPath(boxes[index], boxes[index + 1], boxes.filter((_, other) => other !== index && other !== index + 1), index),
+                d: arrowPath(box(chips[index]), box(chip)),
             }));
             next = { width: grid.scrollWidth, height: grid.scrollHeight, paths };
         }
@@ -598,7 +765,7 @@ export class BlueprintMapController extends Component {
     }
 
     // ------------------------------------------------------------------
-    // Actions
+    // Panels and actions
     // ------------------------------------------------------------------
 
     isSelected(type, id) {
@@ -606,31 +773,7 @@ export class BlueprintMapController extends Component {
         return String(Boolean(selected && selected.type === type && selected.id === id));
     }
 
-    /** A flow opens as a swimlane; tapping it again goes back to the map. */
-    toggleFlow(flowId) {
-        if (this.state.flowId === flowId) {
-            this.backToMap();
-        } else {
-            this.openFlow(flowId);
-        }
-    }
-
-    openFlow(flowId) {
-        this.state.flowId = flowId;
-        this.scrollFlowIntoView = true;
-        rememberedFlow(this.projectId, flowId);
-        const area = this.gridArea.el;
-        if (area) {
-            area.scrollTo({ left: 0, top: 0 });
-        }
-    }
-
-    backToMap() {
-        this.state.flowId = false;
-        rememberedFlow(this.projectId, false);
-    }
-
-    /** Opens the panel of a task or role; a tap never closes it (Close or Esc does). */
+    /** Opens the side panel of a role or of the tasks without a place (Close or Esc closes it). */
     select(type, id) {
         this.state.selected = { type, id };
     }

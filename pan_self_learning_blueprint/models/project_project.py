@@ -8,6 +8,11 @@ from .ir_ui_view import MAP_VIEW_TYPE
 from .project_task import USER_GROUP
 from .structure import CANCELLED_STATE, TESTED_RUNG, TRAINED_RUNG
 
+def _keywords(text, limit=3):
+    """"a, b , c, d" -> ["a", "b", "c"]: the first few non-empty keywords."""
+    return [word.strip() for word in (text or "").split(",") if word.strip()][:limit]
+
+
 # Block elements whose text counts as one line of a description.
 _LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
 
@@ -24,6 +29,30 @@ class ProjectProject(models.Model):
         string="Map roles",
         groups=USER_GROUP,
         help="The roles (map rows) of this project. A project with roles has a map.",
+    )
+    # Level 0 of the map (round 5): the company in one page and where the
+    # programme goes from and to; its start and target are the project's
+    # own date_start and date.
+    pan_brief = fields.Html(
+        string="Company in one page",
+        sanitize=True,
+        groups=USER_GROUP,
+        help="What the company does, its people, what it sells and how, its customers and suppliers. Shown on top of the map.",
+    )
+    pan_keywords = fields.Char(
+        string="Keywords",
+        groups=USER_GROUP,
+        help="What the company is about in a few words, separated by commas, shown with the company on the map.",
+    )
+    pan_from_systems = fields.Char(
+        string="From systems",
+        groups=USER_GROUP,
+        help="The systems the company leaves, e.g. BEMET/PDC-Win, Excel.",
+    )
+    pan_to_systems = fields.Char(
+        string="To systems",
+        groups=USER_GROUP,
+        help="The systems the company moves to, e.g. Odoo 19, UNS.",
     )
 
     def _pan_has_stage_ladder(self):
@@ -91,10 +120,13 @@ class ProjectProject(models.Model):
         else:
             matching = tasks
         work = matching - flows
-        flow_tasks, open_counts, training = {}, {}, {}
+        flow_tasks, open_counts, training, rung_sums = {}, {}, {}, {}
         for task in tasks - flows:
             if task.parent_id in flows:
-                open_counts[task.parent_id.id] = open_counts.get(task.parent_id.id, 0) + (int(task.pan_rung or 0) < TESTED_RUNG)
+                rung = int(task.pan_rung or 0)
+                open_counts[task.parent_id.id] = open_counts.get(task.parent_id.id, 0) + (rung < TESTED_RUNG)
+                total, count = rung_sums.get(task.parent_id.id, (0, 0))
+                rung_sums[task.parent_id.id] = (total + rung, count + 1)
         for task in work.sorted(lambda task: (task.sequence, task.id)):
             rung = int(task.pan_rung or 0)
             if task.parent_id in flows:
@@ -115,24 +147,38 @@ class ProjectProject(models.Model):
                 {
                     "id": flow.id,
                     "name": flow.name,
+                    "summary": flow.pan_summary or self._blueprint_first_line(flow.description),
+                    "keywords": _keywords(flow.pan_keywords),
                     "progress": flow.pan_flow_progress,
                     "deadline": deadline and deadline.isoformat(),
                     "late": late,
                     "days_late": (today - deadline).days if late else 0,
                     "open_count": open_counts.get(flow.id, 0),
+                    "mean_rung": round(rung_sums[flow.id][0] / rung_sums[flow.id][1], 2) if flow.id in rung_sums else 0.0,
                     "task_ids": flow_tasks.get(flow.id, []),
                 }
             )
-        # Worst first: lowest Tested %, late before on time, longer late first,
-        # more open tasks first; ``tasks`` is already in sequence order and the
-        # sort is stable, so sequence breaks the last tie.
-        flow_rows.sort(key=lambda row: (row["progress"], not row["late"], -row["days_late"], -row["open_count"]))
+        # Worst first (round 5): lowest mean step over its tasks (work runs in
+        # parallel and goes back and forth, so every step counts, not only
+        # Tested), late before on time, more open tasks first; ``tasks`` is
+        # already in sequence order and the sort is stable, so sequence breaks
+        # the last tie.
+        flow_rows.sort(key=lambda row: (row["mean_rung"], not row["late"], -row["open_count"]))
 
         milestones = self.env["project.milestone"].search(
             [("project_id", "=", self.id)], order="deadline asc nulls last, id"
         )
         return {
-            "project": {"id": self.id, "name": self.name},
+            "project": {
+                "id": self.id,
+                "name": self.name,
+                "brief": self.pan_brief or False,
+                "keywords": _keywords(self.pan_keywords),
+                "from_systems": self.pan_from_systems or False,
+                "to_systems": self.pan_to_systems or False,
+                "date_start": self.date_start and self.date_start.isoformat(),
+                "date_end": self.date and self.date.isoformat(),
+            },
             "milestones": [
                 {
                     "id": milestone.id,
@@ -174,6 +220,8 @@ class ProjectProject(models.Model):
                     "planned_hours": task.allocated_hours,
                     "spent_hours": task.effective_hours,
                     "description": self._blueprint_first_line(task.description),
+                    "summary": task.pan_summary or False,
+                    "keywords": _keywords(task.pan_keywords),
                 }
                 for task in work
             ],

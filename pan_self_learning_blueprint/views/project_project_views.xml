@@ -15,6 +15,24 @@
                 <button name="action_blueprint_export" type="object" string="Export"
                         groups="pan_self_learning_blueprint.group_blueprint_manager"/>
             </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page name="pan_map" string="Map" groups="pan_self_learning_blueprint.group_blueprint_user">
+                    <group>
+                        <group>
+                            <field name="pan_from_systems" placeholder="BEMET/PDC-Win, Excel" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_from_systems" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_to_systems" placeholder="Odoo 19, UNS" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_to_systems" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_keywords" placeholder="machines, sheet metal, projects" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_keywords" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                        </group>
+                    </group>
+                    <label for="pan_brief"/>
+                    <field name="pan_brief" groups="pan_self_learning_blueprint.group_blueprint_manager"
+                           placeholder="What the company does, its people, what it sells and how, customers, suppliers."/>
+                    <field name="pan_brief" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                </page>
+            </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button class="oe_stat_button" type="object" name="action_open_blueprint_map"
                         icon="fa-map-o" string="Map"

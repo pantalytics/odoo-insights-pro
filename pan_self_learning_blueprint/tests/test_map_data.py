@@ -28,7 +28,19 @@ class TestMapData(BlueprintCase):
             data["stages"],
             [{"id": stage.id, "name": stage.name, "rung": int(rung)} for rung, stage in sorted(self.stages.items())],
         )
-        self.assertEqual(data["project"], {"id": self.project.id, "name": self.project.name})
+        self.assertEqual(
+            data["project"],
+            {
+                "id": self.project.id,
+                "name": self.project.name,
+                "brief": False,
+                "keywords": [],
+                "from_systems": False,
+                "to_systems": False,
+                "date_start": False,
+                "date_end": False,
+            },
+        )
         phase = next(phase for phase in data["phases"] if phase["id"] == self.phase_a.id)
         self.assertEqual(phase, {"id": self.phase_a.id, "code": "t_phase_a", "name": "Test phase A"})
         self.assertEqual(
@@ -49,11 +61,14 @@ class TestMapData(BlueprintCase):
                 {
                     "id": self.flow.id,
                     "name": "S01 Test flow",
+                    "summary": False,
+                    "keywords": [],
                     "progress": 50,
                     "deadline": False,
                     "late": False,
                     "days_late": 0,
                     "open_count": 1,
+                    "mean_rung": 2.0,
                     "task_ids": [self.task_a.id, self.task_b.id],
                 }
             ],
@@ -73,8 +88,39 @@ class TestMapData(BlueprintCase):
                 "planned_hours": 0.0,
                 "spent_hours": 0.0,
                 "description": False,
+                "summary": False,
+                "keywords": [],
             },
         )
+
+    def test_company_summary_and_keywords(self):
+        """Round 5: the company page, systems and dates on the project; a summary
+        (else the description's first line) and at most three keywords per flow and task."""
+        self.project.write(
+            {
+                "pan_brief": "<p>We build machines.</p>",
+                "pan_keywords": "a, b,, c , d",
+                "pan_from_systems": "BEMET",
+                "pan_to_systems": "Odoo",
+                "date_start": "2026-09-01",
+                "date": "2027-03-01",
+            }
+        )
+        self.flow.description = "<p>Flow line one</p><p>two</p>"
+        self.task_a.write({"pan_summary": "Task A in short", "pan_keywords": "x, y"})
+        data = self._data()
+        project = data["project"]
+        self.assertEqual(project["keywords"], ["a", "b", "c"])
+        self.assertIn("We build machines.", project["brief"])
+        self.assertEqual(
+            (project["from_systems"], project["to_systems"], project["date_start"], project["date_end"]),
+            ("BEMET", "Odoo", "2026-09-01", "2027-03-01"),
+        )
+        self.assertEqual(data["flows"][0]["summary"], "Flow line one")
+        self.flow.pan_summary = "S01 in one line"
+        self.assertEqual(self._data()["flows"][0]["summary"], "S01 in one line")
+        task = self._task(data, self.task_a)
+        self.assertEqual((task["summary"], task["keywords"]), ("Task A in short", ["x", "y"]))
 
     def test_milestones_by_deadline(self):
         """2.3: the project's milestones for "On schedule?", by deadline, undated last."""
@@ -166,10 +212,11 @@ class TestMapData(BlueprintCase):
         self._make_task("On time 2", rung="4", parent_id=on_time.id)
         self._make_task("Finished 1", rung="3", parent_id=finished_late.id)
         flows = self._data()["flows"]
-        # S01, S03 and S04 are at 50 %: the late one first, then by sequence.
+        # Lowest mean step first: S03 (1.5), S01 and S04 (2.0, by sequence), S05 (3), S02 (5).
         self.assertEqual(
-            [flow["name"] for flow in flows], ["S03 Late", "S01 Test flow", "S04 On time", "S02 Done", "S05 Finished"]
+            [flow["name"] for flow in flows], ["S03 Late", "S01 Test flow", "S04 On time", "S05 Finished", "S02 Done"]
         )
+        self.assertEqual([flow["mean_rung"] for flow in flows], [1.5, 2.0, 2.0, 3.0, 5.0])
         by_name = {flow["name"]: flow for flow in flows}
         self.assertTrue(by_name["S03 Late"]["late"])
         self.assertEqual((by_name["S03 Late"]["days_late"], by_name["S03 Late"]["open_count"]), (2, 1))
@@ -242,8 +289,8 @@ class TestMapData(BlueprintCase):
         self.assertEqual(role["open_training_task_ids"], [self.task_a.id, no_phase.id])
         self.assertNotIn(trained.id, role["open_training_task_ids"])
 
-    def test_flow_ties_break_on_days_late_then_open_tasks(self):
-        """Same Tested %: late first, longer late first, then more open tasks, then sequence."""
+    def test_flow_ties_break_on_late_then_open_tasks(self):
+        """Same mean step: late first, then more open tasks, then sequence."""
         now = fields.Datetime.now()
         self.task_a.stage_id = self.stages["0"]  # S01: 0 %, 2 open, not late
         flows = {}
@@ -258,10 +305,10 @@ class TestMapData(BlueprintCase):
                 self._make_task(f"{name} {index}", rung=rung, parent_id=flows[name].id)
         rows = self._data()["flows"]
         self.assertEqual(
-            [row["name"] for row in rows], ["Late 5 days", "Late 1 day", "Three open", "S01 Test flow", "One open"]
+            [row["name"] for row in rows], ["Late 1 day", "Late 5 days", "Three open", "One open", "S01 Test flow"]
         )
-        self.assertEqual([row["days_late"] for row in rows], [5, 1, 0, 0, 0])
-        self.assertEqual([row["open_count"] for row in rows], [1, 1, 3, 2, 1])
+        self.assertEqual([row["days_late"] for row in rows], [1, 5, 0, 0, 0])
+        self.assertEqual([row["open_count"] for row in rows], [1, 1, 3, 1, 2])
 
     def test_flow_stage_follows_its_subtasks(self):
         """Fix 1: the flow's stage is the project stage of its lowest subtask step."""
