@@ -3,8 +3,11 @@ the project list of the Map menu, progress as the stage and the training list.""
 
 from datetime import timedelta
 
+from lxml import etree
+
 from odoo import fields
-from odoo.tests import tagged
+from odoo.tests import new_test_user, tagged
+from odoo.tools.safe_eval import safe_eval
 
 from .common import BlueprintCase
 
@@ -44,6 +47,8 @@ class TestMapData(BlueprintCase):
                     "progress": 50,
                     "deadline": False,
                     "late": False,
+                    "days_late": 0,
+                    "open_count": 1,
                     "task_ids": [self.task_a.id, self.task_b.id],
                 }
             ],
@@ -113,6 +118,8 @@ class TestMapData(BlueprintCase):
         )
         by_name = {flow["name"]: flow for flow in flows}
         self.assertTrue(by_name["S03 Late"]["late"])
+        self.assertEqual((by_name["S03 Late"]["days_late"], by_name["S03 Late"]["open_count"]), (2, 1))
+        self.assertEqual((by_name["S04 On time"]["days_late"], by_name["S02 Done"]["open_count"]), (0, 0))
         self.assertFalse(by_name["S04 On time"]["late"])
         self.assertFalse(by_name["S05 Finished"]["late"], "A flow at 100 % is never late.")
         deadline = fields.Datetime.context_timestamp(on_time, on_time.date_deadline).date()
@@ -181,17 +188,109 @@ class TestMapData(BlueprintCase):
         self.assertEqual(role["open_training_task_ids"], [self.task_a.id, no_phase.id])
         self.assertNotIn(trained.id, role["open_training_task_ids"])
 
+    def test_flow_ties_break_on_days_late_then_open_tasks(self):
+        """Same Tested %: late first, longer late first, then more open tasks, then sequence."""
+        now = fields.Datetime.now()
+        self.task_a.stage_id = self.stages["0"]  # S01: 0 %, 2 open, not late
+        flows = {}
+        for sequence, (name, days, rungs) in enumerate(
+            [("Late 1 day", 1, "0"), ("Late 5 days", 5, "0"), ("Three open", 0, "000"), ("One open", 0, "0")], start=2
+        ):
+            deadline = now - timedelta(days=days) if days else False
+            flows[name] = self.Task.create(
+                {"name": name, "project_id": self.project.id, "sequence": sequence, "date_deadline": deadline}
+            )
+            for index, rung in enumerate(rungs):
+                self._make_task(f"{name} {index}", rung=rung, parent_id=flows[name].id)
+        rows = self._data()["flows"]
+        self.assertEqual(
+            [row["name"] for row in rows], ["Late 5 days", "Late 1 day", "Three open", "S01 Test flow", "One open"]
+        )
+        self.assertEqual([row["days_late"] for row in rows], [5, 1, 0, 0, 0])
+        self.assertEqual([row["open_count"] for row in rows], [1, 1, 3, 2, 1])
+
+    def test_flow_stage_follows_its_subtasks(self):
+        """Fix 1: the flow's stage is the project stage of its lowest subtask step."""
+        self.assertEqual(self.flow.stage_id, self.stages["1"], "Task A Tested, Task B Decided: the flow is Decided.")
+        self.task_b.stage_id = self.stages["4"]
+        self.assertEqual(self.flow.stage_id, self.stages["3"])
+        self.task_a.stage_id = self.stages["5"]
+        self.assertEqual(self.flow.stage_id, self.stages["4"])
+        new = self._make_task("New work", self.role_sales, self.phase_b, rung="0")
+        self.assertEqual(self.flow.stage_id, self.stages["0"], "A new open subtask pulls the flow back.")
+        new.state = "1_canceled"
+        self.assertEqual(self.flow.stage_id, self.stages["4"], "A cancelled subtask does not count.")
+        new.state = "01_in_progress"
+        self.assertEqual(self.flow.stage_id, self.stages["0"])
+        new.unlink()
+        self.assertEqual(self.flow.stage_id, self.stages["4"])
+        self.task_b.parent_id = False
+        self.assertEqual(self.flow.stage_id, self.stages["5"], "A subtask moved out no longer counts.")
+        self.assertEqual(self.flow.pan_rung, "5")
+
+    def test_flow_stage_nested_and_unmapped(self):
+        """A flow inside a flow moves both; a project without a map, or without
+        a stage for the step, leaves the flow where it is."""
+        inner = self._make_task("Inner flow", rung="3")
+        sub = self.Task.create({"name": "Inner work", "project_id": self.project.id, "parent_id": inner.id, "stage_id": self.stages["0"].id})
+        self.assertEqual(inner.stage_id, self.stages["0"])
+        self.assertEqual(self.flow.stage_id, self.stages["0"])
+        sub.stage_id = self.stages["5"]
+        self.assertEqual(inner.stage_id, self.stages["5"])
+        self.assertEqual(self.flow.stage_id, self.stages["1"], "Task B (Decided) is now the lowest.")
+
+        plain = self.env["project.project"].create({"name": "No map"})
+        stage_open, stage_done = self.env["project.task.type"].create(
+            [{"name": "Plain open", "pan_rung": "0", "project_ids": [(4, plain.id)]},
+             {"name": "Plain done", "pan_rung": "5", "project_ids": [(4, plain.id)]}]
+        )
+        flow = self.Task.create({"name": "Plain flow", "project_id": plain.id, "stage_id": stage_done.id})
+        self.Task.create({"name": "Plain work", "project_id": plain.id, "parent_id": flow.id, "stage_id": stage_open.id})
+        self.assertEqual(flow.stage_id, stage_done, "No map, no roll-up.")
+        self.assertFalse(flow.pan_is_map_flow)
+        self.assertTrue(self.flow.pan_is_map_flow)
+        self.assertFalse(self.task_a.pan_is_map_flow)
+
+        self.stages["2"].pan_rung = "1"  # two stages at Decided, none at Built
+        self.task_b.stage_id = self.stages["3"]
+        self.task_a.stage_id = self.stages["2"]
+        self.assertEqual(self.flow.stage_id, self.stages["1"], "The first stage of the step, by sequence.")
+        self.stages["0"].project_ids = [(3, self.project.id)]  # the project has no Open stage any more
+        self.task_b.stage_id = self.stages["0"]
+        self.assertEqual(self.flow.stage_id, self.stages["1"], "No stage for the step: the flow stays.")
+
+    def test_flow_rollup_needs_no_write_access_on_the_flow(self):
+        user = new_test_user(self.env, login="pan_sl_rollup_user", groups="pan_self_learning_blueprint.group_blueprint_user")
+        self.project.privacy_visibility = "followers"
+        self.project.message_subscribe(partner_ids=user.partner_id.ids)
+        self.task_b.with_user(user).stage_id = self.stages["5"]
+        self.assertEqual(self.flow.stage_id, self.stages["3"])
+
+    def test_kanban_shows_tested_on_flows(self):
+        arch = self.env["project.task"].with_user(self.env.ref("base.user_admin")).get_views([(False, "kanban")])
+        self.assertIn("o_pan_sl_kanban_tested", arch["views"]["kanban"]["arch"])
+
     def test_training_list(self):
+        """Still to train: internal roles below Trained, as a visible default filter, grouped and expanded."""
         self.role_sales.partner_ids = self.env["res.partner"].create([{"name": "Anna"}, {"name": "Bram"}])
         self._make_task("Trained", self.role_sales, self.phase_b, rung="4")
         self._make_task("No role", phase=self.phase_a)
+        self._make_task("Cancelled", self.role_sales, self.phase_a, state="1_canceled")
         action = self.project.action_blueprint_training()
-        self.assertEqual((action["res_model"], action["context"]["group_by"]), ("project.task", ["pan_role_id"]))
-        found = self.Task.search(action["domain"])
-        self.assertEqual(found, self.task_a | self.task_b)
+        self.assertEqual((action["res_model"], action["name"]), ("project.task", "Still to train"))
+        self.assertEqual(action["context"]["search_default_pan_still_to_train"], 1)
+        self.assertEqual(action["context"]["search_default_pan_groupby_role"], 1)
+        search = self.env["project.task"].get_views([(False, "search")])["views"]["search"]["arch"]
+        node = etree.fromstring(search).xpath("//filter[@name='pan_still_to_train']")[0]
+        self.assertEqual(node.get("string"), "Still to train")
+        found = self.Task.search(action["domain"] + safe_eval(node.get("domain")))
+        self.assertEqual(found, self.task_a, "Task B belongs to an external role; flows, cancelled and trained tasks are left out.")
         self.assertEqual(self.task_a.pan_role_people, "Anna, Bram")
         list_view = self.env["ir.ui.view"].browse(action["views"][0][0])
         self.assertEqual(list_view, self.env.ref("pan_self_learning_blueprint.view_task_list_training"))
+        list_arch = etree.fromstring(list_view.arch)
+        self.assertEqual(list_arch.get("expand"), "1", "Role groups open.")
+        self.assertIn("o_pan_sl_wrap", list_arch.xpath("//field[@name='pan_role_people']")[0].get("class"))
 
     def test_map_projects(self):
         """Projects > Map: the projects with at least one role, by name."""

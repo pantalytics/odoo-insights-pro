@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="pan_self_learning_blueprint.Map">
-        <div class="o_action o_pan_sl_map d-flex flex-column h-100">
+        <div class="o_action o_pan_sl_map d-flex flex-column h-100" t-ref="root">
             <Layout display="{ controlPanel: { layoutActions: true } }" className="'o_pan_sl_content'">
                 <t t-set-slot="layout-actions">
                     <t t-if="state.data" t-call="pan_self_learning_blueprint.Map.Header"/>
@@ -36,13 +36,14 @@
                     t-on-click="() => this.toggleFlow('unplaced')">
                 <t t-esc="unplaced.length"/> <t t-if="unplaced.length === 1">task</t><t t-else="">tasks</t> without a place
             </button>
-            <button type="button" class="o_pan_sl_training btn btn-secondary ms-auto" t-on-click="onTraining">Training</button>
+            <button type="button" class="o_pan_sl_training btn btn-secondary ms-auto" t-on-click="onTraining" t-esc="trainingLabel"/>
         </div>
     </t>
 
     <t t-name="pan_self_learning_blueprint.Map.Body">
         <div class="o_pan_sl_body">
             <nav class="o_pan_sl_flows" aria-label="Flows">
+                <p t-if="state.data.flows.length" class="o_pan_sl_flow_summary" t-esc="flowSummary"/>
                 <t t-if="state.flowId === 'unplaced'">
                     <button type="button" class="o_pan_sl_flow o_pan_sl_flow_unplaced" aria-pressed="true" t-on-click="() => this.toggleFlow('unplaced')">
                         <span class="o_pan_sl_flow_name">Without a place</span>
@@ -57,36 +58,39 @@
                         <span class="o_pan_sl_bar"><span t-attf-style="width: {{ flow.progress }}%"/></span>
                         <span class="o_pan_sl_flow_meta">
                             <span>Tested <t t-esc="flow.progress"/>%</span>
-                            <span t-if="flow.deadline" t-esc="deadline(flow)"/>
-                            <span t-if="flow.late" class="o_pan_sl_late">Late</span>
+                            <span t-if="flow.open_count" class="o_pan_sl_flow_open" t-esc="openLabel(flow)"/>
+                            <span t-if="flow.deadline" class="o_pan_sl_due" t-esc="deadline(flow)"/>
+                            <span t-if="flow.late" class="o_pan_sl_late" t-esc="lateLabel(flow)"/>
                         </span>
                     </button>
                     <t t-if="state.flowId === flow.id" t-call="pan_self_learning_blueprint.Map.TaskList"/>
                 </t>
                 <p t-if="!state.data.flows.length" class="o_pan_sl_empty text-muted">No flows yet.</p>
             </nav>
-            <div class="o_pan_sl_grid_area">
-                <div t-if="rows.length" class="o_pan_sl_grid" role="table" aria-label="Map"
-                     t-attf-style="grid-template-columns: minmax(7rem, 10rem) repeat({{ state.data.phases.length }}, minmax(9rem, 1fr))">
-                    <div class="o_pan_sl_corner" role="columnheader"/>
-                    <div t-foreach="state.data.phases" t-as="phase" t-key="phase.id" class="o_pan_sl_phase" role="columnheader" t-esc="phase.name"/>
-                    <t t-foreach="rows" t-as="row" t-key="row.role.id">
-                        <button type="button" class="o_pan_sl_role" role="rowheader" t-att-data-role-id="row.role.id"
-                                t-att-aria-pressed="isSelected('role', row.role.id)"
-                                t-on-click="() => this.select('role', row.role.id)" t-esc="row.role.name"/>
-                        <div t-foreach="row.cells" t-as="cell" t-key="cell.phase.id" class="o_pan_sl_cell" role="cell">
-                            <button t-foreach="cell.tasks" t-as="task" t-key="task.id" type="button"
-                                    class="o_pan_sl_chip" t-att-class="{ o_pan_sl_dim: isDim(task) }"
-                                    t-att-data-task-id="task.id" t-att-aria-label="chipLabel(task)"
-                                    t-att-aria-pressed="isSelected('task', task.id)"
-                                    t-on-click="() => this.select('task', task.id)">
-                                <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ toneOf(task) }}"/>
-                                <span t-esc="task.name"/>
-                            </button>
-                        </div>
-                    </t>
+            <div class="o_pan_sl_grid_wrap" t-att-class="{ o_pan_sl_fade_right: fade.right }">
+                <div class="o_pan_sl_grid_area" t-ref="gridArea" t-on-scroll="updateFade">
+                    <div t-if="rows.length" class="o_pan_sl_grid" role="table" aria-label="Map"
+                         t-attf-style="grid-template-columns: minmax(8.5rem, 10rem) repeat({{ state.data.phases.length }}, minmax(9rem, 1fr))">
+                        <div class="o_pan_sl_corner" role="columnheader"/>
+                        <div t-foreach="state.data.phases" t-as="phase" t-key="phase.id" class="o_pan_sl_phase" role="columnheader" t-esc="phase.name"/>
+                        <t t-foreach="rows" t-as="row" t-key="row.role.id">
+                            <button type="button" class="o_pan_sl_role" role="rowheader" t-att-data-role-id="row.role.id"
+                                    t-att-aria-pressed="isSelected('role', row.role.id)"
+                                    t-on-click="() => this.select('role', row.role.id)" t-esc="row.role.name"/>
+                            <div t-foreach="row.cells" t-as="cell" t-key="cell.phase.id" class="o_pan_sl_cell" role="cell">
+                                <button t-foreach="cell.tasks" t-as="task" t-key="task.id" type="button"
+                                        class="o_pan_sl_chip" t-att-class="{ o_pan_sl_dim: isDim(task) }"
+                                        t-att-data-task-id="task.id" t-att-aria-label="chipLabel(task)"
+                                        t-att-aria-pressed="isSelected('task', task.id)"
+                                        t-on-click="() => this.select('task', task.id)">
+                                    <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ toneOf(task) }}"/>
+                                    <span t-esc="task.name"/>
+                                </button>
+                            </div>
+                        </t>
+                    </div>
+                    <p t-else="" class="o_pan_sl_empty text-muted m-3 p-4 text-center">No tasks with a role and a phase yet.</p>
                 </div>
-                <p t-else="" class="o_pan_sl_empty text-muted m-3 p-4 text-center">No tasks with a role and a phase yet.</p>
             </div>
             <t t-call="pan_self_learning_blueprint.Map.Panel"/>
         </div>
@@ -101,6 +105,7 @@
                     <span>
                         <span class="d-block" t-esc="task.name"/>
                         <span class="o_pan_sl_owners d-block text-muted" t-esc="owners(task)"/>
+                        <span class="o_pan_sl_hours d-block text-muted" t-esc="hours(task)"/>
                     </span>
                 </button>
             </li>

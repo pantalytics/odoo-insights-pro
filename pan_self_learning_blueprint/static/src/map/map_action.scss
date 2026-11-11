@@ -1,4 +1,4 @@
-// Map (Blueprint 2.1). Tokens resolve Odoo's own variables first (Odoo 19
+// Map (Blueprint 2.2). Tokens resolve Odoo's own variables first (Odoo 19
 // compiles Bootstrap without prefix and redefines them in the dark bundle),
 // then the Bootstrap 5 names, then a literal; so light and dark both work.
 
@@ -9,6 +9,7 @@
     --pan-border: var(--border-color, var(--bs-border-color, #dee2e6));
     --pan-soft: color-mix(in srgb, var(--pan-fg) 4%, var(--pan-bg));
     --pan-ok: var(--success, var(--bs-success, #28a745));
+    --pan-done: color-mix(in srgb, var(--pan-ok) 55%, #000000);
     --pan-warn: var(--warning, var(--bs-warning, #ffac00));
     --pan-off: var(--gray-500, var(--bs-gray-500, #adb5bd));
     --pan-late: var(--danger, var(--bs-danger, #d44c59));
@@ -23,8 +24,11 @@
         --pan-tap: 44px;
     }
 
+    // The flow list and the grid scroll on their own (the page does not), so
+    // the panel, over the grid, is in view whatever was tapped. Phones scroll
+    // the page (see the media query at the end).
     .o_pan_sl_content .o_content {
-        overflow: auto;
+        overflow: hidden;
     }
 
     button {
@@ -88,18 +92,29 @@
         background: var(--pan-ok);
     }
 
+    .o_pan_sl_tone_done {
+        background: var(--pan-done);
+    }
+
     // Body: flows | grid, the panel over the grid on the right -------------
     .o_pan_sl_body {
         position: relative;
         display: flex;
-        min-height: 100%;
+        height: 100%;
     }
 
     .o_pan_sl_flows {
         flex: none;
         width: 16.5rem;
+        overflow-y: auto;
         padding: 0.75rem;
         border-right: 1px solid var(--pan-border);
+    }
+
+    .o_pan_sl_flow_summary {
+        margin: 0 0 0.5rem;
+        padding: 0 0.625rem;
+        font-weight: 500;
     }
 
     .o_pan_sl_flow {
@@ -176,14 +191,39 @@
         }
     }
 
-    .o_pan_sl_owners {
+    .o_pan_sl_owners,
+    .o_pan_sl_hours {
         font-size: 0.85em;
     }
 
-    .o_pan_sl_grid_area {
+    .o_pan_sl_grid_wrap {
+        position: relative;
         flex: 1 1 0;
         min-width: 0;
-        overflow-x: auto;
+
+        // A fade at the right edge says "more to the right".
+        &::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+            width: 2.5rem;
+            pointer-events: none;
+            background: linear-gradient(to right, transparent, var(--pan-bg));
+            opacity: 0;
+            transition: opacity 150ms;
+        }
+
+        &.o_pan_sl_fade_right::after {
+            opacity: 1;
+        }
+    }
+
+    .o_pan_sl_grid_area {
+        height: 100%;
+        overflow: auto;
         padding: 0.75rem;
     }
 
@@ -308,14 +348,28 @@
 
     // Phones: flows above the grid, the panel as a bottom sheet.
     @media (max-width: 767.98px) {
+        .o_pan_sl_content .o_content {
+            overflow: auto;
+        }
+
         .o_pan_sl_body {
             flex-direction: column;
+            height: auto;
         }
 
         .o_pan_sl_flows {
             width: auto;
+            overflow-y: visible;
             border-right: 0;
             border-bottom: 1px solid var(--pan-border);
+        }
+
+        .o_pan_sl_grid_wrap {
+            flex: none;
+        }
+
+        .o_pan_sl_grid_area {
+            height: auto;
         }
 
         .o_pan_sl_panel {
@@ -328,10 +382,16 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .o_pan_sl_chip {
+        .o_pan_sl_chip,
+        .o_pan_sl_grid_wrap::after {
             transition: none;
         }
     }
+}
+
+// "Still to train" list: the people of a role wrap instead of being cut off.
+.o_list_renderer tbody > tr > td.o_pan_sl_wrap {
+    white-space: normal !important;
 }
 
 .o_pan_sl_map .o_pan_sl_unplaced,
@@ -343,5 +403,7 @@
 @if global-variable-exists("o-webclient-color-scheme") and $o-webclient-color-scheme == dark {
     .o_pan_sl_map {
         --pan-accent: #9b99ff;
+        // On a dark background "Trained" is the light end of green, still apart from Tested.
+        --pan-done: color-mix(in srgb, var(--pan-ok) 55%, #ffffff);
     }
 }

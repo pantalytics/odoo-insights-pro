@@ -66,3 +66,18 @@ class TestMigration(BlueprintCase):
         self.assertFalse(sql.column_exists(cr, "pan_sl_phase", "app_labels"))
         self.assertTrue(sql.column_exists(cr, "project_task_type", "pan_rung"), "Stages keep their progress.")
         self.env.invalidate_all()
+
+    def test_post_migration_2_2_rolls_up_flows(self):
+        """19.0.2.2.0: existing flows are put in the stage of their lowest subtask."""
+        self.env.cr.execute("UPDATE project_task SET stage_id = %s WHERE id = %s", (self.stages["5"].id, self.flow.id))
+        self.env.invalidate_all()
+        self.assertEqual(self.flow.stage_id, self.stages["5"])
+        path = file_path("pan_self_learning_blueprint/migrations/19.0.2.2.0/post-migrate.py")
+        spec = importlib.util.spec_from_file_location("pan_sl_migration_2_2_post", path)
+        script = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(script)
+        script.migrate(self.env.cr, None)
+        self.assertEqual(self.flow.stage_id, self.stages["5"], "A fresh install does nothing.")
+        script.migrate(self.env.cr, "19.0.2.1.0")
+        self.env.invalidate_all()
+        self.assertEqual(self.flow.stage_id, self.stages["1"])

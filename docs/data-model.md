@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.1, 11-11-2026)
+# Data model behind an Odoo implementation (v2.2, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -21,7 +21,7 @@ erDiagram
 | Map | One project. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
 | Activity / work | A task with a role and a phase: one chip on the map. |
-| Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). |
+| Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows four colours: grey Not started (Open), amber In progress (Decided, Built), green Tested, dark green Trained (Trained, Live). |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
 | Hours | Standard: allocated hours and timesheets on the task. |
@@ -31,7 +31,15 @@ erDiagram
 | ADKAR | `pan.sl.adkar.score` per person, shown as a band per role. |
 
 A flow's "Tested %" is the share of its subtasks at Tested or further.
-Cancelled tasks do not count; archived tasks do.
+Cancelled tasks do not count; archived tasks do. The flow card on the task
+kanban shows it ("Tested 40%", `pan_is_map_flow`).
+
+A flow's stage follows its subtasks (2.2): in a project with a map, when a
+subtask is created, deleted, cancelled or changes stage, parent or project,
+the flow moves to the project stage whose step equals the lowest step among
+its non-cancelled subtasks (archived ones count), the first such stage by
+sequence. No such stage, no move. A flow inside a flow moves its parent too.
+The upgrade to 2.2 does this once for every existing flow.
 
 Loading the template (or importing a blueprint) gives a project the six
 stages Open, Decided, Built, Tested, Trained, Live, each with its step, when
@@ -68,6 +76,7 @@ have at least one role, by name. With one, the map opens it.
               "open_training_task_ids": [1300]}],
   "flows":  [{"id": 1245, "name": "S01 ...", "progress": 40,
               "deadline": "2026-12-01" | false, "late": true,
+              "days_late": 5, "open_count": 2,
               "task_ids": [1300, 1301]}],
   "tasks":  [{"id": 1300, "name": "...", "role_id": 3 | false, "phase_id": 1 | false,
               "flow_id": 1245 | false, "stage": "Built" | false, "rung": 2,
@@ -80,16 +89,22 @@ have at least one role, by name. With one, the map opens it.
   sequence. `people`: names of the role's contacts. `open_training_task_ids`:
   the role's tasks below Trained (rung < 4), the same list for each person.
 - `flows`: parent tasks of the project that have subtasks, worst first:
-  lowest `progress` (Tested %), then late before not late, then sequence.
-  `deadline` is the task deadline as a date in the user's time zone; `late`
-  means the deadline has passed and progress is below 100. `task_ids`: all
+  lowest `progress` (Tested %), then late before not late, then more
+  `days_late`, then more `open_count`, then sequence. `deadline` is the task
+  deadline as a date in the user's time zone; `late` means that date is
+  before today and progress is below 100; `days_late` counts the days since
+  (0 when not late). `open_count`: its subtasks below Tested. `task_ids`: all
   its non-cancelled subtasks (those that are no flow themselves), in order.
 - `tasks`: every task of the project that is not a flow, placed or not
   (role and phase may be `false`); cancelled tasks left out. The map places
   only tasks with a role and a phase. `rung` is the stage's progress step,
   0 when the task has no stage.
-- `project.project.action_blueprint_training()` opens the project's tasks with
-  a role below Trained, grouped by role, with the role's people (`pan_role_people`).
+- `project.project.action_blueprint_training()` opens "Still to train": the
+  project's tasks with an internal role below Trained (the search filter
+  `pan_still_to_train`, on by default and visible), grouped by role with the
+  groups open, with the role's people (`pan_role_people`). The map's button
+  "Still to train (N)" counts the same tasks: the `open_training_task_ids` of
+  the internal roles.
 
 ## Blueprint file (version 2)
 

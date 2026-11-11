@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.tools import html2plaintext
 
 from .project_task import USER_GROUP
-from .structure import CANCELLED_STATE, TRAINED_RUNG
+from .structure import CANCELLED_STATE, TESTED_RUNG, TRAINED_RUNG
 
 # Block elements whose text counts as one line of a description.
 _LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
@@ -55,33 +55,38 @@ class ProjectProject(models.Model):
         )
         flows = tasks.filtered("child_ids")
         work = tasks - flows
-        flow_tasks, training = {}, {}
+        flow_tasks, open_counts, training = {}, {}, {}
         for task in work:
+            rung = int(task.pan_rung or 0)
             if task.parent_id in flows:
                 flow_tasks.setdefault(task.parent_id.id, []).append(task.id)
-            if task.pan_role_id and int(task.pan_rung or 0) < TRAINED_RUNG:
+                open_counts[task.parent_id.id] = open_counts.get(task.parent_id.id, 0) + (rung < TESTED_RUNG)
+            if task.pan_role_id and rung < TRAINED_RUNG:
                 training.setdefault(task.pan_role_id.id, []).append(task.id)
 
         # One search for all roles; only a band word per role, never a score.
         adkar_bands = roles._get_adkar_bands()
-        now = fields.Datetime.now()
+        today = fields.Date.context_today(self)
         flow_rows = []
         for flow in flows:
-            late = bool(flow.date_deadline and flow.date_deadline < now and flow.pan_flow_progress < 100)
+            deadline = flow.date_deadline and fields.Datetime.context_timestamp(self, flow.date_deadline).date()
+            late = bool(deadline and deadline < today and flow.pan_flow_progress < 100)
             flow_rows.append(
                 {
                     "id": flow.id,
                     "name": flow.name,
                     "progress": flow.pan_flow_progress,
-                    "deadline": flow.date_deadline
-                    and fields.Datetime.context_timestamp(self, flow.date_deadline).date().isoformat(),
+                    "deadline": deadline and deadline.isoformat(),
                     "late": late,
+                    "days_late": (today - deadline).days if late else 0,
+                    "open_count": open_counts.get(flow.id, 0),
                     "task_ids": flow_tasks.get(flow.id, []),
                 }
             )
-        # Worst first: lowest Tested %, then late before on time; ``tasks`` is
-        # already in sequence order and the sort is stable.
-        flow_rows.sort(key=lambda row: (row["progress"], not row["late"]))
+        # Worst first: lowest Tested %, late before on time, longer late first,
+        # more open tasks first; ``tasks`` is already in sequence order and the
+        # sort is stable, so sequence breaks the last tie.
+        flow_rows.sort(key=lambda row: (row["progress"], not row["late"], -row["days_late"], -row["open_count"]))
 
         return {
             "project": {"id": self.id, "name": self.name},
@@ -118,25 +123,22 @@ class ProjectProject(models.Model):
         }
 
     def action_blueprint_training(self):
-        """Who still needs training: the project's tasks with a role below
-        Trained, grouped by role, with the role's people."""
+        """Still to train: the project's tasks of internal roles below Trained,
+        grouped by role (groups open), with the role's people. The condition is
+        the search filter "Still to train", so it shows in the search bar."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Training"),
+            "name": self.env._("Still to train"),
             "res_model": "project.task",
             "view_mode": "list,form",
             "views": [(self.env.ref("pan_self_learning_blueprint.view_task_list_training").id, "list"), (False, "form")],
-            "domain": [
-                ("project_id", "=", self.id),
-                ("child_ids", "=", False),
-                ("state", "!=", CANCELLED_STATE),
-                ("pan_role_id", "!=", False),
-                "|",
-                ("pan_rung", "=", False),
-                ("pan_rung", "in", [str(rung) for rung in range(TRAINED_RUNG)]),
-            ],
-            "context": {"group_by": ["pan_role_id"], "default_project_id": self.id},
+            "domain": [("project_id", "=", self.id)],
+            "context": {
+                "search_default_pan_still_to_train": 1,
+                "search_default_pan_groupby_role": 1,
+                "default_project_id": self.id,
+            },
         }
 
     def _blueprint_first_line(self, html):
