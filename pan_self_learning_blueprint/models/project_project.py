@@ -1,8 +1,10 @@
 from lxml import html as lxml_html
 
 from odoo import api, fields, models
+from odoo.fields import Domain
 from odoo.tools import html2plaintext
 
+from .ir_ui_view import MAP_VIEW_TYPE
 from .project_task import USER_GROUP
 from .structure import CANCELLED_STATE, TESTED_RUNG, TRAINED_RUNG
 
@@ -40,18 +42,38 @@ class ProjectProject(models.Model):
         return [{"id": project.id, "name": project.name} for project in projects]
 
     def action_open_blueprint_map(self):
-        """Open the map of this project (Projects app, not a separate app)."""
+        """Open the project's tasks in the Map view (the map is a view type
+        on project.task since 2.3, so the standard search bar works on it).
+        All tasks, not only the open ones: the map shows progress up to Live."""
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("pan_self_learning_blueprint.action_blueprint_map")
-        action["params"] = {"project_id": self.id}
+        action = self.action_view_tasks()
+        views = action["views"]
+        map_views = [view for view in views if view[1] == MAP_VIEW_TYPE] or [(False, MAP_VIEW_TYPE)]
+        action["views"] = map_views + [view for view in views if view[1] != MAP_VIEW_TYPE]
+        action["context"] = {key: value for key, value in action["context"].items() if key != "search_default_open_tasks"}
+        action["mobile_view_mode"] = MAP_VIEW_TYPE  # phones open the map too, not the kanban
+        return action
+
+    def action_view_tasks(self):
+        """The Map view sits in the view switcher of a project with a map, for
+        Blueprint users; other projects and users do not see it."""
+        action = super().action_view_tasks()
+        if not (self.env.user.has_group(USER_GROUP) and self.sudo().pan_role_ids):
+            action["views"] = [view for view in action["views"] if view[1] != MAP_VIEW_TYPE]
         return action
 
     # ------------------------------------------------------------------
     # Map data (contract: docs/data-model.md)
     # ------------------------------------------------------------------
 
-    def get_blueprint_map_data(self):
+    def get_blueprint_map_data(self, domain=None, order=None):
         """Everything the map (and an agent) needs for this project, in one call.
+
+        ``domain`` (optional, a task domain such as the map view's search)
+        restricts the listed tasks; a flow keeps its progress and open count
+        over all its tasks but lists only matching ones, and a flow without a
+        matching task is left out. ``order`` (optional) orders ``tasks`` (the
+        chips within a cell); a flow's ``task_ids`` always follow sequence.
 
         Records are read as recordsets, so related values are fetched in
         batches and the query count does not grow with the number of tasks.
@@ -59,19 +81,28 @@ class ProjectProject(models.Model):
         self.ensure_one()
         phases = self.env["pan.sl.phase"].search([])
         roles = self.pan_role_ids.sorted()
-        tasks = self.env["project.task"].search(
-            [("project_id", "=", self.id), ("state", "!=", CANCELLED_STATE)], order="sequence, id"
-        )
+        base = [("project_id", "=", self.id), ("state", "!=", CANCELLED_STATE)]
+        tasks = self.env["project.task"].search(base, order="sequence, id")
         flows = tasks.filtered("child_ids")
-        work = tasks - flows
+        if domain:
+            matching = self.env["project.task"].search(Domain.AND([base, domain]), order=order or "sequence, id")
+        elif order:
+            matching = self.env["project.task"].search(base, order=order)
+        else:
+            matching = tasks
+        work = matching - flows
         flow_tasks, open_counts, training = {}, {}, {}
-        for task in work:
+        for task in tasks - flows:
+            if task.parent_id in flows:
+                open_counts[task.parent_id.id] = open_counts.get(task.parent_id.id, 0) + (int(task.pan_rung or 0) < TESTED_RUNG)
+        for task in work.sorted(lambda task: (task.sequence, task.id)):
             rung = int(task.pan_rung or 0)
             if task.parent_id in flows:
                 flow_tasks.setdefault(task.parent_id.id, []).append(task.id)
-                open_counts[task.parent_id.id] = open_counts.get(task.parent_id.id, 0) + (rung < TESTED_RUNG)
             if task.pan_role_id and rung < TRAINED_RUNG:
                 training.setdefault(task.pan_role_id.id, []).append(task.id)
+        if domain:
+            flows = flows.filtered(lambda flow: flow.id in flow_tasks)
 
         # One search for all roles; only a band word per role, never a score.
         adkar_bands = roles._get_adkar_bands()
@@ -97,8 +128,20 @@ class ProjectProject(models.Model):
         # sort is stable, so sequence breaks the last tie.
         flow_rows.sort(key=lambda row: (row["progress"], not row["late"], -row["days_late"], -row["open_count"]))
 
+        milestones = self.env["project.milestone"].search(
+            [("project_id", "=", self.id)], order="deadline asc nulls last, id"
+        )
         return {
             "project": {"id": self.id, "name": self.name},
+            "milestones": [
+                {
+                    "id": milestone.id,
+                    "name": milestone.name,
+                    "deadline": milestone.deadline and milestone.deadline.isoformat(),
+                    "reached": milestone.is_reached,
+                }
+                for milestone in milestones
+            ],
             "phases": [{"id": phase.id, "code": phase.code, "name": phase.name} for phase in phases],
             "roles": [
                 {

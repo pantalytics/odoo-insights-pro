@@ -22,7 +22,8 @@ class TestMapData(BlueprintCase):
 
     def test_contract_keys(self):
         data = self._data()
-        self.assertEqual(set(data), {"project", "phases", "roles", "flows", "tasks"})
+        self.assertEqual(set(data), {"project", "milestones", "phases", "roles", "flows", "tasks"})
+        self.assertEqual(data["milestones"], [])
         self.assertEqual(data["project"], {"id": self.project.id, "name": self.project.name})
         phase = next(phase for phase in data["phases"] if phase["id"] == self.phase_a.id)
         self.assertEqual(phase, {"id": self.phase_a.id, "code": "t_phase_a", "name": "Test phase A"})
@@ -69,6 +70,54 @@ class TestMapData(BlueprintCase):
                 "description": False,
             },
         )
+
+    def test_milestones_by_deadline(self):
+        """2.3: the project's milestones for "On schedule?", by deadline, undated last."""
+        Milestone = self.env["project.milestone"]
+        later, undated, sooner = Milestone.create(
+            [
+                {"name": "Later", "project_id": self.project.id, "deadline": "2026-12-20"},
+                {"name": "Undated", "project_id": self.project.id},
+                {"name": "Sooner", "project_id": self.project.id, "deadline": "2026-11-20", "is_reached": True},
+            ]
+        )
+        other = self.env["project.project"].create({"name": "Other milestones"})
+        Milestone.create({"name": "Elsewhere", "project_id": other.id})
+        self.assertEqual(
+            self._data()["milestones"],
+            [
+                {"id": sooner.id, "name": "Sooner", "deadline": "2026-11-20", "reached": True},
+                {"id": later.id, "name": "Later", "deadline": "2026-12-20", "reached": False},
+                {"id": undated.id, "name": "Undated", "deadline": False, "reached": False},
+            ],
+        )
+
+    def test_domain_restricts_tasks_not_flow_progress(self):
+        """2.3: the Map view's search restricts the tasks; a flow keeps its
+        progress and open count over all its tasks, lists only the matching
+        ones, and drops out without any; training follows the matching tasks."""
+        other_flow = self.Task.create({"name": "S02 Other flow", "project_id": self.project.id, "sequence": 2})
+        task_c = self._make_task("Task C", self.role_sales, self.phase_b, parent_id=other_flow.id)
+        data = self.project.get_blueprint_map_data(domain=[("name", "in", ["Task B", "Task C"])])
+        self.assertEqual([row["id"] for row in data["tasks"]], [self.task_b.id, task_c.id])
+        flows = {row["id"]: row for row in data["flows"]}
+        self.assertEqual(set(flows), {self.flow.id, other_flow.id})
+        self.assertEqual(flows[self.flow.id]["task_ids"], [self.task_b.id])
+        self.assertEqual((flows[self.flow.id]["progress"], flows[self.flow.id]["open_count"]), (50, 1))
+        self.assertEqual(data["roles"][0]["open_training_task_ids"], [task_c.id])
+
+        data = self.project.get_blueprint_map_data(domain=[("id", "=", self.task_a.id)])
+        self.assertEqual([row["id"] for row in data["flows"]], [self.flow.id])
+        self.assertEqual(self.project.get_blueprint_map_data(domain=[("id", "=", 0)])["flows"], [])
+        # A domain on the flow itself does not hide its tasks: flows are known from all tasks.
+        data = self.project.get_blueprint_map_data(domain=[("parent_id", "=", self.flow.id)])
+        self.assertEqual(data["flows"][0]["task_ids"], [self.task_a.id, self.task_b.id])
+
+    def test_order_orders_tasks_not_flow_route(self):
+        """2.3: chips follow the view's order; a flow's route keeps the task sequence."""
+        data = self.project.get_blueprint_map_data(order="name desc")
+        self.assertEqual([row["id"] for row in data["tasks"]], [self.task_b.id, self.task_a.id])
+        self.assertEqual(data["flows"][0]["task_ids"], [self.task_a.id, self.task_b.id])
 
     def test_every_task_without_flows_or_cancelled(self):
         """All work of the project, placed or not; a flow lists all its subtasks."""

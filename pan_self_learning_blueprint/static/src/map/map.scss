@@ -1,4 +1,4 @@
-// Map (Blueprint 2.2). Tokens resolve Odoo's own variables first (Odoo 19
+// Map view (Blueprint 2.3). Tokens resolve Odoo's own variables first (Odoo 19
 // compiles Bootstrap without prefix and redefines them in the dark bundle),
 // then the Bootstrap 5 names, then a literal; so light and dark both work.
 
@@ -27,7 +27,9 @@
     // The flow list and the grid scroll on their own (the page does not), so
     // the panel, over the grid, is in view whatever was tapped. Phones scroll
     // the page (see the media query at the end).
-    .o_pan_sl_content .o_content {
+    .o_content.o_pan_sl_content {
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
     }
 
@@ -42,15 +44,78 @@
         outline-offset: 1px;
     }
 
-    // Header -------------------------------------------------------------
-    .o_pan_sl_header .btn,
-    .o_pan_sl_project_select {
-        min-height: var(--pan-tap);
+    // Overview band: five plain answers, each a way into the detail ------
+    .o_pan_sl_overview {
+        flex: none;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin: 0;
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--pan-border);
     }
 
-    .o_pan_sl_project_select {
-        width: auto;
-        max-width: 16rem;
+    .o_pan_sl_answer {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        width: 100%;
+        height: 100%;
+        min-height: var(--pan-tap);
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--pan-border);
+        border-radius: 0.5rem;
+        background: var(--pan-bg);
+
+        &:hover {
+            background: var(--pan-soft);
+        }
+
+        &[aria-pressed="true"] {
+            border-color: var(--pan-accent);
+            background: var(--pan-select);
+        }
+    }
+
+    .o_pan_sl_answer_label,
+    .o_pan_sl_answer_detail {
+        font-size: 0.85em;
+        color: var(--pan-muted);
+    }
+
+    .o_pan_sl_answer_value {
+        font-weight: 500;
+        overflow-wrap: anywhere;
+    }
+
+    .o_pan_sl_answer_status {
+        font-size: 0.85em;
+    }
+
+    // Toolbar above the grid: breadcrumb (flow level), legend, unplaced link.
+    .o_pan_sl_toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 1rem;
+        padding: 0.25rem 0.75rem 0;
+    }
+
+    .o_pan_sl_crumbs {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-weight: 500;
+    }
+
+    .o_pan_sl_crumb {
+        min-height: var(--pan-tap);
+        padding: 0 0.25rem;
+        color: var(--pan-accent);
+    }
+
+    .o_pan_sl_crumb_sep {
+        color: var(--pan-muted);
     }
 
     .o_pan_sl_legend li {
@@ -100,7 +165,15 @@
     .o_pan_sl_body {
         position: relative;
         display: flex;
-        height: 100%;
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .o_pan_sl_main {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-width: 0;
     }
 
     .o_pan_sl_flows {
@@ -200,6 +273,7 @@
         position: relative;
         flex: 1 1 0;
         min-width: 0;
+        min-height: 0;
 
         // A fade at the right edge says "more to the right".
         &::after {
@@ -228,12 +302,13 @@
     }
 
     .o_pan_sl_grid {
+        position: relative;
         display: grid;
         border-top: 1px solid var(--pan-border);
         border-left: 1px solid var(--pan-border);
     }
 
-    .o_pan_sl_grid > * {
+    .o_pan_sl_grid > :not(.o_pan_sl_arrows) {
         border-right: 1px solid var(--pan-border);
         border-bottom: 1px solid var(--pan-border);
         overflow-wrap: break-word;
@@ -292,8 +367,50 @@
             background: var(--pan-select);
         }
 
-        &.o_pan_sl_dim {
-            opacity: 0.3;
+    }
+
+    // Flow level: one flow as a swimlane, its chips joined by arrows. The
+    // arrows lie under the chips, in the grid's own box, so they scroll with it.
+    .o_pan_sl_swimlane {
+        justify-content: start;
+        animation: o_pan_sl_zoom_in 180ms ease-out;
+
+        .o_pan_sl_cell {
+            gap: 1.25rem;
+            padding: 0.75rem 1.5rem;
+        }
+
+        .o_pan_sl_chip {
+            position: relative;
+            z-index: 1;
+        }
+    }
+
+    .o_pan_sl_arrows {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+        overflow: visible;
+        pointer-events: none;
+        color: var(--pan-accent);
+    }
+
+    .o_pan_sl_arrow {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linejoin: round;
+    }
+
+    @keyframes o_pan_sl_zoom_in {
+        from {
+            opacity: 0;
+            transform: scale(0.97);
+        }
+        to {
+            opacity: 1;
+            transform: none;
         }
     }
 
@@ -348,8 +465,13 @@
 
     // Phones: flows above the grid, the panel as a bottom sheet.
     @media (max-width: 767.98px) {
-        .o_pan_sl_content .o_content {
+        .o_content.o_pan_sl_content {
+            display: block;
             overflow: auto;
+        }
+
+        .o_pan_sl_overview {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .o_pan_sl_body {
@@ -364,6 +486,7 @@
             border-bottom: 1px solid var(--pan-border);
         }
 
+        .o_pan_sl_main,
         .o_pan_sl_grid_wrap {
             flex: none;
         }
@@ -385,6 +508,10 @@
         .o_pan_sl_chip,
         .o_pan_sl_grid_wrap::after {
             transition: none;
+        }
+
+        .o_pan_sl_swimlane {
+            animation: none;
         }
     }
 }
