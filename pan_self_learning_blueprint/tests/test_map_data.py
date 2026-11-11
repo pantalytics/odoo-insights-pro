@@ -22,8 +22,12 @@ class TestMapData(BlueprintCase):
 
     def test_contract_keys(self):
         data = self._data()
-        self.assertEqual(set(data), {"project", "milestones", "phases", "roles", "flows", "tasks"})
+        self.assertEqual(set(data), {"project", "milestones", "phases", "stages", "roles", "flows", "tasks"})
         self.assertEqual(data["milestones"], [])
+        self.assertEqual(
+            data["stages"],
+            [{"id": stage.id, "name": stage.name, "rung": int(rung)} for rung, stage in sorted(self.stages.items())],
+        )
         self.assertEqual(data["project"], {"id": self.project.id, "name": self.project.name})
         phase = next(phase for phase in data["phases"] if phase["id"] == self.phase_a.id)
         self.assertEqual(phase, {"id": self.phase_a.id, "code": "t_phase_a", "name": "Test phase A"})
@@ -62,6 +66,7 @@ class TestMapData(BlueprintCase):
                 "role_id": self.role_sales.id,
                 "phase_id": self.phase_a.id,
                 "flow_id": self.flow.id,
+                "stage_id": self.stages["3"].id,
                 "stage": "Test 3",
                 "rung": 3,
                 "user_names": [],

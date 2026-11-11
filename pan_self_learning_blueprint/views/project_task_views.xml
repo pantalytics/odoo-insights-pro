@@ -44,6 +44,7 @@
             <xpath expr="//search" position="inside">
                 <field name="pan_role_id"/>
                 <field name="pan_phase_id"/>
+                <field name="pan_rung" string="Progress step"/>
                 <separator groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Activity" name="pan_activity"
                         domain="[('child_ids', '=', False), ('pan_role_id', '!=', False), ('pan_phase_id', '!=', False)]"
@@ -57,7 +58,7 @@
                 <filter string="Not decided" name="pan_not_decided"
                         domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', '=', '0')]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
-                <filter string="Not tested" name="pan_not_tested"
+                <filter string="Still to do" name="pan_not_tested"
                         domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2'])]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Not live" name="pan_not_live"
