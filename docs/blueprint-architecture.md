@@ -207,7 +207,7 @@ old `user_id` column.
 | `action_adkar_score` + views | `views/adkar_views.xml` |
 | task form page "Blueprint" (inherit `project.view_task_form2`) | `views/project_task_views.xml` |
 | `action_blueprint_load_template`, `action_blueprint_export` (server actions), `action_blueprint_import` + `view_blueprint_import_form` | `views/blueprint_views.xml` |
-| `action_blueprint_map` (client action `pan_sl_blueprint_map`) | `views/map_action.xml` |
+| `view_task_map` (view type `pan_blueprint`, 2.3), `act_project_task_map_view`, `action_blueprint_map` (client action `pan_sl_blueprint_map`, the Map shortcut) | `views/map_action.xml` |
 | `menu_blueprint_root` and submenus | `views/menus.xml` |
 
 Menu: Blueprint → Company map · Model (Chains, Processes, Activities,

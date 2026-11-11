@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.2, 11-11-2026)
+# Data model behind an Odoo implementation (v2.3, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -18,14 +18,14 @@ erDiagram
 
 | Concept | Where it lives |
 |---|---|
-| Map | One project. Projects > Map, or "Map" on the project form and card. |
+| Map | One project: the "Map" view (type `pan_blueprint`) of the project's tasks, next to Kanban and List, with Odoo's search bar. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
 | Activity / work | A task with a role and a phase: one chip on the map. |
 | Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows four colours: grey Not started (Open), amber In progress (Decided, Built), green Tested, dark green Trained (Trained, Live). |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
 | Hours | Standard: allocated hours and timesheets on the task. |
-| Gates | Standard project milestones. |
+| Gates | Standard project milestones; the next one not reached answers "On schedule?" on the map. |
 | Phase (map column) | `pan.sl.phase`, shared by all projects. |
 | Role (map row) | `pan.sl.role`, per project (`project_id`), with its people (contacts). |
 | ADKAR | `pan.sl.adkar.score` per person, shown as a band per role. |
@@ -60,16 +60,42 @@ data for them, no task links and no scores (checked 11-11).
 
 ## Map contract
 
-Projects > Map opens the client action `pan_sl_blueprint_map` without
-params; it calls `project.project.get_blueprint_map_projects()`, which
-returns `[{"id": 14, "name": "..."}]`: the projects the user can read that
-have at least one role, by name. With one, the map opens it.
+The map is a view type on `project.task` (2.3): `pan_blueprint`, named
+"Map", icon `fa-map-o`, arch `<pan_blueprint/>` (view
+`pan_self_learning_blueprint.view_task_map`). It sits in the project's task
+action (`project.act_project_project_2_project_task_all`) after Kanban, so
+the standard search bar (filters, group by, favourites) works on it.
+`project.project.action_view_tasks()` leaves it out for projects without
+roles and for users without the Blueprint user group. The "Tasks" menu
+actions across projects do not get it: the map needs one project. The view
+takes its project from the action context (`default_project_id`, else
+`active_id`) and calls `get_blueprint_map_data(domain=<search domain>,
+order=<view order>)`; group by does not change the map (the grid is already
+grouped by role and phase).
 
-`project.project.get_blueprint_map_data()` on one project returns:
+`project.project.action_open_blueprint_map()` returns that task action with
+the Map view first (also on phones) and without the "open tasks" default
+filter. Projects > Map opens the client action `pan_sl_blueprint_map`: it
+calls `project.project.get_blueprint_map_projects()`, which returns
+`[{"id": 14, "name": "..."}]` (the projects the user can read with at least
+one role, by name); with one it opens that project's Map view, with more a
+plain list (`pan_sl_blueprint_map_list`). The client action with
+`params.project_id` (2.2 links) opens that project's Map view.
+
+Search filters on tasks (also in the Map view): Activity (`pan_activity`,
+a task with a role and a phase), No place on the map (`pan_unplaced`),
+Not decided (`pan_not_decided`, step Open), Not tested (`pan_not_tested`,
+below Tested), Still to train (`pan_still_to_train`), Not live; group by
+Role, Phase, Progress step.
+
+`project.project.get_blueprint_map_data(domain=None, order=None)` on one
+project returns:
 
 ```json
 {
   "project": {"id": 14, "name": "..."},
+  "milestones": [{"id": 2, "name": "Go-live", "deadline": "2026-12-11" | false,
+                  "reached": false}],
   "phases": [{"id": 1, "code": "quotation", "name": "Quotation"}],
   "roles":  [{"id": 3, "code": "sales", "name": "Sales", "is_external": false,
               "people": ["Name"], "adkar": "low" | "medium" | "high" | false,
@@ -85,6 +111,13 @@ have at least one role, by name. With one, the map opens it.
 }
 ```
 
+- `domain` (optional): a `project.task` domain, such as the Map view's
+  search. It restricts `tasks`, each flow's `task_ids` and the roles'
+  `open_training_task_ids`; a flow keeps `progress` and `open_count` over all
+  its subtasks, and a flow without a matching task is left out. Flows are
+  always known from all tasks, so a domain on the flow itself does not hide
+  its tasks. `order` (optional) orders `tasks`; `task_ids` keep the sequence.
+- `milestones`: the project's milestones, by deadline (undated last).
 - `phases`: all phases, by sequence. `roles`: the project's roles, by
   sequence. `people`: names of the role's contacts. `open_training_task_ids`:
   the role's tasks below Trained (rung < 4), the same list for each person.

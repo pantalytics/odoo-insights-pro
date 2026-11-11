@@ -122,7 +122,9 @@ class TestBlueprint(BlueprintCase):
     def test_template_loads_and_reload_only_fills(self):
         action = self.target.action_blueprint_load_template()
         self.assertEqual(action["tag"], "display_notification")
-        self.assertEqual(action["params"]["next"]["params"], {"project_id": self.target.id})
+        following = action["params"]["next"]
+        self.assertEqual((following["res_model"], following["views"][0][1]), ("project.task", "pan_blueprint"))
+        self.assertEqual(following["context"]["default_project_id"], self.target.id)
         self.assertIn("10 flows, 35 tasks", action["params"]["message"])
         data = self.target.get_blueprint_map_data()
         self.assertEqual((len(data["roles"]), len(data["flows"]), len(data["tasks"])), (8, 10, 35))

@@ -34,7 +34,8 @@
         </field>
     </record>
 
-    <!-- Task search: role, phase, "not on the map", group by role, phase and progress. -->
+    <!-- Task search (also the Map view's search bar): role, phase, activity, no place on the map,
+         not decided, not tested, still to train; group by role, phase and progress. -->
     <record id="view_task_search_blueprint" model="ir.ui.view">
         <field name="name">project.task.search.blueprint</field>
         <field name="model">project.task</field>
@@ -44,11 +45,20 @@
                 <field name="pan_role_id"/>
                 <field name="pan_phase_id"/>
                 <separator groups="pan_self_learning_blueprint.group_blueprint_user"/>
-                <filter string="Not on the map" name="pan_unplaced"
+                <filter string="Activity" name="pan_activity"
+                        domain="[('child_ids', '=', False), ('pan_role_id', '!=', False), ('pan_phase_id', '!=', False)]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="No place on the map" name="pan_unplaced"
                         domain="[('child_ids', '=', False), '|', ('pan_role_id', '=', False), ('pan_phase_id', '=', False)]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Still to train" name="pan_still_to_train"
                         domain="[('child_ids', '=', False), ('state', '!=', '1_canceled'), ('pan_role_id', '!=', False), ('pan_role_id.is_external', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2', '3'])]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Not decided" name="pan_not_decided"
+                        domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', '=', '0')]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Not tested" name="pan_not_tested"
+                        domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2'])]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Not live" name="pan_not_live"
                         domain="[('pan_rung', '!=', '5')]"
