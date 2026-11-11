@@ -44,7 +44,7 @@ class TestBlueprint(BlueprintCase):
         data = self.Blueprint.export_blueprint(self.project)
         self.assertEqual((data["format"], data["version"], data["lang"]), ("pantalytics-blueprint", 2, "en_US"))
         self.assertEqual([role["code"] for role in data["roles"]], ["t_sales", "t_customer"])
-        self.assertIn("t_phase_a", [phase["code"] for phase in data["phases"]])
+        self.assertIn({"code": "t_phase_a", "name": "Test phase A", "sequence": 10}, data["phases"])
         self.assertEqual(
             data["flows"],
             [
@@ -69,11 +69,12 @@ class TestBlueprint(BlueprintCase):
             {"roles": {"created": 2, "updated": 0}, "flows": {"created": 1, "updated": 0}, "tasks": {"created": 2, "updated": 0}},
         )
         self.assertEqual(summary["phases"]["created"], 0, "Phases are shared and matched on code.")
+        self.assertEqual(sum(summary["stages"].values()), 6, "The project gets the six progress stages.")
         exported = self.Blueprint.export_blueprint(self.target)
         self.assertEqual(exported["flows"], data["flows"])
         self.assertEqual(exported["roles"], data["roles"])
         again = self._import(exported)
-        for section in ("phases", "roles", "flows", "tasks"):
+        for section in ("stages", "phases", "roles", "flows", "tasks"):
             self.assertEqual(again[section], {"created": 0, "updated": 0}, section)
         self.assertEqual(self.Role.search_count([("code", "=", "t_sales")]), 2, "Roles are per project.")
 
@@ -130,7 +131,8 @@ class TestBlueprint(BlueprintCase):
         task = self.Task.search([("project_id", "=", self.target.id), ("name", "=", "Draft the quotation")])
         sales = task.pan_role_id
         sales.write({"name": "Inside sales", "is_external": True})
-        task.write({"description": "<p>Our own way</p>", "pan_phase_id": False, "pan_rung": "4"})
+        trained = self.target.type_ids.filtered(lambda stage: stage.pan_rung == "4")
+        task.write({"description": "<p>Our own way</p>", "pan_phase_id": False, "stage_id": trained.id})
         action = self.target.action_blueprint_load_template()
         self.assertEqual(sales.name, "Inside sales")
         self.assertTrue(sales.is_external)
@@ -139,6 +141,31 @@ class TestBlueprint(BlueprintCase):
         self.assertEqual(task.pan_rung, "4")
         self.assertEqual(action["params"]["message"], "Updated 1 tasks.")
         self.assertEqual(self.target.action_blueprint_load_template()["params"]["message"], "Nothing to change.")
+
+    def test_template_gives_the_progress_stages(self):
+        """Six stages Open ... Live, shared with other mapped projects; tasks start Open."""
+        self.target.action_blueprint_load_template()
+        stages = self.target.type_ids.sorted()
+        self.assertEqual(stages.mapped("name"), ["Open", "Decided", "Built", "Tested", "Trained", "Live"])
+        self.assertEqual(stages.mapped("pan_rung"), ["0", "1", "2", "3", "4", "5"])
+        tasks = self.Task.search([("project_id", "=", self.target.id), ("child_ids", "=", False)])
+        self.assertEqual(set(tasks.mapped("stage_id.name")), {"Open"})
+        other = self.env["project.project"].create({"name": "Second map"})
+        summary = self.Blueprint.import_blueprint(other, _blueprint())
+        self.assertEqual(summary["stages"], {"created": 0, "updated": 6}, "Existing stages are linked, not copied.")
+        self.assertEqual(other.type_ids.sorted(), stages)
+
+    def test_stages_fill_only(self):
+        """A project whose stages already carry progress gets none; plain stages stay."""
+        self.assertEqual(self._import(_blueprint(), project=self.project)["stages"], {"created": 0, "updated": 0})
+        plain = self.env["project.task.type"].create({"name": "New", "project_ids": [(4, self.target.id)]})
+        self._import(_blueprint())
+        self.assertIn(plain, self.target.type_ids)
+        self.assertEqual(len(self.target.type_ids), 7)
+
+    def test_phase_apps_of_2_0_files_are_ignored(self):
+        summary = self._import(_blueprint(phases=[{"code": "t_phase_a", "name": "Test phase A", "apps": ["sale"]}]))
+        self.assertEqual(summary["phases"], {"created": 0, "updated": 0})
 
     def test_template_has_no_version_1_keys(self):
         data = self.Blueprint._read_template()
@@ -155,7 +182,7 @@ class TestBlueprint(BlueprintCase):
             {"file": base64.b64encode(content), "filename": "mine.json"}
         )
         result = wizard.action_import()
-        self.assertEqual(result["params"]["message"], "Created 1 roles.")
+        self.assertIn("1 roles.", result["params"]["message"])
         self.assertTrue(self.Role.search([("project_id", "=", self.target.id), ("code", "=", "t_new")]))
         wizard.file = base64.b64encode(b"{broken")
         with self.assertRaisesRegex(UserError, "line 1"):

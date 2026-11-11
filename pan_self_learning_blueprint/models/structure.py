@@ -1,7 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-# Readiness gates of a task (project.task.pan_rung), shown as words.
+# Progress steps of a task stage (project.task.type.pan_rung), shown as words.
+# Loading a blueprint gives a project one stage per step, named after it.
 RUNG_SELECTION = [
     ("0", "Open"),
     ("1", "Decided"),
@@ -13,6 +14,9 @@ RUNG_SELECTION = [
 
 # From this rung on ("Tested") a subtask counts as done in its flow's progress.
 TESTED_RUNG = 3
+
+# Below this rung ("Trained") the people of a task's role still need training.
+TRAINED_RUNG = 4
 
 # Task state of a cancelled task (project). Cancelled tasks do not count.
 CANCELLED_STATE = "1_canceled"
@@ -66,20 +70,10 @@ class PanSlPhase(models.Model):
         default=10,
         help="Position of the column on the map, from left to right.",
     )
-    app_labels = fields.Char(
-        string="Odoo apps",
-        help="Technical module names, comma separated, e.g. sale_management, account.",
-    )
-
     _code_unique = models.Constraint(
         "unique (code)",
         "A phase with this code already exists. Phase codes must be unique.",
     )
-
-    def _app_values(self):
-        """The comma separated ``app_labels`` of this phase as a list."""
-        self.ensure_one()
-        return [label.strip() for label in (self.app_labels or "").split(",") if label.strip()]
 
 
 class PanSlRole(models.Model):

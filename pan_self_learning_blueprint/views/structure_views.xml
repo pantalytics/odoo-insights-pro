@@ -9,7 +9,6 @@
                 <field name="sequence" widget="handle"/>
                 <field name="code"/>
                 <field name="name"/>
-                <field name="app_labels" optional="show"/>
             </list>
         </field>
     </record>
@@ -28,9 +27,6 @@
                         <group>
                             <field name="code" placeholder="e.g. quotation"/>
                         </group>
-                        <group>
-                            <field name="app_labels" placeholder="e.g. sale_management, stock"/>
-                        </group>
                     </group>
                 </sheet>
             </form>
@@ -46,7 +42,7 @@
         </field>
     </record>
 
-    <!-- Roles (map lanes, per project) -->
+    <!-- Roles (map rows, per project) -->
     <record id="view_role_list" model="ir.ui.view">
         <field name="name">pan.sl.role.list</field>
         <field name="model">pan.sl.role</field>

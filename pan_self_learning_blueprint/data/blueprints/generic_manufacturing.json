@@ -7,69 +7,42 @@
     {
       "code": "master_data",
       "name": "Master data",
-      "sequence": 10,
-      "apps": [
-        "contacts",
-        "stock"
-      ]
+      "sequence": 10
     },
     {
       "code": "request",
       "name": "Request",
-      "sequence": 20,
-      "apps": [
-        "crm"
-      ]
+      "sequence": 20
     },
     {
       "code": "quotation",
       "name": "Quotation",
-      "sequence": 30,
-      "apps": [
-        "sale_management"
-      ]
+      "sequence": 30
     },
     {
       "code": "order",
       "name": "Order",
-      "sequence": 40,
-      "apps": [
-        "sale_management"
-      ]
+      "sequence": 40
     },
     {
       "code": "plan_produce",
       "name": "Plan and produce",
-      "sequence": 50,
-      "apps": [
-        "mrp"
-      ]
+      "sequence": 50
     },
     {
       "code": "purchase_receive",
       "name": "Purchase and receive",
-      "sequence": 60,
-      "apps": [
-        "purchase",
-        "stock"
-      ]
+      "sequence": 60
     },
     {
       "code": "deliver",
       "name": "Deliver",
-      "sequence": 70,
-      "apps": [
-        "stock"
-      ]
+      "sequence": 70
     },
     {
       "code": "invoice_pay",
       "name": "Invoice and pay",
-      "sequence": 80,
-      "apps": [
-        "account",
-        "hr_timesheet"
-      ]
+      "sequence": 80
     }
   ],
   "roles": [

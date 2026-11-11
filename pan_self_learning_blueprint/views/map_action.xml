@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="action_blueprint_map" model="ir.actions.client">
-        <field name="name">Company map</field>
+        <field name="name">Map</field>
         <field name="tag">pan_sl_blueprint_map</field>
     </record>
 </odoo>

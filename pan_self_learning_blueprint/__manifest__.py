@@ -5,10 +5,11 @@
 Odoo Self Learning: Blueprint
 =============================
 
-Everything is a project task. A project is a company map: its roles are the
-lanes, the shared phases (with their Odoo apps) the columns. A task with a
-role and a phase is one chip on the map, with its progress: Open, Decided,
-Built, Tested, Trained, Live. A parent task is a flow (a test scenario); its
+Everything is a project task. A project is a company map (Projects > Map):
+its roles are the rows, the shared phases the columns. A task with a role
+and a phase is one chip on the map. Progress is the stage: each stage
+carries a step (Open, Decided, Built, Tested, Trained, Live), so the kanban
+and the map always agree. A parent task is a flow (a test scenario); its
 subtasks are the route, and its Tested % is the share of subtasks at Tested
 or further. Hours are the task's allocated hours and timesheets.
 
@@ -18,13 +19,14 @@ all; the map shows per role only a band for the weakest element, and only
 when at least three people of the role have a score.
 
 Administrators fill a project from the bundled template, or import and
-export it as an open JSON blueprint. Loading the template only fills what is
-empty; import creates and updates, never deletes.
+export it as an open JSON blueprint, which also gives the project the six
+progress stages. Loading the template only fills what is empty; import
+creates and updates, never deletes.
     """,
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Services/Project",
-    "version": "19.0.2.0.0",
+    "version": "19.0.2.2.0",
     "license": "LGPL-3",
     "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [
@@ -33,6 +35,7 @@ empty; import creates and updates, never deletes.
         "security/adkar_rules.xml",
         "views/structure_views.xml",
         "views/adkar_views.xml",
+        "views/project_task_type_views.xml",
         "views/project_task_views.xml",
         "views/blueprint_views.xml",
         "views/map_action.xml",

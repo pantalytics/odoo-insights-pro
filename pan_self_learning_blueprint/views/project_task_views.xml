@@ -1,25 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Task form: one "Map" page. The pan_* fields carry groups on the model. -->
+    <!-- Task form: role and phase next to the tags (above the fold); a flow (a task
+         with subtasks) shows its Tested % instead. The pan_* fields carry groups on the model. -->
     <record id="view_task_form_blueprint" model="ir.ui.view">
         <field name="name">project.task.form.blueprint</field>
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_form2"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
-                <page name="pan_map_page" string="Map" groups="pan_self_learning_blueprint.group_blueprint_user">
-                    <group>
-                        <group>
-                            <field name="pan_role_id" options="{'no_create': True}"/>
-                            <field name="pan_phase_id" options="{'no_create': True}"/>
-                        </group>
-                        <group>
-                            <field name="pan_rung" widget="selection_badge"/>
-                            <field name="pan_flow_progress" widget="progressbar" invisible="not subtask_count"/>
-                        </group>
-                    </group>
-                </page>
+            <xpath expr="//field[@name='tag_ids']" position="after">
+                <field name="pan_role_id" options="{'no_create': True}" invisible="subtask_count"/>
+                <field name="pan_phase_id" options="{'no_create': True}" invisible="subtask_count"/>
+                <field name="pan_flow_progress" widget="progressbar" invisible="not subtask_count"/>
             </xpath>
         </field>
     </record>
@@ -55,18 +47,58 @@
                 <filter string="Not on the map" name="pan_unplaced"
                         domain="[('child_ids', '=', False), '|', ('pan_role_id', '=', False), ('pan_phase_id', '=', False)]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <filter string="Still to train" name="pan_still_to_train"
+                        domain="[('child_ids', '=', False), ('state', '!=', '1_canceled'), ('pan_role_id', '!=', False), ('pan_role_id.is_external', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2', '3'])]"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
                 <filter string="Not live" name="pan_not_live"
                         domain="[('pan_rung', '!=', '5')]"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
             </xpath>
             <filter name="stage" position="after">
-                <filter string="Map role" name="pan_groupby_role" context="{'group_by': 'pan_role_id'}"
+                <filter string="Role" name="pan_groupby_role" context="{'group_by': 'pan_role_id'}"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
-                <filter string="Map phase" name="pan_groupby_phase" context="{'group_by': 'pan_phase_id'}"
+                <filter string="Phase" name="pan_groupby_phase" context="{'group_by': 'pan_phase_id'}"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
-                <filter string="Map progress" name="pan_groupby_rung" context="{'group_by': 'pan_rung'}"
+                <filter string="Progress step" name="pan_groupby_rung" context="{'group_by': 'pan_rung'}"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
             </filter>
+        </field>
+    </record>
+
+    <!-- Task kanban: a flow (a task with subtasks, in a project with a map) shows its Tested %. -->
+    <record id="view_task_kanban_blueprint" model="ir.ui.view">
+        <field name="name">project.task.kanban.blueprint</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//footer/div/field[@name='priority']" position="before">
+                <t groups="pan_self_learning_blueprint.group_blueprint_user">
+                    <field name="pan_is_map_flow" invisible="1"/>
+                    <field name="pan_flow_progress" invisible="1"/>
+                    <span t-if="record.pan_is_map_flow.raw_value" class="o_pan_sl_kanban_tested badge rounded-pill text-bg-light text-nowrap flex-shrink-0 me-1">Tested <t t-esc="record.pan_flow_progress.raw_value"/>%</span>
+                </t>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Still to train list (project.action_blueprint_training): who must still be trained
+         on what. Groups open (expand), people wrap. -->
+    <record id="view_task_list_training" model="ir.ui.view">
+        <field name="name">project.task.list.training</field>
+        <field name="model">project.task</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Still to train" create="0" delete="0" edit="0" expand="1">
+                <field name="name"/>
+                <field name="pan_role_id"/>
+                <field name="pan_role_people" class="o_pan_sl_wrap"/>
+                <field name="pan_phase_id"/>
+                <field name="pan_rung" widget="badge"
+                       decoration-muted="pan_rung == '0'"
+                       decoration-warning="pan_rung in ('1', '2')"
+                       decoration-success="pan_rung in ('3', '4', '5')"/>
+                <field name="parent_id" string="Flow" optional="show"/>
+            </list>
         </field>
     </record>
 
