@@ -1,277 +1,156 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="pan_self_learning_blueprint.CompanyMap">
+    <t t-name="pan_self_learning_blueprint.Map">
         <div class="o_action o_pan_sl_map d-flex flex-column h-100">
-            <Layout display="{ controlPanel: { layoutActions: true } }" className="'o_pan_sl_content d-flex flex-column'">
+            <Layout display="{ controlPanel: { layoutActions: true } }" className="'o_pan_sl_content'">
                 <t t-set-slot="layout-actions">
-                    <t t-if="state.loaded and data.tasks.length" t-call="pan_self_learning_blueprint.CompanyMap.Controls"/>
+                    <t t-if="state.data" t-call="pan_self_learning_blueprint.Map.Header"/>
                 </t>
-                <p t-if="!projectId" class="o_pan_sl_empty text-muted m-3 p-4 text-center mb-0">Open the map from a project.</p>
-                <div t-elif="state.loaded and !data.tasks.length" class="o_pan_sl_empty text-muted m-3 p-4 text-center">
-                    <p class="mb-1">No tasks with a role and a phase yet.</p>
-                    <t t-call="pan_self_learning_blueprint.CompanyMap.Unplaced"/>
-                </div>
-                <t t-elif="state.loaded">
-                    <div t-ref="body" class="o_pan_sl_body position-relative flex-grow-1">
-                        <t t-call="pan_self_learning_blueprint.CompanyMap.Svg"/>
-                        <t t-call="pan_self_learning_blueprint.CompanyMap.Panel"/>
-                    </div>
-                    <div class="visually-hidden" role="status" aria-live="polite">Zoom: <t t-esc="stopLabel"/></div>
-                    <div class="visually-hidden o_pan_sl_flow_status" role="status" aria-live="polite" t-esc="flowAnnouncement"/>
-                </t>
+                <t t-if="state.data" t-call="pan_self_learning_blueprint.Map.Body"/>
+                <ul t-elif="state.projects.length" class="o_pan_sl_projects list-unstyled m-3">
+                    <li t-foreach="state.projects" t-as="project" t-key="project.id">
+                        <button type="button" class="o_pan_sl_project btn btn-link" t-on-click="() => this.load(project.id)" t-esc="project.name"/>
+                    </li>
+                </ul>
+                <p t-else="" class="o_pan_sl_empty text-muted m-3 p-4 text-center">No project has a map yet.</p>
             </Layout>
         </div>
     </t>
 
-    <!-- Status dot: tone colour plus a glyph. The <g> root keeps OWL in the SVG namespace. -->
-    <t t-name="pan_self_learning_blueprint.CompanyMap.Dot">
-        <g>
-            <circle class="o_pan_sl_dot" t-att-class="dot.className" t-att-cx="dot.cx" t-att-cy="dot.cy" t-att-r="dot.r"/>
-            <path t-if="dot.glyph" t-att-class="dot.glyph.className" t-att-d="dot.glyph.d"/>
-        </g>
-    </t>
-
-    <t t-name="pan_self_learning_blueprint.CompanyMap.Controls">
-        <div class="o_pan_sl_controls d-flex flex-wrap align-items-center column-gap-3 row-gap-2 flex-grow-1">
-            <select t-if="data.flows.length" class="form-select form-select-sm o_pan_sl_flow_select"
-                    aria-label="Flow" t-on-change="onFlowChange">
-                <option value="" t-att-selected="!state.flowId">All flows</option>
-                <option t-foreach="data.flows" t-as="flow" t-key="flow.id" t-att-value="flow.id"
-                        t-att-selected="state.flowId === flow.id">
-                    <t t-esc="flow.name"/> · Tested <t t-esc="flow.progress"/>%
-                </option>
+    <t t-name="pan_self_learning_blueprint.Map.Header">
+        <div class="o_pan_sl_header d-flex flex-wrap align-items-center column-gap-3 row-gap-2 flex-grow-1">
+            <select t-if="state.projects.length > 1" class="form-select form-select-sm o_pan_sl_project_select"
+                    aria-label="Project" t-on-change="onProjectChange">
+                <option t-foreach="state.projects" t-as="project" t-key="project.id" t-att-value="project.id"
+                        t-att-selected="project.id === state.projectId" t-esc="project.name"/>
             </select>
-            <select class="form-select form-select-sm o_pan_sl_color_select" aria-label="Colour by" t-on-change="onColorByChange">
-                <option value="progress" t-att-selected="state.colorBy === 'progress'">By progress</option>
-                <option value="training" t-att-selected="state.colorBy === 'training'">By training</option>
-            </select>
-            <div class="o_pan_sl_zoom_track">
-                <input type="range" class="form-range o_pan_sl_zoom_slider" aria-label="Zoom"
-                       t-att-min="geometry.MIN_ZOOM" t-att-max="geometry.MAX_ZOOM" step="0.01"
-                       t-att-value="state.zoom" t-att-aria-valuetext="stopLabel"
-                       t-on-input="onZoomInput" t-on-keydown="onZoomKeydown"/>
-                <div class="o_pan_sl_zoom_labels">
-                    <button t-foreach="stops" t-as="tick" t-key="tick.value" type="button"
-                            class="o_pan_sl_zoom_label btn btn-link p-0"
-                            t-att-class="{ 'o_pan_sl_zoom_label_active': stop === tick.value }"
-                            t-att-aria-pressed="stop === tick.value ? 'true' : 'false'"
-                            t-attf-style="left: {{ tick.position }}%"
-                            t-on-click="() => this.zoomTo(tick.zoom)" t-esc="tick.label"/>
-                </div>
-            </div>
-            <ul class="o_pan_sl_legend list-inline d-flex flex-wrap column-gap-3 row-gap-1 mb-0 ms-auto small">
-                <li t-foreach="legend" t-as="item" t-key="item.key" class="d-flex align-items-center gap-1">
-                    <svg width="18" height="12" aria-hidden="true">
-                        <rect class="o_pan_sl_swatch" t-att-class="item.className" x="1" y="1" width="16" height="10" rx="3"/>
-                        <path t-if="item.glyph" t-att-class="item.glyph.className" t-att-d="item.glyph.d"/>
-                    </svg>
-                    <span t-esc="item.label"/>
+            <ul class="o_pan_sl_legend list-unstyled d-flex flex-wrap column-gap-3 m-0" aria-label="Legend">
+                <li t-foreach="tones" t-as="item" t-key="item.tone">
+                    <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ item.tone }}"/>
+                    <t t-esc="item.label"/>
                 </li>
             </ul>
-            <t t-call="pan_self_learning_blueprint.CompanyMap.Unplaced"/>
+            <button t-if="unplaced.length" type="button" class="o_pan_sl_unplaced btn btn-link"
+                    t-att-aria-pressed="state.flowId === 'unplaced' ? 'true' : 'false'"
+                    t-on-click="() => this.toggleFlow('unplaced')">
+                <t t-esc="unplaced.length"/> <t t-if="unplaced.length === 1">task</t><t t-else="">tasks</t> without a place
+            </button>
+            <button type="button" class="o_pan_sl_training btn btn-secondary ms-auto" t-on-click="onTraining">Training</button>
         </div>
     </t>
 
-    <t t-name="pan_self_learning_blueprint.CompanyMap.Unplaced">
-        <a t-if="data.unplaced_count" href="#" class="o_pan_sl_unplaced small text-muted" t-on-click.prevent="openUnplaced">
-            <t t-esc="data.unplaced_count"/> <t t-if="data.unplaced_count === 1">task</t><t t-else="">tasks</t> without a place
-        </a>
+    <t t-name="pan_self_learning_blueprint.Map.Body">
+        <div class="o_pan_sl_body">
+            <nav class="o_pan_sl_flows" aria-label="Flows">
+                <t t-if="state.flowId === 'unplaced'">
+                    <button type="button" class="o_pan_sl_flow o_pan_sl_flow_unplaced" aria-pressed="true" t-on-click="() => this.toggleFlow('unplaced')">
+                        <span class="o_pan_sl_flow_name">Without a place</span>
+                    </button>
+                    <t t-call="pan_self_learning_blueprint.Map.TaskList"/>
+                </t>
+                <t t-foreach="state.data.flows" t-as="flow" t-key="flow.id">
+                    <button type="button" class="o_pan_sl_flow" t-att-data-flow-id="flow.id"
+                            t-att-aria-pressed="state.flowId === flow.id ? 'true' : 'false'"
+                            t-on-click="() => this.toggleFlow(flow.id)">
+                        <span class="o_pan_sl_flow_name" t-esc="flow.name"/>
+                        <span class="o_pan_sl_bar"><span t-attf-style="width: {{ flow.progress }}%"/></span>
+                        <span class="o_pan_sl_flow_meta">
+                            <span>Tested <t t-esc="flow.progress"/>%</span>
+                            <span t-if="flow.deadline" t-esc="deadline(flow)"/>
+                            <span t-if="flow.late" class="o_pan_sl_late">Late</span>
+                        </span>
+                    </button>
+                    <t t-if="state.flowId === flow.id" t-call="pan_self_learning_blueprint.Map.TaskList"/>
+                </t>
+                <p t-if="!state.data.flows.length" class="o_pan_sl_empty text-muted">No flows yet.</p>
+            </nav>
+            <div class="o_pan_sl_grid_area">
+                <div t-if="rows.length" class="o_pan_sl_grid" role="table" aria-label="Map"
+                     t-attf-style="grid-template-columns: minmax(7rem, 10rem) repeat({{ state.data.phases.length }}, minmax(9rem, 1fr))">
+                    <div class="o_pan_sl_corner" role="columnheader"/>
+                    <div t-foreach="state.data.phases" t-as="phase" t-key="phase.id" class="o_pan_sl_phase" role="columnheader" t-esc="phase.name"/>
+                    <t t-foreach="rows" t-as="row" t-key="row.role.id">
+                        <button type="button" class="o_pan_sl_role" role="rowheader" t-att-data-role-id="row.role.id"
+                                t-att-aria-pressed="isSelected('role', row.role.id)"
+                                t-on-click="() => this.select('role', row.role.id)" t-esc="row.role.name"/>
+                        <div t-foreach="row.cells" t-as="cell" t-key="cell.phase.id" class="o_pan_sl_cell" role="cell">
+                            <button t-foreach="cell.tasks" t-as="task" t-key="task.id" type="button"
+                                    class="o_pan_sl_chip" t-att-class="{ o_pan_sl_dim: isDim(task) }"
+                                    t-att-data-task-id="task.id" t-att-aria-label="chipLabel(task)"
+                                    t-att-aria-pressed="isSelected('task', task.id)"
+                                    t-on-click="() => this.select('task', task.id)">
+                                <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ toneOf(task) }}"/>
+                                <span t-esc="task.name"/>
+                            </button>
+                        </div>
+                    </t>
+                </div>
+                <p t-else="" class="o_pan_sl_empty text-muted m-3 p-4 text-center">No tasks with a role and a phase yet.</p>
+            </div>
+            <t t-call="pan_self_learning_blueprint.Map.Panel"/>
+        </div>
+        <div class="visually-hidden o_pan_sl_status" role="status" aria-live="polite" t-esc="announcement"/>
     </t>
 
-    <!-- The view box is the camera; the header and label column stay in view. -->
-    <t t-name="pan_self_learning_blueprint.CompanyMap.Svg">
-        <svg t-ref="svg" class="o_pan_sl_svg" width="100%" height="100%"
-             t-att-viewBox="viewBoxAttr" preserveAspectRatio="xMinYMin meet"
-             t-att-data-stop="stop" t-att-data-zoom="state.zoom.toFixed(2)" t-att-data-scale="scale.toFixed(3)"
-             tabindex="0" role="group"
-             t-att-aria-label="'Company map, zoom: ' + stopLabel + '. Arrow keys move, plus and minus zoom, Home shows all.'"
-             t-on-wheel="onWheel" t-on-keydown="onMapKeydown" t-on-focusin="onMapFocusin"
-             t-on-pointerdown="onPointerDown" t-on-pointermove="onPointerMove"
-             t-on-pointerup="onPointerUp" t-on-pointercancel="onPointerUp"
-             t-on-click.capture="onClickCapture">
-            <rect class="o_pan_sl_canvas" x="0" y="0" t-att-width="layout.width" t-att-height="layout.height"/>
-            <rect t-foreach="layout.columns" t-as="column" t-key="column.phase.id"
-                  class="o_pan_sl_column" t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
-                  t-att-x="column.x" y="0" t-att-width="layout.colW" t-att-height="layout.height"/>
-            <rect t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id"
-                  class="o_pan_sl_lane" t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
-                  x="0" t-att-y="lane.y" t-att-width="layout.width" t-att-height="lane.height"/>
-
-            <!-- Odoo band: the apps of each phase, muted when not installed -->
-            <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom" t-att-width="layout.width" t-att-height="layout.odooHeight"/>
-            <g t-foreach="layout.apps" t-as="app" t-key="app.key" class="o_pan_sl_app" t-att-class="{ 'o_pan_sl_app_off': !app.installed }">
-                <title t-esc="app.title"/>
-                <rect t-att-x="app.x" t-att-y="app.y" t-att-width="app.width" t-att-height="geometry.APP_CHIP_H" rx="10"/>
-                <text t-att-x="app.x + app.width / 2" t-att-y="app.y + 14" text-anchor="middle" t-esc="app.label"/>
-            </g>
-
-            <!-- Company: one block per role x phase cell -->
-            <g t-if="stop === geometry.STOP_COMPANY">
-                <t t-foreach="layout.blocks" t-as="block" t-key="block.key">
-                    <t t-set="cell" t-value="blockView(block)"/>
-                    <g class="o_pan_sl_block" t-att-class="{ 'o_pan_sl_dim': cell.dim }" t-att-data-item="block.key"
-                       tabindex="0" role="button" t-att-aria-label="cell.title"
-                       t-on-click="() => this.onBlockClick(block)"
-                       t-on-keydown="(ev) => this.onActivateKey(ev, () => this.onBlockClick(block))">
-                        <title t-esc="cell.title"/>
-                        <clipPath t-att-id="cell.clipId">
-                            <rect t-att-x="block.x" t-att-y="block.y" t-att-width="block.width" t-att-height="block.height" rx="7"/>
-                        </clipPath>
-                        <g t-att-clip-path="'url(#' + cell.clipId + ')'">
-                            <t t-foreach="cell.segments" t-as="segment" t-key="segment.key">
-                                <rect class="o_pan_sl_seg" t-att-class="segment.className" t-att-x="segment.x"
-                                      t-att-y="block.y" t-att-width="segment.width" t-att-height="block.height"/>
-                                <path t-if="segment.glyph" t-att-class="segment.glyph.className" t-att-d="segment.glyph.d"/>
-                            </t>
-                        </g>
-                        <rect class="o_pan_sl_block_frame" t-att-x="block.x" t-att-y="block.y"
-                              t-att-width="block.width" t-att-height="block.height" rx="7"/>
-                        <circle class="o_pan_sl_block_count_bg" t-att-cx="block.x + block.width / 2" t-att-cy="block.y + block.height / 2" r="12"/>
-                        <text class="o_pan_sl_block_count" text-anchor="middle" t-att-x="block.x + block.width / 2"
-                              t-att-y="block.y + block.height / 2 + 4.5" t-esc="cell.count"/>
-                    </g>
-                </t>
-            </g>
-
-            <!-- Tasks and Detail: one chip per task -->
-            <g t-else="">
-                <g t-foreach="layout.chips" t-as="chip" t-key="chip.id"
-                   class="o_pan_sl_chip"
-                   t-att-class="{ 'o_pan_sl_dim': isDimmed(chip.task), 'o_pan_sl_selected': state.selectedId === chip.id }"
-                   t-att-data-item="chip.key" t-att-transform="'translate(' + chip.x + ',' + chip.y + ')'"
-                   tabindex="0" role="button" t-att-aria-label="chipAriaLabel(chip)"
-                   t-att-aria-pressed="state.selectedId === chip.id ? 'true' : 'false'"
-                   t-on-click="() => this.openPanel(chip.id)"
-                   t-on-keydown="(ev) => this.onActivateKey(ev, () => this.openPanel(chip.id))">
-                    <title t-esc="chip.task.name"/>
-                    <rect class="o_pan_sl_chip_box" x="0" y="0" t-att-width="chip.width" t-att-height="chip.height" rx="6"/>
-                    <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
-                        <t t-set="dot" t-value="dot(chip.task, 15, 14)"/>
-                    </t>
-                    <text class="o_pan_sl_chip_label" x="26" y="18" t-esc="chip.label"/>
-                    <g t-if="stop === geometry.STOP_DETAIL" class="o_pan_sl_detail">
-                        <t t-foreach="detailLines(chip)" t-as="line" t-key="line.key">
-                            <text class="o_pan_sl_small" t-att-class="{ 'o_pan_sl_muted': line.muted }"
-                                  x="10" t-att-y="line.y" t-esc="line.text"/>
-                            <text t-if="line.hours" class="o_pan_sl_small o_pan_sl_muted" text-anchor="end"
-                                  t-att-x="chip.width - 10" t-att-y="line.y">
-                                <t t-esc="line.hours"/>
-                                <title t-esc="line.hoursTitle"/>
-                            </text>
-                        </t>
-                    </g>
-                </g>
-            </g>
-
-            <!-- Sticky header: phase names -->
-            <g class="o_pan_sl_sticky_top" t-att-transform="'translate(0,' + stickyY + ')'">
-                <t t-foreach="layout.columns" t-as="column" t-key="column.phase.id">
-                    <rect class="o_pan_sl_column" t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
-                          t-att-x="column.x" y="0" t-att-width="layout.colW" t-att-height="geometry.HEADER_H"/>
-                    <text class="o_pan_sl_phase_label" t-att-x="column.x + layout.colW / 2" y="23" text-anchor="middle">
-                        <t t-esc="column.label"/>
-                        <title t-esc="column.phase.name"/>
-                    </text>
-                </t>
-            </g>
-
-            <!-- Sticky label column: role names open the role panel -->
-            <g class="o_pan_sl_sticky_left" t-att-transform="'translate(' + stickyX + ',0)'">
-                <t t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id">
-                    <rect class="o_pan_sl_lane o_pan_sl_label_cell" t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
-                          x="0" t-att-y="lane.y" t-att-width="layout.labelW" t-att-height="lane.height"/>
-                    <g class="o_pan_sl_role_label_group" t-att-data-role="lane.role.id" t-att-data-lane="lane_index"
-                       t-att-transform="'translate(0,' + laneLabelY(lane) + ')'"
-                       tabindex="0" role="button" t-att-aria-label="lane.role.name"
-                       t-att-aria-expanded="state.selectedRoleId === lane.role.id ? 'true' : 'false'"
-                       t-on-click="() => this.openPanel(false, lane.role.id)"
-                       t-on-keydown="(ev) => this.onActivateKey(ev, () => this.openPanel(false, lane.role.id))">
-                        <text class="o_pan_sl_role_label" x="12" y="0">
-                            <t t-esc="lane.label"/>
-                            <title t-esc="lane.role.name"/>
-                        </text>
-                        <text t-if="lane.role.is_external" class="o_pan_sl_role_sub" x="12" y="16">External</text>
-                    </g>
-                </t>
-                <rect class="o_pan_sl_band o_pan_sl_label_cell" x="0" t-att-y="layout.lanesBottom"
-                      t-att-width="layout.labelW" t-att-height="layout.odooHeight"/>
-                <text class="o_pan_sl_band_label" x="12" t-att-y="layout.lanesBottom + 25">Odoo</text>
-            </g>
-            <g class="o_pan_sl_sticky_corner" t-att-transform="'translate(' + stickyX + ',' + stickyY + ')'">
-                <rect class="o_pan_sl_canvas o_pan_sl_label_cell" x="0" y="0" t-att-width="layout.labelW" t-att-height="geometry.HEADER_H"/>
-            </g>
-        </svg>
+    <t t-name="pan_self_learning_blueprint.Map.TaskList">
+        <ul class="o_pan_sl_open_tasks list-unstyled">
+            <li t-foreach="listedTasks" t-as="task" t-key="task.id">
+                <button type="button" class="o_pan_sl_open_task" t-att-data-task-id="task.id" t-on-click="() => this.select('task', task.id)">
+                    <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ toneOf(task) }}"/>
+                    <span>
+                        <span class="d-block" t-esc="task.name"/>
+                        <span class="o_pan_sl_owners d-block text-muted" t-esc="owners(task)"/>
+                    </span>
+                </button>
+            </li>
+            <li t-if="!listedTasks.length" class="text-muted px-2">No open tasks.</li>
+        </ul>
     </t>
 
-    <!-- Side panel: non-modal; focus moves to its title -->
-    <t t-name="pan_self_learning_blueprint.CompanyMap.Panel">
-        <aside t-if="panel" class="o_pan_sl_panel card" role="region" aria-labelledby="o_pan_sl_panel_title">
-            <div class="card-header d-flex align-items-start gap-2">
-                <div class="flex-grow-1 min-w-0">
-                    <div t-if="panel.flow" class="text-muted small" t-esc="panel.flow.name"/>
-                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1" t-esc="panel.task.name"/>
-                </div>
-                <button type="button" class="btn-close" aria-label="Close" t-on-click="closePanel"/>
-            </div>
-            <div class="card-body small">
-                <dl class="mb-0">
-                    <dt>Role</dt>
-                    <dd><a href="#" class="o_pan_sl_role_link" t-on-click.prevent="() => this.openPanel(false, panel.role.id)" t-esc="panel.role.name"/></dd>
-                    <dt>Phase</dt>
-                    <dd t-esc="panel.phase.name"/>
-                    <dt>Progress</dt>
-                    <dd class="o_pan_sl_progress d-flex align-items-center gap-1">
-                        <svg width="14" height="14" aria-hidden="true">
-                            <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
-                                <t t-set="dot" t-value="panel.rungDot"/>
-                            </t>
-                        </svg>
-                        <span t-esc="panel.rungLabel"/>
-                    </dd>
-                    <t t-if="panel.task.user_names.length">
-                        <dt>Assignees</dt>
-                        <dd class="o_pan_sl_assignees" t-esc="panel.task.user_names.join(', ')"/>
-                    </t>
-                    <t t-if="panel.hours">
-                        <dt>Hours</dt>
-                        <dd class="o_pan_sl_hours" t-esc="panel.hours"/>
-                    </t>
-                    <t t-if="panel.task.description">
-                        <dt>Description</dt>
-                        <dd class="o_pan_sl_description" t-esc="panel.task.description"/>
-                    </t>
-                </dl>
-            </div>
-            <div class="card-footer">
-                <button type="button" class="btn btn-primary btn-sm o_pan_sl_open_task" t-on-click="openTask">Open task</button>
-            </div>
-        </aside>
-        <aside t-elif="rolePanel" class="o_pan_sl_panel o_pan_sl_role_panel card" role="region" aria-labelledby="o_pan_sl_panel_title">
-            <div class="card-header d-flex align-items-start gap-2">
-                <div class="flex-grow-1 min-w-0">
-                    <div class="text-muted small">Role<t t-if="rolePanel.role.is_external"> · External</t></div>
-                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1" t-esc="rolePanel.role.name"/>
-                </div>
-                <button type="button" class="btn-close" aria-label="Close" t-on-click="closePanel"/>
-            </div>
-            <div class="card-body small">
-                <dl class="mb-0">
-                    <dt>People</dt>
-                    <dd class="o_pan_sl_role_people">
-                        <t t-if="rolePanel.role.users.length" t-esc="rolePanel.role.users.join(', ')"/>
-                        <span t-else="" class="text-muted">Nobody holds this role yet</span>
-                    </dd>
-                    <dt>ADKAR</dt>
-                    <dd class="o_pan_sl_role_adkar">
-                        <t t-if="rolePanel.adkarBand" t-esc="rolePanel.adkarBand"/>
-                        <span t-else="" class="text-muted">Needs three scored people</span>
-                    </dd>
-                    <dt>Tasks</dt>
-                    <dd class="o_pan_sl_role_tasks" t-esc="rolePanel.taskCount"/>
-                </dl>
-            </div>
-        </aside>
+    <t t-name="pan_self_learning_blueprint.Map.Panel">
+        <t t-set="task" t-value="selectedTask"/>
+        <t t-set="role" t-value="selectedRole"/>
+        <section t-if="task" class="o_pan_sl_panel o_pan_sl_task_panel" aria-label="Task">
+            <t t-call="pan_self_learning_blueprint.Map.PanelHead"><t t-set="title" t-value="task.name"/></t>
+            <dl class="o_pan_sl_facts">
+                <t t-foreach="taskFacts(task)" t-as="fact" t-key="fact_index">
+                    <dt t-esc="fact[0]"/>
+                    <dd t-esc="fact[1]"/>
+                </t>
+            </dl>
+            <p t-if="firstLine(task.description)" class="o_pan_sl_description text-muted" t-esc="firstLine(task.description)"/>
+            <button type="button" class="btn btn-primary w-100" t-on-click="() => this.openTask(task)">Open task</button>
+        </section>
+        <section t-elif="role" class="o_pan_sl_panel o_pan_sl_role_panel" aria-label="Role">
+            <t t-call="pan_self_learning_blueprint.Map.PanelHead"><t t-set="title" t-value="role.name"/></t>
+            <h3 class="o_pan_sl_panel_label">People</h3>
+            <ul t-if="role.people.length" class="o_pan_sl_role_people list-unstyled">
+                <li t-foreach="role.people" t-as="person" t-key="person_index" t-esc="person"/>
+            </ul>
+            <p t-else="" class="text-muted">Nobody in this role yet.</p>
+            <h3 class="o_pan_sl_panel_label">To train on</h3>
+            <ul t-if="roleTraining(role).length" class="o_pan_sl_role_training list-unstyled">
+                <li t-foreach="roleTraining(role)" t-as="task" t-key="task.id">
+                    <button type="button" class="o_pan_sl_open_task" t-on-click="() => this.select('task', task.id)">
+                        <span class="o_pan_sl_dot" t-attf-class="o_pan_sl_tone_{{ toneOf(task) }}"/>
+                        <span t-esc="task.name"/>
+                    </button>
+                </li>
+            </ul>
+            <p t-else="" class="text-muted">Nothing left to train.</p>
+            <h3 class="o_pan_sl_panel_label">ADKAR</h3>
+            <p class="o_pan_sl_role_adkar" t-esc="adkarWord(role)"/>
+        </section>
+    </t>
+
+    <t t-name="pan_self_learning_blueprint.Map.PanelHead">
+        <div class="d-flex align-items-start gap-2 mb-2">
+            <h2 class="o_pan_sl_panel_title flex-grow-1 m-0" t-esc="title"/>
+            <button type="button" class="o_pan_sl_close btn btn-link" aria-label="Close" t-on-click="() => this.state.selected = null">
+                <i class="fa fa-times" aria-hidden="true"/>
+            </button>
+        </div>
     </t>
 
 </templates>

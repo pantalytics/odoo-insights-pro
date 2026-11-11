@@ -1,16 +1,17 @@
-"""The company map in a real browser (data model v2.0: everything is a task).
+"""The map in a real browser (Blueprint 2.1, docs/ux-test-2026-11-11.md).
 
-One project with two phases, an internal and an external role, a flow with two
-subtasks, one task outside the flow and one task without a place. The map is
-opened from the project form and checked the way a user uses it: the three
-zoom stops, the colour modes, the flow filter, the task and role panels and
-the link to the tasks without a place. The screenshot script
-``tools/ui_check.mjs`` covers pan, pinch, keyboard and phone layouts by hand.
+One project with six progress stages, two phases, an internal and an external
+role, a late flow (a third tested) with two open subtasks, one of them without a
+place, a finished flow, a task outside any flow and a loose task without a
+place. The map is opened from the Projects menu and used the way a person
+uses it: tap a flow, a chip, a role name and the tasks without a place. The
+screenshot script ``tools/ui_check.mjs`` covers the iPad and phone layouts.
 """
 
-from odoo.tests import HttpCase, new_test_user, tagged
+from datetime import timedelta
 
-MAP_URL = "/odoo/action-pan_self_learning_blueprint.action_blueprint_map"
+from odoo import Command, fields
+from odoo.tests import HttpCase, new_test_user, tagged
 
 # Waits until a check returns something truthy; any thrown error fails the test.
 WAIT_JS = """
@@ -22,27 +23,25 @@ const waitFor = async (check, label) => {
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error("Company map: not found: " + label);
+    throw new Error("Map: not found: " + label);
 };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const stop = () => parseInt($(".o_pan_sl_svg").dataset.stop, 10);
-const chip = (name) => $$(".o_pan_sl_chip").find((el) => el.querySelector("title").textContent === name);
-const tone = (name) => [...chip(name).querySelector(".o_pan_sl_dot").classList].find((c) => c.startsWith("o_pan_sl_tone_"));
+const text = (el) => el.textContent.replace(/\\s+/g, " ").trim();
+const lines = (el) => el.innerText.split("\\n").map((line) => line.trim()).filter(Boolean).join(" / ");
+const chip = (name) => $$(".o_pan_sl_chip").find((el) => text(el) === name);
 const expect = (condition, message) => {
     if (!condition) {
-        throw new Error("Company map: " + message);
+        throw new Error("Map: " + message);
     }
 };
-const zoomTo = async (label, value) => {
-    $$(".o_pan_sl_zoom_label").find((el) => el.textContent.trim() === label).click();
-    await waitFor(() => stop() === value, "zoom stop " + label);
-};
-const choose = async (selector, value) => {
-    const select = $(selector);
-    select.value = value;
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-    await new Promise((resolve) => setTimeout(resolve, 150));
+const openMap = async () => {
+    const menu = await waitFor(
+        () => $$(".o_main_navbar .o_menu_sections a, .o_main_navbar .o_menu_sections button").find((el) => text(el) === "Map"),
+        "Map in the Projects menu"
+    );
+    menu.click();
+    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_body"), "the map");
 };
 """
 
@@ -59,10 +58,16 @@ class TestMapUi(HttpCase):
             groups="pan_self_learning_blueprint.group_blueprint_user",
         )
         cls.project = cls.env["project.project"].create({"name": "UI map project"})
-        phase_project, phase_sales = cls.env["pan.sl.phase"].create(
+        stage = {
+            rung: cls.env["project.task.type"].create(
+                {"name": f"UI stage {rung}", "pan_rung": rung, "sequence": int(rung), "project_ids": [(4, cls.project.id)]}
+            )
+            for rung in "0123"
+        }
+        phase_one, phase_two = cls.env["pan.sl.phase"].create(
             [
-                {"name": "UI phase one", "code": "t_ui_phase_1", "sequence": 1, "app_labels": "project"},
-                {"name": "UI phase two", "code": "t_ui_phase_2", "sequence": 2, "app_labels": "t_ui_no_such_app"},
+                {"name": "UI phase one", "code": "t_ui_phase_1", "sequence": 1},
+                {"name": "UI phase two", "code": "t_ui_phase_2", "sequence": 2},
             ]
         )
         person = cls.env["res.partner"].create({"name": "UI person"})
@@ -73,137 +78,175 @@ class TestMapUi(HttpCase):
             ]
         )
         Task = cls.env["project.task"]
-        cls.flow = Task.create({"name": "UI flow", "project_id": cls.project.id})
-        common = {"project_id": cls.project.id, "pan_role_id": role.id}
+        yesterday = fields.Datetime.now() - timedelta(days=1)
+        cls.late_flow, cls.done_flow = Task.create(
+            [
+                {"name": "UI late flow", "project_id": cls.project.id, "date_deadline": yesterday, "sequence": 2},
+                {"name": "UI done flow", "project_id": cls.project.id, "sequence": 1},
+            ]
+        )
+        # Without user_ids a new task gets its creator as owner.
+        common = {"project_id": cls.project.id, "pan_role_id": role.id, "user_ids": [Command.clear()]}
         Task.create(
             [
                 {
                     **common,
                     "name": "UI tested task",
-                    "parent_id": cls.flow.id,
-                    "pan_phase_id": phase_project.id,
-                    "pan_rung": "3",
-                    "user_ids": [(6, 0, cls.user.ids)],
+                    "parent_id": cls.late_flow.id,
+                    "pan_phase_id": phase_one.id,
+                    "stage_id": stage["3"].id,
                     "allocated_hours": 4,
                     "description": "<p>First line of the UI task</p><p>Second line</p>",
                 },
-                {**common, "name": "UI open task", "parent_id": cls.flow.id, "pan_phase_id": phase_project.id},
-                {**common, "name": "UI lone task", "pan_phase_id": phase_sales.id, "pan_rung": "1"},
+                {
+                    **common,
+                    "name": "UI open task",
+                    "parent_id": cls.late_flow.id,
+                    "pan_phase_id": phase_one.id,
+                    "stage_id": stage["0"].id,
+                    "user_ids": [(6, 0, cls.user.ids)],
+                },
+                {
+                    "name": "UI unplaced task",
+                    "project_id": cls.project.id,
+                    "user_ids": [Command.clear()],
+                    "parent_id": cls.late_flow.id,
+                    "stage_id": stage["1"].id,
+                },
                 {
                     "name": "UI customer task",
                     "project_id": cls.project.id,
+                    "user_ids": [Command.clear()],
+                    "parent_id": cls.done_flow.id,
                     "pan_role_id": external.id,
-                    "pan_phase_id": phase_sales.id,
+                    "pan_phase_id": phase_two.id,
+                    "stage_id": stage["3"].id,
                 },
-                {**common, "name": "UI unplaced task"},
+                {**common, "name": "UI lone task", "pan_phase_id": phase_two.id, "stage_id": stage["1"].id},
+                {"name": "UI loose task", "project_id": cls.project.id, "user_ids": [Command.clear()], "stage_id": stage["0"].id},
             ]
         )
 
-    def test_map_without_project(self):
-        """Opened without a project the map shows one muted line and nothing else."""
+    def test_flows(self):
+        """Menu > Map opens the one project; flows worst first; a tap shows a flow's open tasks."""
         code = WAIT_JS + """
 (async () => {
-    const empty = await waitFor(() => $(".o_pan_sl_map .o_pan_sl_empty"), "empty line");
-    expect(empty.textContent.trim() === "Open the map from a project.", "empty line reads " + empty.textContent);
-    expect(!$(".o_pan_sl_controls") && !$(".o_pan_sl_svg"), "controls or map shown without a project");
+    await openMap();
+    expect(!$(".o_pan_sl_projects") && !$(".o_pan_sl_project_select"), "a project choice with only one project");
+
+    // Worst first, as the server sorts them: the late flow (33%) above the finished one.
+    const flows = $$(".o_pan_sl_flow");
+    expect(flows.map((el) => text(el.querySelector(".o_pan_sl_flow_name"))).join("|") === "UI late flow|UI done flow", "flow order");
+    expect(text(flows[0]).includes("Tested 33%") && flows[0].querySelector(".o_pan_sl_late"), "late flow: " + text(flows[0]));
+    expect(text(flows[1]).includes("Tested 100%") && !flows[1].querySelector(".o_pan_sl_late"), "done flow: " + text(flows[1]));
+
+    // Grid: placed tasks only, each with a dot in its progress colour.
+    expect($$(".o_pan_sl_phase").map(text).join("|") === "UI phase one|UI phase two", "phase columns");
+    expect($$(".o_pan_sl_role").map(text).join("|") === "UI lane role|UI customer", "role rows");
+    expect($$(".o_pan_sl_chip").length === 4, $$(".o_pan_sl_chip").length + " chips, expected 4");
+    expect(chip("UI tested task").querySelector(".o_pan_sl_tone_ok"), "a tested task is not green");
+    expect(chip("UI lone task").querySelector(".o_pan_sl_tone_warn"), "a decided task is not amber");
+    expect(chip("UI open task").querySelector(".o_pan_sl_tone_off"), "an open task is not grey");
+
+    // Tap a flow: its chips stay, the rest dims, its open tasks (also without a place) listed with owners.
+    flows[0].click();
+    await waitFor(() => text($(".o_pan_sl_status")) === "Showing flow UI late flow, 2 open tasks", "announcement");
+    expect(flows[0].getAttribute("aria-pressed") === "true", "the flow is not marked as selected");
+    expect(chip("UI lone task").classList.contains("o_pan_sl_dim"), "a task outside the flow is not dimmed");
+    expect(!chip("UI open task").classList.contains("o_pan_sl_dim"), "a task of the flow is dimmed");
+    const listed = $$(".o_pan_sl_flows .o_pan_sl_open_task").map(lines);
+    expect(listed.join("|") === "UI open task / Map UI user|UI unplaced task / No owner", "open tasks: " + listed.join("|"));
+
+    // Tap again: cleared.
+    flows[0].click();
+    await waitFor(() => !$(".o_pan_sl_chip.o_pan_sl_dim") && !$(".o_pan_sl_flows .o_pan_sl_open_task"), "flow cleared");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
-        self.browser_js(MAP_URL, code, login=self.user.login)
+        self.browser_js("/odoo/project", code, login=self.user.login)
 
-    def test_map_from_project(self):
-        flow_id = self.flow.id
+    def test_panels(self):
+        """A chip opens the task panel with Open task; a role name opens its people and training."""
         code = WAIT_JS + """
 (async () => {
-    // The map opens from the project form ("Map").
-    const button = await waitFor(() => $("button[name=action_open_blueprint_map]"), "Map button on the project");
-    button.click();
-    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_svg"), "map svg");
+    await openMap();
 
-    // Company: a coloured block per cell with its count, no chips; apps band.
-    expect(stop() === 1, "the map does not open at the Company stop");
-    await waitFor(() => $$(".o_pan_sl_block_count").some((el) => el.textContent.trim() === "2"), "block of 2 tasks");
-    expect(!$(".o_pan_sl_chip"), "chips at the Company stop");
-    const apps = $$(".o_pan_sl_app:not(.o_pan_sl_app_off) text").map((el) => el.textContent.trim());
-    expect(apps.includes("Project"), "installed apps in the band: " + apps.join(", "));
-    const lanes = $$(".o_pan_sl_role_label_group").map((el) => el.getAttribute("aria-label"));
-    expect(lanes.join("|") === "UI lane role|UI customer", "lanes are " + lanes.join("|"));
+    // Role panel: people, what to train on, ADKAR.
+    $$(".o_pan_sl_role").find((el) => text(el) === "UI lane role").click();
+    const role = await waitFor(() => $(".o_pan_sl_role_panel"), "role panel");
+    expect($$(".o_pan_sl_role_people li").map(text).join("|") === "UI person", "role people");
+    const training = $$(".o_pan_sl_role_training li").map(text).sort().join("|");
+    expect(training === "UI lone task|UI open task|UI tested task", "to train on: " + training);
+    expect(text(role.querySelector(".o_pan_sl_role_adkar")) === "Needs three scored people", "role ADKAR");
 
-    // Colour by: exactly Progress and Training.
-    const modes = $$(".o_pan_sl_color_select option").map((el) => el.value);
-    expect(modes.join(",") === "progress,training", "colour by offers " + modes.join(","));
-
-    // Tasks: chips with names, coloured by progress.
-    await zoomTo("Tasks", 2);
-    expect($$(".o_pan_sl_chip").length === 4, $$(".o_pan_sl_chip").length + " chips, expected 4");
-    expect(tone("UI tested task") === "o_pan_sl_tone_ok", "a tested task is not green");
-    expect(tone("UI lone task") === "o_pan_sl_tone_warn", "a decided task is not amber");
-    expect(tone("UI open task") === "o_pan_sl_tone_off", "an open task is not grey");
-    const label = chip("UI tested task").getAttribute("aria-label");
-    expect(label.includes("UI tested task") && label.includes("UI flow") && label.includes("Tested"), "chip name: " + label);
-
-    // Training: amber below Trained, grey when the role has nobody.
-    await choose(".o_pan_sl_color_select", "training");
-    expect(tone("UI tested task") === "o_pan_sl_tone_warn", "training: a tested task is not amber");
-    expect(tone("UI customer task") === "o_pan_sl_tone_off", "training: a role without people is not grey");
-    const legend = $$(".o_pan_sl_legend li").map((el) => el.textContent.trim());
-    expect(legend.join("|") === "Trained|Still to train|Nobody in the role", "training legend: " + legend.join("|"));
-    await choose(".o_pan_sl_color_select", "progress");
-
-    // Detail: assignees, hours and the first line of the description.
-    await zoomTo("Detail", 3);
-    const detail = chip("UI tested task").querySelector(".o_pan_sl_detail").textContent;
-    for (const part of ["Tested", "00:00 of 04:00 h", "Map UI user", "First line of the UI task"]) {
-        expect(detail.includes(part), "detail lacks " + part + ": " + detail);
+    // Task panel: the facts, the first line, one primary button.
+    chip("UI tested task").click();
+    const panel = await waitFor(() => $(".o_pan_sl_task_panel"), "task panel");
+    expect(!$(".o_pan_sl_role_panel"), "two panels open");
+    expect(text(panel.querySelector(".o_pan_sl_panel_title")) === "UI tested task", "panel title");
+    const facts = Object.fromEntries($$(".o_pan_sl_facts dt").map((dt) => [text(dt), text(dt.nextElementSibling)]));
+    const want = { Flow: "UI late flow", Role: "UI lane role", Phase: "UI phase one", Progress: "Tested · UI stage 3", Owners: "No owner", Hours: "00:00 of 04:00 h" };
+    for (const [key, value] of Object.entries(want)) {
+        expect(facts[key] === value, key + " reads " + facts[key]);
     }
-    expect(!detail.includes("Second line"), "detail shows more than the first line");
-
-    // Flow filter: the Tasks stop with the flow in view, the rest dimmed, announced.
-    await zoomTo("Company", 1);
-    const option = $$(".o_pan_sl_flow_select option").find((el) => el.value === "%(flow_id)s");
-    expect(option && option.textContent.replace(/\\s+/g, " ").trim() === "UI flow · Tested 50%%", "flow option: " + (option && option.textContent));
-    await choose(".o_pan_sl_flow_select", "%(flow_id)s");
-    expect(stop() === 2, "selecting a flow does not show its tasks");
-    expect(chip("UI lone task").classList.contains("o_pan_sl_dim"), "a task outside the flow is not dimmed");
-    expect(!chip("UI open task").classList.contains("o_pan_sl_dim"), "a task of the flow is dimmed");
-    const body = $(".o_pan_sl_body").getBoundingClientRect();
-    for (const name of ["UI tested task", "UI open task"]) {
-        const r = chip(name).getBoundingClientRect();
-        expect(r.left >= body.left && r.right <= body.right && r.top >= body.top && r.bottom <= body.bottom, name + " is out of view");
-    }
-    const status = $(".o_pan_sl_flow_status").textContent.trim();
-    expect(status === "Showing flow UI flow, 2 tasks", "announced: " + status);
-    await choose(".o_pan_sl_flow_select", "");
-
-    // Task panel: one primary action.
-    chip("UI tested task").dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const panel = await waitFor(() => $(".o_pan_sl_panel"), "task panel");
-    expect(panel.querySelector(".o_pan_sl_panel_title").textContent.trim() === "UI tested task", "panel title");
-    expect(panel.querySelector(".o_pan_sl_assignees").textContent.trim() === "Map UI user", "panel assignees");
+    expect(text(panel.querySelector(".o_pan_sl_description")) === "First line of the UI task", "description");
     const primary = $$(".o_pan_sl_map .btn-primary");
-    expect(primary.length === 1 && primary[0].textContent.trim() === "Open task", "primary buttons: " + primary.length);
+    expect(primary.length === 1 && text(primary[0]) === "Open task", "primary buttons: " + primary.length);
     document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await waitFor(() => !$(".o_pan_sl_panel"), "panel closed after Escape");
 
-    // Role panel from the lane name.
-    $(".o_pan_sl_role_label_group").dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const role = await waitFor(() => $(".o_pan_sl_role_panel"), "role panel");
-    expect(role.querySelector(".o_pan_sl_role_people").textContent.trim() === "UI person", "role people");
-    expect(role.querySelector(".o_pan_sl_role_adkar").textContent.trim() === "Needs three scored people", "role ADKAR");
-    expect(role.querySelector(".o_pan_sl_role_tasks").textContent.trim() === "3", "role task count");
-
-    // Tasks without a place: a muted link to their list.
-    const link = $(".o_pan_sl_unplaced");
-    expect(link && link.textContent.replace(/\\s+/g, " ").trim() === "1 task without a place", "unplaced link: " + (link && link.textContent));
-    link.click();
-    await waitFor(() => $(".o_list_view"), "unplaced list");
-    // The task list may come grouped by stage: open the group.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    if (!$(".o_data_row") && $(".o_group_header")) {
-        $(".o_group_header").click();
-    }
-    await waitFor(() => $$(".o_list_view .o_data_row").some((row) => row.textContent.includes("UI unplaced task")), "unplaced list");
+    chip("UI tested task").click();
+    (await waitFor(() => $(".o_pan_sl_task_panel .btn-primary"), "Open task")).click();
+    await waitFor(() => $(".o_form_view") && text($(".o_breadcrumb")).includes("UI tested task"), "task form");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
-""" % {"flow_id": flow_id}
-        self.browser_js(f"/odoo/project.project/{self.project.id}", code, login=self.user.login)
+"""
+        self.browser_js("/odoo/project", code, login=self.user.login)
+
+    def test_unplaced_and_training(self):
+        """The tasks without a place are one tap away; Training opens the training list."""
+        code = WAIT_JS + """
+(async () => {
+    await openMap();
+    const link = $(".o_pan_sl_unplaced");
+    expect(link && text(link) === "2 tasks without a place", "unplaced link: " + (link && text(link)));
+    link.click();
+    await waitFor(() => $(".o_pan_sl_flow_unplaced"), "pseudo-filter in the side list");
+    const listed = $$(".o_pan_sl_flows .o_pan_sl_open_task").map(lines);
+    expect(listed.join("|") === "UI unplaced task / No owner|UI loose task / No owner", "without a place: " + listed.join("|"));
+    expect(text($(".o_pan_sl_status")) === "Showing 2 tasks without a place", "announcement");
+    link.click();
+    await waitFor(() => !$(".o_pan_sl_flow_unplaced"), "pseudo-filter cleared");
+
+    $(".o_pan_sl_training").click();
+    await waitFor(() => $(".o_list_view") && text($(".o_breadcrumb")).includes("Training"), "training list");
+    console.log("test successful");
+})().catch((error) => console.error(error.message));
+"""
+        self.browser_js("/odoo/project", code, login=self.user.login)
+
+    def test_project_list(self):
+        """With several mapped projects the map starts with a plain list; the switcher changes project."""
+        other = self.env["project.project"].create({"name": "UI second project"})
+        self.env["pan.sl.role"].create({"name": "UI other role", "code": "t_ui_other", "project_id": other.id})
+        code = WAIT_JS + """
+(async () => {
+    try { localStorage.clear(); } catch {}
+    const menu = await waitFor(
+        () => $$(".o_main_navbar .o_menu_sections a, .o_main_navbar .o_menu_sections button").find((el) => text(el) === "Map"),
+        "Map in the Projects menu"
+    );
+    menu.click();
+    await waitFor(() => $$(".o_pan_sl_projects .o_pan_sl_project").length, "project list");
+    const items = $$(".o_pan_sl_project").map(text);
+    expect(items.includes("UI map project") && items.includes("UI second project"), "projects: " + items.join("|"));
+    $$(".o_pan_sl_project").find((el) => text(el) === "UI map project").click();
+    const select = await waitFor(() => $(".o_pan_sl_project_select"), "project switcher");
+    await waitFor(() => $$(".o_pan_sl_chip").length === 4, "map of the chosen project");
+    select.value = "%(other)s";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await waitFor(() => !$(".o_pan_sl_chip") && $(".o_pan_sl_grid_area .o_pan_sl_empty"), "map of the other project");
+    console.log("test successful");
+})().catch((error) => console.error(error.message));
+""" % {"other": other.id}
+        self.browser_js("/odoo/project", code, login=self.user.login)
