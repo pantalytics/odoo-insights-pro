@@ -1,3 +1,5 @@
+from datetime import datetime, time, timedelta
+
 from lxml import html as lxml_html
 
 from odoo import api, fields, models
@@ -12,6 +14,10 @@ def _keywords(text, limit=3):
     """"a, b , c, d" -> ["a", "b", "c"]: the first few non-empty keywords."""
     return [word.strip() for word in (text or "").split(",") if word.strip()][:limit]
 
+
+# The burn-up (round 6): one point per week, a task's progress is its step out of five.
+BURNUP_WEEK = timedelta(days=7)
+MAX_RUNG = 5
 
 # Block elements whose text counts as one line of a description.
 _LINE_TAGS = ("li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "pre")
@@ -168,6 +174,7 @@ class ProjectProject(models.Model):
         milestones = self.env["project.milestone"].search(
             [("project_id", "=", self.id)], order="deadline asc nulls last, id"
         )
+        burnup = self._blueprint_burnup(work, tasks - flows, today)
         return {
             "project": {
                 "id": self.id,
@@ -225,6 +232,106 @@ class ProjectProject(models.Model):
                 }
                 for task in work
             ],
+            **burnup,
+        }
+
+    # ------------------------------------------------------------------
+    # Burn-up (round 6): progress over time against a straight ideal line
+    # ------------------------------------------------------------------
+
+    def _blueprint_burnup(self, work, all_work, today):
+        """``progress_history``, ``ideal``, ``verdict`` and ``weeks_behind``
+        for the tasks ``work`` (the map's search, flows and cancelled tasks
+        already left out).
+
+        The programme runs from the project's start (else the first create
+        date of its tasks, ``all_work``, so a search does not move the axis)
+        to its target date. Each weekly point, and a last one today, is the
+        mean over ``work`` of (step at that date / 5). A task's step at a date
+        is its stage's ``pan_rung`` then, rebuilt from the stage tracking: the
+        new stage of the last change on or before that date, else the old
+        stage of the first change after it, else (no tracking) the current
+        stage. A task created after the date counts as Open (0) there, so the
+        number of tasks is the same at every point and adding tasks never
+        makes the line jump. Without a target date, a start or tasks: no chart
+        (empty history, ``ideal`` and ``verdict`` false).
+        """
+        none = {"progress_history": [], "ideal": False, "verdict": False, "weeks_behind": 0}
+        start = self.date_start or (all_work and min(all_work.mapped("create_date")).date())
+        end = self.date
+        if not (start and end and work):
+            return none
+        span = max(1, (end - start).days)
+
+        # One search over the stage tracking of all tasks, oldest first. Only
+        # administrators may read tracking values; the tasks are the user's.
+        stage_field = self.env["ir.model.fields"]._get("project.task", "stage_id")
+        trackings = (
+            self.env["mail.tracking.value"]
+            .sudo()
+            .search(
+                [
+                    ("field_id", "=", stage_field.id),
+                    ("mail_message_id.model", "=", "project.task"),
+                    ("mail_message_id.res_id", "in", work.ids),
+                ],
+                order="create_date, id",
+            )
+        )
+        changes = {}
+        for tracking in trackings:
+            changes.setdefault(tracking.mail_message_id.res_id, []).append(
+                (tracking.create_date, tracking.old_value_integer, tracking.new_value_integer)
+            )
+        stage_ids = {stage_id for events in changes.values() for _when, old, new in events for stage_id in (old, new)}
+        rungs = {
+            stage.id: int(stage.pan_rung or 0)
+            for stage in self.env["project.task.type"].sudo().browse(stage_ids - {0}).exists()
+        }
+        rows = [
+            (task.create_date, changes.get(task.id), int(task.pan_rung or 0)) for task in work
+        ]
+
+        def value_at(day):
+            """Mean step / 5 at the end of ``day`` (UTC), 0..1."""
+            bound = datetime.combine(day + timedelta(days=1), time.min)
+            total = 0
+            for created, events, current in rows:
+                if created and created >= bound:
+                    continue  # not there yet: Open
+                if not events:
+                    total += current
+                    continue
+                stage_id = None
+                for when, old, new in events:
+                    if when >= bound:
+                        stage_id = old if stage_id is None else stage_id
+                        break
+                    stage_id = new
+                total += rungs.get(stage_id, 0)
+            return round(total / (MAX_RUNG * len(rows)), 3)
+
+        days = []
+        day = start
+        while day <= today:
+            days.append(day)
+            day += BURNUP_WEEK
+        if days and days[-1] != today:
+            days.append(today)
+        history = [{"date": day.isoformat(), "value": value_at(day)} for day in days]
+        latest = history[-1]["value"] if history else value_at(today)
+        elapsed = (today - start).days
+        ideal_today = min(1.0, max(0.0, elapsed / span))
+        if latest >= ideal_today:
+            verdict, weeks_behind = "on_track", 0
+        else:
+            # The ideal line was at the current value on start + latest * span.
+            verdict, weeks_behind = "behind", max(1, round((elapsed - latest * span) / 7))
+        return {
+            "progress_history": history,
+            "ideal": [{"date": start.isoformat(), "value": 0.0}, {"date": end.isoformat(), "value": 1.0}],
+            "verdict": verdict,
+            "weeks_behind": weeks_behind,
         }
 
     def action_blueprint_training(self):

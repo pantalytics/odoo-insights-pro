@@ -18,7 +18,7 @@ import { standardViewProps } from "@web/views/standard_view_props";
 // with a continuous zoom from 0 to 4, and every element declares the zoom
 // range it appears in (LAYERS), so each level shows only what matters there:
 //   z0 Company   the brief's first sentence, keywords, from -> to, timeline
-//   z1 Project   the timeline with milestones and the bar by step
+//   z1 Project   the burn-up (progress against the ideal line) and the bar by step
 //   z2 Flows     every flow as a bar with a one-line summary and keywords
 //   z3 Flow      the swimlane: its tasks by role and step, joined by arrows
 //   z4 Task      owner, hours, stage, first line, "Move to <next stage>"
@@ -40,7 +40,8 @@ const ADKAR_WORDS = { low: _t("Low"), medium: _t("Medium"), high: _t("High") };
 export const LAYERS = {
     company: { minZoom: 0, maxZoom: 0 },
     systems: { minZoom: 0, maxZoom: 1 },
-    timeline: { minZoom: 0, maxZoom: 1 },
+    timeline: { minZoom: 0, maxZoom: 1 }, // at z1 only without a burn-up, which carries the same axis
+    burnup: { minZoom: 1, maxZoom: 1 },
     projectBar: { minZoom: 1, maxZoom: 2 },
     caption: { minZoom: 1, maxZoom: 2 },
     legend: { minZoom: 1, maxZoom: 4 },
@@ -557,6 +558,51 @@ export class BlueprintMapController extends Component {
         return { start: this.dayMonth(start), end: this.dayMonth(end), today: now, ticks };
     }
 
+    /**
+     * The burn-up at z1 (round 6), drawn in a 100 x 100 box that stretches
+     * (labels sit beside it in HTML, so text never stretches): x is time from
+     * the start to the target (or today when later), y the mean step 0..1.
+     * The actual line runs to today, the ideal line is dashed. False without
+     * the server's ideal line (no dates or no tasks).
+     */
+    get burnup() {
+        const { ideal, progress_history: history, milestones } = this.state.data;
+        if (!ideal || !history.length) {
+            return false;
+        }
+        const from = deserializeDate(ideal[0].date);
+        const days = (date) => deserializeDate(date).diff(from, "days").days;
+        const now = today().diff(from, "days").days;
+        const span = Math.max(1, days(ideal[1].date), now);
+        const x = (date) => clamp((100 * days(date)) / span, 0, 100);
+        const y = (value) => 100 - 100 * clamp(value, 0, 1);
+        const pair = (point) => `${x(point.date).toFixed(2)},${y(point.value).toFixed(2)}`;
+        const last = history.at(-1);
+        const ticks = milestones
+            .filter((milestone) => milestone.deadline)
+            .map((milestone) => ({
+                id: milestone.id,
+                at: x(milestone.deadline),
+                reached: milestone.reached,
+                title: `${milestone.name}, ${this.dayMonth(milestone.deadline)}`,
+            }));
+        const idealNow = clamp(now / Math.max(1, days(ideal[1].date)), 0, 1);
+        const percent = (value) => `${Math.round(100 * value)}%`;
+        return {
+            actual: history.map(pair).join(" "),
+            ideal: ideal.map(pair).join(" "),
+            today: clamp((100 * now) / span, 0, 100),
+            end: { x: x(last.date), y: y(last.value), label: percent(last.value) },
+            ticks,
+            start: this.dayMonth(ideal[0].date),
+            target: this.dayMonth(ideal[1].date),
+            label: _t("Progress over time: %(actual)s done today, %(ideal)s planned", {
+                actual: percent(last.value),
+                ideal: percent(idealNow),
+            }),
+        };
+    }
+
     /** Managers see one muted line when the company page or the dates are missing. */
     get missingTop() {
         const { project } = this.state.data;
@@ -585,12 +631,25 @@ export class BlueprintMapController extends Component {
     }
 
     /**
-     * The next milestone not reached and one verdict: "Late · N days" (red)
-     * when its date has passed; else "At risk" (amber) when a flow is late;
-     * else "On track".
+     * The next milestone not reached and one verdict. With a burn-up (round
+     * 6) the verdict is the burn-up's: "On track" (green), else "Behind · N
+     * weeks", amber up to two weeks, red beyond. Without one (no dates):
+     * "Late · N days" (red) when the milestone's date has passed; else "At
+     * risk" (amber) when a flow is late; else "On track".
      */
     schedule(milestones, flows) {
         const next = milestones.find((milestone) => !milestone.reached);
+        const value = next ? next.name : milestones.length ? _t("All milestones reached") : _t("No milestones");
+        const due = next?.deadline ? ` · ${_t("Due %s", this.dayMonth(next.deadline))}` : "";
+        const { verdict: burnup, weeks_behind: weeks } = this.state.data;
+        if (burnup) {
+            const behind = weeks === 1 ? _t("Behind · 1 week") : _t("Behind · %s weeks", weeks);
+            return {
+                milestone: value + due,
+                status: burnup === "on_track" ? _t("On track") : behind,
+                tone: burnup === "on_track" ? "ok" : weeks > 2 ? "late" : "risk",
+            };
+        }
         const lateFlows = flows.filter((flow) => flow.late).length;
         const days = next?.deadline ? Math.round(today().diff(deserializeDate(next.deadline), "days").days) : 0;
         let verdict = { word: _t("On track"), tone: "ok" };
@@ -599,8 +658,6 @@ export class BlueprintMapController extends Component {
         } else if (lateFlows) {
             verdict = { word: _t("At risk"), tone: "risk" };
         }
-        const value = next ? next.name : milestones.length ? _t("All milestones reached") : _t("No milestones");
-        const due = next?.deadline ? ` · ${_t("Due %s", this.dayMonth(next.deadline))}` : "";
         const late = lateFlows === 1 ? _t("1 flow late") : lateFlows ? _t("%s flows late", lateFlows) : "";
         return {
             milestone: value + due,
