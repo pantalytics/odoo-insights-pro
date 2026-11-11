@@ -107,7 +107,7 @@ class ProjectProject(models.Model):
 
     def action_view_tasks(self):
         """The Map view sits in the view switcher of a project with a map, for
-        Blueprint users; other projects and users do not see it."""
+        Project users; other projects and users do not see it."""
         action = super().action_view_tasks()
         if not (self.env.user.has_group(USER_GROUP) and self.pan_map_enabled):
             action["views"] = [view for view in action["views"] if view[1] != MAP_VIEW_TYPE]

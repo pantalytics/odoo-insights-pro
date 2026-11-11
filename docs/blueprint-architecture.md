@@ -108,7 +108,7 @@ Adds `scenario_ids` (computed, searchable) on the activity.
 `pan_scenario_id`, `pan_activity_ids` (relation
 `pan_sl_activity_project_task_rel`), `pan_rung` ("Blueprint progress",
 Selection `"0"`..`"5"`, tracking). All three have
-`groups="pan_self_learning_blueprint.group_blueprint_user"`. Hours are
+`groups="project.group_project_user"`. Hours are
 the task's `allocated_hours` and `effective_hours`; a task on several
 activities counts for each, and once per scenario. Depends on `hr_timesheet`.
 
@@ -178,9 +178,12 @@ plain text), loaded in parallel for the Detail stop.
 
 ## Security
 
-`group_blueprint_user` opens the map and reads the model and their own
-scores; `group_blueprint_manager` (implies user) edits everything and owns
-the wizard. Read on `ir.model` is granted to managers only (they pick the
+The map uses the Project app's own roles, no groups of its own (2026-11-11).
+Project User (`project.group_project_user`) opens the map and reads the model
+and their own ADKAR scores; Project Administrator
+(`project.group_project_manager`) edits everything, reads every ADKAR score
+and note, and owns the wizard. A role is visible with its project
+(`security/role_rules.xml`). Read on `ir.model` is granted to managers only (they pick the
 model); users see `model_name`. Managers also get read on the abstract
 `pan.sl.blueprint`: Odoo hides a menu whose server action's model the user
 cannot read, and both server actions are bound to it.
@@ -199,7 +202,7 @@ old `user_id` column.
 
 | Id | Owner file |
 |---|---|
-| `group_blueprint_user`, `group_blueprint_manager` | `security/security.xml` |
+| `rule_role_project_visible`, `rule_role_all` | `security/role_rules.xml` |
 | `rule_adkar_score_own`, `rule_adkar_score_manager_all` | `security/adkar_rules.xml` |
 | `action_chain`, `action_phase`, `action_role` + views | `views/structure_views.xml` |
 | `action_process`, `action_activity` + views | `views/activity_views.xml` |

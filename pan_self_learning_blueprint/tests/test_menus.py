@@ -6,8 +6,8 @@ from lxml import etree
 
 from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 
-USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user"
-MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager"
+USER_GROUP = "project.group_project_user"
+MANAGER_GROUP = "project.group_project_manager"
 CONFIG_MENUS = ("menu_blueprint_phase", "menu_blueprint_role", "menu_blueprint_adkar_score")
 MANAGER_BUTTONS = ("action_blueprint_load_template", "action_blueprint_import", "action_blueprint_export")
 
@@ -59,21 +59,19 @@ class TestMenus(TransactionCase):
         self.assertNotIn("search_default_open_tasks", action["context"])
 
     def test_map_in_the_view_switcher(self):
-        """Inside a project with a map, Map sits next to Kanban and List, for
-        Blueprint users only; a project without roles does not offer it."""
+        """Inside a project with a map, Map sits next to Kanban and List; a project
+        without roles does not offer it."""
         task_action = self.env.ref("project.act_project_project_2_project_task_all")
         self.assertIn("pan_blueprint", [mode for _id, mode in task_action.views])
         mapped = self.env["project.project"].create({"name": "Mapped"})
         self.env["pan.sl.role"].create({"name": "Mapped role", "code": "t_mapped", "project_id": mapped.id})
         plain = self.env["project.project"].create({"name": "Plain"})
-        project_only = new_test_user(self.env, login="pan_sl_menu_po2", name="PO2", groups="project.group_project_user")
 
         def modes(project, user):
             return [mode for _id, mode in project.with_user(user).action_view_tasks()["views"]]
 
         self.assertIn("pan_blueprint", modes(mapped, self.bp_user))
         self.assertNotIn("pan_blueprint", modes(plain, self.bp_user))
-        self.assertNotIn("pan_blueprint", modes(mapped, project_only))
         mapped.pan_map_enabled = False
         self.assertNotIn("pan_blueprint", modes(mapped, self.bp_user), "the switch decides, not the roles")
         info = self.env["ir.ui.view"].get_view_info()["pan_blueprint"]
@@ -103,9 +101,6 @@ class TestMenus(TransactionCase):
         arch = self.env["project.project"].with_user(self.bp_user).get_views([(False, "kanban")])["views"]["kanban"]["arch"]
         root = etree.fromstring(arch)
         self.assertTrue(root.xpath("//div[contains(@class, 'o_project_kanban_boxes')]//a[@name='action_open_blueprint_map']"))
-        project_only = new_test_user(self.env, login="pan_sl_menu_po", name="PO", groups="project.group_project_user")
-        arch = self.env["project.project"].with_user(project_only).get_views([(False, "kanban")])["views"]["kanban"]["arch"]
-        self.assertNotIn("action_open_blueprint_map", arch)
 
     def test_map_switch(self):
         """A project gets its map with the Map switch (Settings); the first role
@@ -188,4 +183,4 @@ class TestExportDownload(HttpCase):
         self.assertEqual([role["code"] for role in data["roles"]], ["t_dl_role"])
 
         self.authenticate(bp_user.login, bp_user.login)
-        self.assertNotEqual(self.url_open(action["url"]).status_code, 200, "A Blueprint user cannot download it.")
+        self.assertNotEqual(self.url_open(action["url"]).status_code, 200, "A Project user cannot download it.")
