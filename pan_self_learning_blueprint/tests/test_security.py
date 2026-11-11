@@ -67,7 +67,7 @@ class TestSecurity(BlueprintCase):
     def test_user_cannot_change_role_holders_from_the_contact(self):
         """#27: who holds a role is the administrator's, from either side."""
         contacts = self.env.ref("base.group_partner_manager")
-        (self.bp_user | self.bp_manager).group_ids |= contacts
+        (self.bp_user | self.bp_manager).write({"group_ids": [Command.link(contacts.id)]})
         partner = self.bp_user.partner_id
         with self.assertRaises(AccessError):
             partner.with_user(self.bp_user).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
@@ -77,8 +77,9 @@ class TestSecurity(BlueprintCase):
             )
         self.assertFalse(self.role_sales.partner_ids)
         partner.with_user(self.bp_user).write({"name": "Blueprint user renamed"})
-        partner.with_user(self.bp_manager).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
-        self.assertEqual(self.role_sales.partner_ids, partner)
+        person = self.env["res.partner"].create({"name": "Warehouse worker without login"})
+        person.with_user(self.bp_manager).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
+        self.assertEqual(self.role_sales.partner_ids, person)
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_roles_follow_project_visibility(self):
