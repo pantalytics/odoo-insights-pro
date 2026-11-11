@@ -109,7 +109,9 @@
                 <span class="o_pan_sl_burnup_y o_pan_sl_burnup_y_top" aria-hidden="true">100%</span>
                 <span class="o_pan_sl_burnup_y o_pan_sl_burnup_y_bottom" aria-hidden="true">0%</span>
                 <span t-foreach="chart.ticks" t-as="tick" t-key="tick.id" class="o_pan_sl_burnup_tick"
-                      t-att-class="{ o_pan_sl_burnup_tick_reached: tick.reached }" t-attf-style="left: {{ tick.at }}%" t-att-title="tick.title"/>
+                      t-att-class="{ o_pan_sl_burnup_tick_reached: tick.reached }" t-attf-style="left: {{ tick.at }}%" t-att-title="tick.title">
+                    <span class="o_pan_sl_burnup_tick_label"><t t-esc="tick.name"/> <span class="text-muted" t-esc="tick.date"/></span>
+                </span>
                 <span class="o_pan_sl_burnup_end" t-attf-style="left: {{ chart.end.x }}%; top: {{ chart.end.y }}%"/>
                 <span class="o_pan_sl_burnup_value" t-attf-style="left: {{ chart.end.x }}%; top: {{ chart.end.y }}%" t-esc="chart.end.label"/>
                 <span class="o_pan_sl_burnup_today" t-attf-style="left: {{ chart.today }}%">Today</span>
