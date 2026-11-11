@@ -5,3 +5,4 @@ from . import project_task
 from . import adkar
 from . import blueprint
 from . import map_data
+from . import project_project

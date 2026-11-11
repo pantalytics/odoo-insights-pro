@@ -42,6 +42,7 @@ and never overwrites the company's own choices.
         "views/project_task_views.xml",
         "views/blueprint_views.xml",
         "views/map_action.xml",
+        "views/project_project_views.xml",
         "views/menus.xml",
     ],
     "assets": {

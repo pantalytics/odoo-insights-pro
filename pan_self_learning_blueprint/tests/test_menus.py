@@ -56,6 +56,15 @@ class TestMenus(TransactionCase):
             with self.subTest(menu=name):
                 self.assertNotIn(self._menu(name).id, visible, f"A Blueprint user must not see {name}.")
 
+    def test_map_lives_in_the_projects_app(self):
+        """#22: no app of its own; the map menu sits in Projects and every project opens its map."""
+        self.assertEqual(self._menu("menu_blueprint_root").parent_id, self.env.ref("project.menu_main_pm"))
+        self.assertIn(self.env.ref("project.group_project_user"), self.bp_user.all_group_ids)
+        project = self.env["project.project"].create({"name": "Map project"})
+        action = project.with_user(self.bp_user).action_open_blueprint_map()
+        self.assertEqual(action["tag"], "pan_sl_blueprint_map")
+        self.assertEqual(action["params"], {"project_id": project.id})
+
     def test_menus_are_in_the_web_client_menu_tree(self):
         """What the web client loads: the manager actions are in it for managers, not for users."""
         export = self._menu("menu_blueprint_export").id

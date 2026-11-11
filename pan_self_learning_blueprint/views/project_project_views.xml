@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Project form: "Map" next to Tasks. -->
+    <record id="view_project_form_blueprint" model="ir.ui.view">
+        <field name="name">project.project.form.blueprint</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="project.edit_project"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button class="oe_stat_button" type="object" name="action_open_blueprint_map"
+                        icon="fa-map-o" string="Map"
+                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Project card menu: View > Map, under Tasks. -->
+    <record id="view_project_kanban_blueprint" model="ir.ui.view">
+        <field name="name">project.project.kanban.blueprint</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="project.view_project_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='card_menu_view']" position="inside">
+                <div role="menuitem" groups="pan_self_learning_blueprint.group_blueprint_user">
+                    <a name="action_open_blueprint_map" type="object">Map</a>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

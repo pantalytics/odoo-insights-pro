@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- The company map lives in the Projects app: one menu next to Reporting. -->
     <menuitem
         id="menu_blueprint_root"
-        name="Blueprint"
-        web_icon="pan_self_learning_blueprint,static/description/icon.png"
-        action="action_blueprint_map"
+        name="Company map"
+        parent="project.menu_main_pm"
         groups="group_blueprint_user"
-        sequence="45">
+        sequence="90">
 
         <menuitem
             id="menu_blueprint_map"
-            name="Company map"
+            name="Map"
             action="action_blueprint_map"
             groups="group_blueprint_user"
             sequence="10"/>
