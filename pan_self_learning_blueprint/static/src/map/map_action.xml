@@ -2,339 +2,191 @@
 <templates xml:space="preserve">
 
     <t t-name="pan_self_learning_blueprint.CompanyMap">
-        <div class="o_action o_pan_sl_map d-flex flex-column h-100" t-att-data-revision="state.revision">
-            <t t-if="state.loaded">
-                <div t-if="!data.activities.length" class="o_pan_sl_empty m-3 p-4 text-center">
-                    <t t-if="isManager">
-                        <p class="text-muted mb-3">No company model yet.</p>
-                        <button type="button" class="btn btn-primary" t-on-click="loadTemplate">Load template</button>
-                    </t>
-                    <p t-else="" class="text-muted mb-0">No company model yet. Ask a Blueprint administrator.</p>
+        <div class="o_action o_pan_sl_map d-flex flex-column h-100">
+            <Layout display="{ controlPanel: { layoutActions: true } }" className="'o_pan_sl_content d-flex flex-column'">
+                <t t-set-slot="layout-actions">
+                    <t t-if="state.loaded and data.tasks.length" t-call="pan_self_learning_blueprint.CompanyMap.Controls"/>
+                </t>
+                <p t-if="!projectId" class="o_pan_sl_empty text-muted m-3 p-4 text-center mb-0">Open the map from a project.</p>
+                <div t-elif="state.loaded and !data.tasks.length" class="o_pan_sl_empty text-muted m-3 p-4 text-center">
+                    <p class="mb-1">No tasks with a role and a phase yet.</p>
+                    <t t-call="pan_self_learning_blueprint.CompanyMap.Unplaced"/>
                 </div>
-                <t t-else="">
-                    <t t-call="pan_self_learning_blueprint.CompanyMap.Controls"/>
-                    <div t-if="selectedScenario" class="o_pan_sl_scenario_info px-3 py-1 border-bottom small">
-                        <span class="fw-bold" t-esc="selectedScenario.name"/>
-                        <span t-if="selectedScenario.description" class="text-muted">
-                            · <t t-esc="selectedScenario.description"/>
-                        </span>
-                        <span t-if="selectedScenario.open_point" class="ms-2 o_pan_sl_text_warn">
-                            <i class="fa fa-exclamation-triangle me-1" aria-hidden="true"/><t t-esc="selectedScenario.open_point"/>
-                        </span>
-                    </div>
-
+                <t t-elif="state.loaded">
                     <div t-ref="body" class="o_pan_sl_body position-relative flex-grow-1">
                         <t t-call="pan_self_learning_blueprint.CompanyMap.Svg"/>
                         <t t-call="pan_self_learning_blueprint.CompanyMap.Panel"/>
                     </div>
-                    <div class="visually-hidden" role="status" aria-live="polite">
-                        Zoom: <t t-esc="currentStop.label"/>. <t t-esc="currentStop.hint"/>
-                    </div>
-                    <div class="visually-hidden o_pan_sl_scenario_status" role="status" aria-live="polite"
-                         t-esc="scenarioAnnouncement"/>
+                    <div class="visually-hidden" role="status" aria-live="polite">Zoom: <t t-esc="stopLabel"/></div>
+                    <div class="visually-hidden o_pan_sl_flow_status" role="status" aria-live="polite" t-esc="flowAnnouncement"/>
                 </t>
-            </t>
+            </Layout>
         </div>
     </t>
 
-    <!-- Status dot: tone colour plus a glyph, so it does not rely on hue alone -->
-    <!-- The <g> root makes OWL create the shapes in the SVG namespace when called. -->
+    <!-- Status dot: tone colour plus a glyph. The <g> root keeps OWL in the SVG namespace. -->
     <t t-name="pan_self_learning_blueprint.CompanyMap.Dot">
-        <g class="o_pan_sl_dot_group">
+        <g>
             <circle class="o_pan_sl_dot" t-att-class="dot.className" t-att-cx="dot.cx" t-att-cy="dot.cy" t-att-r="dot.r"/>
             <path t-if="dot.glyph" t-att-class="dot.glyph.className" t-att-d="dot.glyph.d"/>
         </g>
     </t>
 
-    <!-- Controls: scenario, colour by, zoom slider, legend -->
     <t t-name="pan_self_learning_blueprint.CompanyMap.Controls">
-        <div class="o_pan_sl_controls d-flex flex-wrap align-items-center column-gap-3 row-gap-2 px-3 py-2 border-bottom">
-            <label class="d-flex align-items-center gap-2 mb-0">
-                <span class="fw-bold">Scenario</span>
-                <select class="form-select form-select-sm o_pan_sl_scenario_select"
-                        t-on-change="onScenarioChange">
-                    <option value="" t-att-selected="!state.scenarioId">All scenarios</option>
-                    <option t-foreach="data.scenarios" t-as="scenario" t-key="scenario.id"
-                            t-att-value="scenario.id"
-                            t-att-selected="state.scenarioId === scenario.id">
-                        <t t-esc="scenario.code"/> · <t t-esc="scenario.name"/> · Tested <t t-esc="scenario.progress"/>%
-                    </option>
-                </select>
-            </label>
-            <label class="d-flex align-items-center gap-2 mb-0">
-                <span class="fw-bold">Colour by</span>
-                <select class="form-select form-select-sm o_pan_sl_color_select"
-                        t-on-change="onColorByChange">
-                    <option value="choices" t-att-selected="state.colorBy === 'choices'">Choices</option>
-                    <option value="progress" t-att-selected="state.colorBy === 'progress'">Progress</option>
-                    <option value="training" t-att-selected="state.colorBy === 'training'">Training</option>
-                </select>
-            </label>
-            <div class="o_pan_sl_zoom d-flex align-items-center gap-2">
-                <label class="fw-bold mb-0" for="o_pan_sl_zoom_slider">Zoom</label>
-                <div class="o_pan_sl_zoom_track">
-                    <input id="o_pan_sl_zoom_slider" type="range" class="form-range o_pan_sl_zoom_slider"
-                           t-att-min="geometry.MIN_ZOOM" t-att-max="geometry.MAX_ZOOM" step="0.01"
-                           t-att-value="state.zoom"
-                           t-att-aria-valuetext="currentStop.label + ' (' + state.zoom.toFixed(1) + 'x)'"
-                           t-att-title="currentStop.label + ': ' + currentStop.hint"
-                           t-on-input="onZoomInput"
-                           t-on-keydown="onZoomKeydown"/>
-                    <div class="o_pan_sl_zoom_labels" role="group" aria-label="Zoom stops">
-                        <t t-foreach="stops" t-as="tick" t-key="tick.value">
-                            <span class="o_pan_sl_zoom_tick" aria-hidden="true"
-                                  t-attf-style="left: {{ tick.position }}%"/>
-                            <button type="button"
-                                    class="o_pan_sl_zoom_label btn btn-link p-0"
-                                    t-att-class="{ 'o_pan_sl_zoom_label_active': stop === tick.value }"
-                                    t-att-aria-pressed="stop === tick.value ? 'true' : 'false'"
-                                    t-attf-style="left: {{ tick.position }}%"
-                                    t-att-title="tick.hint"
-                                    t-on-click="() => this.zoomTo(tick.zoom)">
-                                <t t-esc="tick.label"/>
-                            </button>
-                        </t>
-                    </div>
+        <div class="o_pan_sl_controls d-flex flex-wrap align-items-center column-gap-3 row-gap-2 flex-grow-1">
+            <select t-if="data.flows.length" class="form-select form-select-sm o_pan_sl_flow_select"
+                    aria-label="Flow" t-on-change="onFlowChange">
+                <option value="" t-att-selected="!state.flowId">All flows</option>
+                <option t-foreach="data.flows" t-as="flow" t-key="flow.id" t-att-value="flow.id"
+                        t-att-selected="state.flowId === flow.id">
+                    <t t-esc="flow.name"/> · Tested <t t-esc="flow.progress"/>%
+                </option>
+            </select>
+            <select class="form-select form-select-sm o_pan_sl_color_select" aria-label="Colour by" t-on-change="onColorByChange">
+                <option value="progress" t-att-selected="state.colorBy === 'progress'">By progress</option>
+                <option value="training" t-att-selected="state.colorBy === 'training'">By training</option>
+            </select>
+            <div class="o_pan_sl_zoom_track">
+                <input type="range" class="form-range o_pan_sl_zoom_slider" aria-label="Zoom"
+                       t-att-min="geometry.MIN_ZOOM" t-att-max="geometry.MAX_ZOOM" step="0.01"
+                       t-att-value="state.zoom" t-att-aria-valuetext="stopLabel"
+                       t-on-input="onZoomInput" t-on-keydown="onZoomKeydown"/>
+                <div class="o_pan_sl_zoom_labels">
+                    <button t-foreach="stops" t-as="tick" t-key="tick.value" type="button"
+                            class="o_pan_sl_zoom_label btn btn-link p-0"
+                            t-att-class="{ 'o_pan_sl_zoom_label_active': stop === tick.value }"
+                            t-att-aria-pressed="stop === tick.value ? 'true' : 'false'"
+                            t-attf-style="left: {{ tick.position }}%"
+                            t-on-click="() => this.zoomTo(tick.zoom)" t-esc="tick.label"/>
                 </div>
             </div>
             <ul class="o_pan_sl_legend list-inline d-flex flex-wrap column-gap-3 row-gap-1 mb-0 ms-auto small">
                 <li t-foreach="legend" t-as="item" t-key="item.key" class="d-flex align-items-center gap-1">
                     <svg width="18" height="12" aria-hidden="true">
-                        <rect class="o_pan_sl_swatch" t-att-class="item.className"
-                              x="1" y="1" width="16" height="10" rx="3"/>
+                        <rect class="o_pan_sl_swatch" t-att-class="item.className" x="1" y="1" width="16" height="10" rx="3"/>
                         <path t-if="item.glyph" t-att-class="item.glyph.className" t-att-d="item.glyph.d"/>
                     </svg>
                     <span t-esc="item.label"/>
                 </li>
             </ul>
+            <t t-call="pan_self_learning_blueprint.CompanyMap.Unplaced"/>
         </div>
     </t>
 
-    <!-- The map itself. The view box is the camera (pan and zoom); the
-         header and the label column stay in view like map labels. -->
+    <t t-name="pan_self_learning_blueprint.CompanyMap.Unplaced">
+        <a t-if="data.unplaced_count" href="#" class="o_pan_sl_unplaced small text-muted" t-on-click.prevent="openUnplaced">
+            <t t-esc="data.unplaced_count"/> <t t-if="data.unplaced_count === 1">task</t><t t-else="">tasks</t> without a place
+        </a>
+    </t>
+
+    <!-- The view box is the camera; the header and label column stay in view. -->
     <t t-name="pan_self_learning_blueprint.CompanyMap.Svg">
-        <svg t-ref="svg" class="o_pan_sl_svg"
-             width="100%" height="100%"
-             t-att-viewBox="viewBoxAttr"
-             preserveAspectRatio="xMinYMin meet"
-             t-att-data-stop="stop"
-             t-att-data-zoom="state.zoom.toFixed(2)"
-             t-att-data-scale="scale.toFixed(3)"
-             t-att-data-map-width="mapPixelWidth"
-             t-att-data-chip-total="layout.chips.length"
+        <svg t-ref="svg" class="o_pan_sl_svg" width="100%" height="100%"
+             t-att-viewBox="viewBoxAttr" preserveAspectRatio="xMinYMin meet"
+             t-att-data-stop="stop" t-att-data-zoom="state.zoom.toFixed(2)" t-att-data-scale="scale.toFixed(3)"
              tabindex="0" role="group"
-             t-att-aria-label="'Company map, zoom: ' + currentStop.label + '. Arrow keys move the map, plus and minus zoom, Home shows the whole map.'"
-             t-on-wheel="onWheel"
-             t-on-dblclick="onDoubleClick"
-             t-on-keydown="onMapKeydown"
-             t-on-focusin="onMapFocusin"
-             t-on-pointerdown="onPointerDown"
-             t-on-pointermove="onPointerMove"
-             t-on-pointerup="onPointerUp"
-             t-on-pointercancel="onPointerUp"
+             t-att-aria-label="'Company map, zoom: ' + stopLabel + '. Arrow keys move, plus and minus zoom, Home shows all.'"
+             t-on-wheel="onWheel" t-on-keydown="onMapKeydown" t-on-focusin="onMapFocusin"
+             t-on-pointerdown="onPointerDown" t-on-pointermove="onPointerMove"
+             t-on-pointerup="onPointerUp" t-on-pointercancel="onPointerUp"
              t-on-click.capture="onClickCapture">
-            <defs>
-                <marker id="o_pan_sl_arrow" viewBox="0 0 10 10" refX="9" refY="5"
-                        markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                    <path class="o_pan_sl_route_arrow" d="M 0 0 L 10 5 L 0 10 z"/>
-                </marker>
-            </defs>
-
             <rect class="o_pan_sl_canvas" x="0" y="0" t-att-width="layout.width" t-att-height="layout.height"/>
+            <rect t-foreach="layout.columns" t-as="column" t-key="column.phase.id"
+                  class="o_pan_sl_column" t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
+                  t-att-x="column.x" y="0" t-att-width="layout.colW" t-att-height="layout.height"/>
+            <rect t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id"
+                  class="o_pan_sl_lane" t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
+                  x="0" t-att-y="lane.y" t-att-width="layout.width" t-att-height="lane.height"/>
 
-            <!-- Phase columns -->
-            <g class="o_pan_sl_columns">
-                <rect t-foreach="layout.columns" t-as="column" t-key="column.phase.id"
-                      class="o_pan_sl_column"
-                      t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
-                      t-att-x="column.x" y="0"
-                      t-att-width="layout.colW" t-att-height="layout.height"/>
+            <!-- Odoo band: the apps of each phase, muted when not installed -->
+            <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom" t-att-width="layout.width" t-att-height="layout.odooHeight"/>
+            <g t-foreach="layout.apps" t-as="app" t-key="app.key" class="o_pan_sl_app" t-att-class="{ 'o_pan_sl_app_off': !app.installed }">
+                <title t-esc="app.title"/>
+                <rect t-att-x="app.x" t-att-y="app.y" t-att-width="app.width" t-att-height="geometry.APP_CHIP_H" rx="10"/>
+                <text t-att-x="app.x + app.width / 2" t-att-y="app.y + 14" text-anchor="middle" t-esc="app.label"/>
             </g>
 
-            <!-- Role lanes -->
-            <g class="o_pan_sl_lanes">
-                <rect t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id"
-                      class="o_pan_sl_lane"
-                      t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
-                      x="0" t-att-y="lane.y"
-                      t-att-width="layout.width" t-att-height="lane.height"/>
-            </g>
-
-            <!-- Odoo band -->
-            <g class="o_pan_sl_odoo_band">
-                <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom"
-                      t-att-width="layout.width" t-att-height="layout.odooHeight"/>
-                <g t-foreach="layout.apps" t-as="app" t-key="app.key" class="o_pan_sl_app"
-                   t-att-class="{ 'o_pan_sl_app_off': !app.installed }">
-                    <title t-esc="app.title"/>
-                    <rect t-att-x="app.x" t-att-y="app.y" t-att-width="app.width"
-                          t-att-height="geometry.APP_CHIP_H" rx="10"/>
-                    <text t-att-x="app.x + app.width / 2" t-att-y="app.y + 14"
-                          text-anchor="middle" t-esc="app.label"/>
-                </g>
-            </g>
-
-            <!-- Stop 1 (Company): one block per role x phase cell -->
-            <g t-if="stop === geometry.STOP_COMPANY" class="o_pan_sl_blocks">
-                <t t-foreach="visibleBlocks" t-as="block" t-key="block.key">
+            <!-- Company: one block per role x phase cell -->
+            <g t-if="stop === geometry.STOP_COMPANY">
+                <t t-foreach="layout.blocks" t-as="block" t-key="block.key">
                     <t t-set="cell" t-value="blockView(block)"/>
-                    <g class="o_pan_sl_block" t-att-class="{ 'o_pan_sl_dim': cell.dim }"
-                       t-att-data-item="block.key"
+                    <g class="o_pan_sl_block" t-att-class="{ 'o_pan_sl_dim': cell.dim }" t-att-data-item="block.key"
                        tabindex="0" role="button" t-att-aria-label="cell.title"
                        t-on-click="() => this.onBlockClick(block)"
-                       t-on-keydown="(ev) => this.onItemKeydown(ev, block, () => this.onBlockClick(block, { focus: true }))">
+                       t-on-keydown="(ev) => this.onActivateKey(ev, () => this.onBlockClick(block))">
                         <title t-esc="cell.title"/>
                         <clipPath t-att-id="cell.clipId">
-                            <rect t-att-x="block.x" t-att-y="block.y" t-att-width="block.width"
-                                  t-att-height="block.height" rx="7"/>
+                            <rect t-att-x="block.x" t-att-y="block.y" t-att-width="block.width" t-att-height="block.height" rx="7"/>
                         </clipPath>
                         <g t-att-clip-path="'url(#' + cell.clipId + ')'">
                             <t t-foreach="cell.segments" t-as="segment" t-key="segment.key">
-                                <rect class="o_pan_sl_seg" t-att-class="segment.className"
-                                      t-att-x="segment.x" t-att-y="block.y"
-                                      t-att-width="segment.width" t-att-height="block.height"/>
-                                <path t-if="segment.glyph" t-att-class="segment.glyph.className"
-                                      t-att-d="segment.glyph.d"/>
+                                <rect class="o_pan_sl_seg" t-att-class="segment.className" t-att-x="segment.x"
+                                      t-att-y="block.y" t-att-width="segment.width" t-att-height="block.height"/>
+                                <path t-if="segment.glyph" t-att-class="segment.glyph.className" t-att-d="segment.glyph.d"/>
                             </t>
                         </g>
-                        <rect class="o_pan_sl_block_frame"
-                              t-att-x="block.x" t-att-y="block.y"
+                        <rect class="o_pan_sl_block_frame" t-att-x="block.x" t-att-y="block.y"
                               t-att-width="block.width" t-att-height="block.height" rx="7"/>
-                        <circle class="o_pan_sl_block_count_bg"
-                                t-att-cx="block.x + block.width / 2" t-att-cy="block.y + block.height / 2" r="12"/>
-                        <text class="o_pan_sl_block_count" text-anchor="middle"
-                              t-att-x="block.x + block.width / 2" t-att-y="block.y + block.height / 2 + 4.5"
-                              t-esc="cell.count"/>
+                        <circle class="o_pan_sl_block_count_bg" t-att-cx="block.x + block.width / 2" t-att-cy="block.y + block.height / 2" r="12"/>
+                        <text class="o_pan_sl_block_count" text-anchor="middle" t-att-x="block.x + block.width / 2"
+                              t-att-y="block.y + block.height / 2 + 4.5" t-esc="cell.count"/>
                     </g>
                 </t>
             </g>
 
-            <!-- Route of the selected scenario (under the chips) -->
-            <path t-if="route and route.badges.length > 1" class="o_pan_sl_route"
-                  t-att-d="route.path" marker-end="url(#o_pan_sl_arrow)"/>
-
-            <!-- Stops 2-4: activity chips, only those in view (culling) -->
-            <g t-if="stop !== geometry.STOP_COMPANY" class="o_pan_sl_chips">
-                <g t-foreach="visibleChips" t-as="chip" t-key="chip.id"
-                   class="o_pan_sl_chip" t-att-class="chipClass(chip)"
-                   t-att-data-item="chip.key"
-                   t-att-transform="'translate(' + chip.x + ',' + chip.y + ')'"
-                   tabindex="0" role="button"
-                   t-att-aria-label="chipAriaLabel(chip)"
+            <!-- Tasks and Detail: one chip per task -->
+            <g t-else="">
+                <g t-foreach="layout.chips" t-as="chip" t-key="chip.id"
+                   class="o_pan_sl_chip"
+                   t-att-class="{ 'o_pan_sl_dim': isDimmed(chip.task), 'o_pan_sl_selected': state.selectedId === chip.id }"
+                   t-att-data-item="chip.key" t-att-transform="'translate(' + chip.x + ',' + chip.y + ')'"
+                   tabindex="0" role="button" t-att-aria-label="chipAriaLabel(chip)"
                    t-att-aria-pressed="state.selectedId === chip.id ? 'true' : 'false'"
                    t-on-click="() => this.openPanel(chip.id)"
-                   t-on-keydown="(ev) => this.onItemKeydown(ev, chip, () => this.openPanel(chip.id))">
-                    <title t-esc="chip.activity.name"/>
-                    <rect class="o_pan_sl_chip_box" x="0" y="0"
-                          t-att-width="chip.width" t-att-height="chip.height" rx="6"/>
-                    <t t-if="stop === geometry.STOP_ACTIVITIES">
-                        <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
-                            <t t-set="dot" t-value="dotView(chip.activity, 15, 14)"/>
-                        </t>
-                        <text class="o_pan_sl_chip_label" x="26" y="18" t-esc="chip.label"/>
+                   t-on-keydown="(ev) => this.onActivateKey(ev, () => this.openPanel(chip.id))">
+                    <title t-esc="chip.task.name"/>
+                    <rect class="o_pan_sl_chip_box" x="0" y="0" t-att-width="chip.width" t-att-height="chip.height" rx="6"/>
+                    <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
+                        <t t-set="dot" t-value="dot(chip.task, 15, 14)"/>
                     </t>
-                    <t t-else="">
-                        <t t-set="extras" t-value="chipExtras(chip)"/>
-                        <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
-                            <t t-set="dot" t-value="dotView(chip.activity, 15, 16)"/>
+                    <text class="o_pan_sl_chip_label" x="26" y="18" t-esc="chip.label"/>
+                    <g t-if="stop === geometry.STOP_DETAIL" class="o_pan_sl_detail">
+                        <t t-foreach="detailLines(chip)" t-as="line" t-key="line.key">
+                            <text class="o_pan_sl_small" t-att-class="{ 'o_pan_sl_muted': line.muted }"
+                                  x="10" t-att-y="line.y" t-esc="line.text"/>
+                            <text t-if="line.hours" class="o_pan_sl_small o_pan_sl_muted" text-anchor="end"
+                                  t-att-x="chip.width - 10" t-att-y="line.y">
+                                <t t-esc="line.hours"/>
+                                <title t-esc="line.hoursTitle"/>
+                            </text>
                         </t>
-                        <text class="o_pan_sl_chip_label" x="26" y="20" t-esc="chip.label"/>
-                        <g t-if="chip.activity.open_point" class="o_pan_sl_open">
-                            <title t-esc="chip.activity.open_point"/>
-                            <circle class="o_pan_sl_open_marker" t-att-cx="chip.width - 12" cy="15" r="6.5"/>
-                            <text class="o_pan_sl_open_marker_text" t-att-x="chip.width - 12" y="18.5"
-                                  text-anchor="middle">!</text>
-                        </g>
-                        <g class="o_pan_sl_rung" aria-hidden="true">
-                            <rect t-foreach="extras.rungSegments" t-as="segment" t-key="segment.key"
-                                  class="o_pan_sl_rung_seg" t-att-class="segment.className"
-                                  t-att-x="segment.x" y="31" width="7" height="6" rx="1.5"/>
-                            <text class="o_pan_sl_small" t-att-x="extras.rungLabelX" y="37"
-                                  t-esc="extras.rungLabel"/>
-                        </g>
-                        <g t-if="stop === geometry.STOP_DETAIL" class="o_pan_sl_detail">
-                            <line class="o_pan_sl_detail_rule" x1="8" t-att-x2="chip.width - 8"
-                                  t-att-y1="geometry.DETAIL_CHIP_H" t-att-y2="geometry.DETAIL_CHIP_H"/>
-                            <t t-foreach="chipDetailLines(chip)" t-as="line" t-key="line.key">
-                                <g t-if="line.kind === 'task'" class="o_pan_sl_task">
-                                    <title t-esc="line.title"/>
-                                    <rect class="o_pan_sl_task_rung" t-att-class="line.rungClass"
-                                          x="10" t-att-y="line.y - 9" t-att-width="geometry.TASK_PILL_W" height="12" rx="6"/>
-                                    <text class="o_pan_sl_tiny" t-att-x="10 + geometry.TASK_PILL_W / 2" t-att-y="line.y"
-                                          text-anchor="middle" t-esc="line.rung"/>
-                                    <text class="o_pan_sl_small" t-att-x="16 + geometry.TASK_PILL_W" t-att-y="line.y"
-                                          t-esc="line.text"/>
-                                </g>
-                                <text t-elif="line.kind === 'path'" class="o_pan_sl_small o_pan_sl_path"
-                                      x="10" t-att-y="line.y">
-                                    <t t-esc="line.text"/>
-                                    <title t-esc="line.title"/>
-                                </text>
-                                <text t-else="" class="o_pan_sl_small o_pan_sl_muted_italic" x="10"
-                                      t-att-y="line.y" t-esc="line.text"/>
-                            </t>
-                        </g>
-                    </t>
+                    </g>
                 </g>
             </g>
 
-            <!-- Numbered route badges (on top of the chips) -->
-            <g t-if="route" class="o_pan_sl_route_badges">
-                <g t-foreach="route.badges" t-as="badge" t-key="badge.key" class="o_pan_sl_badge">
-                    <circle t-att-cx="badge.x - 1" t-att-cy="badge.y" r="9"/>
-                    <text t-att-x="badge.x - 1" t-att-y="badge.y + 3.5" text-anchor="middle"
-                          t-esc="badge.number"/>
-                </g>
-            </g>
-
-            <!-- Sticky header: phase names (+ choices not settled at stop 1) and the progress band -->
+            <!-- Sticky header: phase names -->
             <g class="o_pan_sl_sticky_top" t-att-transform="'translate(0,' + stickyY + ')'">
-                <rect class="o_pan_sl_canvas" x="0" y="0" t-att-width="layout.width" t-att-height="layout.lanesTop"/>
                 <t t-foreach="layout.columns" t-as="column" t-key="column.phase.id">
-                    <rect class="o_pan_sl_column"
-                          t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
-                          t-att-x="column.x" y="0"
-                          t-att-width="layout.colW" t-att-height="layout.headerH"/>
-                    <text class="o_pan_sl_phase_label"
-                          t-att-x="column.x + layout.colW / 2" y="22" text-anchor="middle">
+                    <rect class="o_pan_sl_column" t-att-class="{ 'o_pan_sl_column_alt': column_index % 2 }"
+                          t-att-x="column.x" y="0" t-att-width="layout.colW" t-att-height="geometry.HEADER_H"/>
+                    <text class="o_pan_sl_phase_label" t-att-x="column.x + layout.colW / 2" y="23" text-anchor="middle">
                         <t t-esc="column.label"/>
                         <title t-esc="column.phase.name"/>
                     </text>
-                    <text t-if="stop === geometry.STOP_COMPANY" class="o_pan_sl_counter"
-                          t-att-x="column.x + layout.colW / 2" y="45" text-anchor="middle">
-                        <tspan class="o_pan_sl_counter_value" t-esc="column.notSettled"/>
-                        <tspan> not settled</tspan>
-                    </text>
                 </t>
-                <rect class="o_pan_sl_band" x="0" t-att-y="layout.progressTop"
-                      t-att-width="layout.width" t-att-height="geometry.PROGRESS_H"/>
-                <g t-foreach="layout.progress" t-as="item" t-key="item.id">
-                    <title t-esc="item.title"/>
-                    <rect class="o_pan_sl_progress_track"
-                          t-att-x="item.x + 12" t-att-y="layout.progressTop + 16"
-                          t-att-width="item.trackW" height="8" rx="4"/>
-                    <rect t-if="item.barWidth" class="o_pan_sl_progress_bar"
-                          t-att-x="item.x + 12" t-att-y="layout.progressTop + 16"
-                          t-att-width="item.barWidth" height="8" rx="4"/>
-                    <text class="o_pan_sl_progress_label"
-                          t-att-x="item.x + 20 + item.trackW" t-att-y="layout.progressTop + 24"
-                          t-esc="item.percent"/>
-                </g>
             </g>
 
-            <!-- Sticky label column: role names (sticky within their lane) and band names -->
+            <!-- Sticky label column: role names open the role panel -->
             <g class="o_pan_sl_sticky_left" t-att-transform="'translate(' + stickyX + ',0)'">
                 <t t-foreach="layout.lanes" t-as="lane" t-key="lane.role.id">
-                    <rect class="o_pan_sl_lane o_pan_sl_label_cell"
-                          t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
+                    <rect class="o_pan_sl_lane o_pan_sl_label_cell" t-att-class="{ 'o_pan_sl_lane_external': lane.role.is_external }"
                           x="0" t-att-y="lane.y" t-att-width="layout.labelW" t-att-height="lane.height"/>
-                    <g class="o_pan_sl_role_label_group" t-att-data-lane="lane_index"
-                       t-att-data-role="lane.role.id"
+                    <g class="o_pan_sl_role_label_group" t-att-data-role="lane.role.id" t-att-data-lane="lane_index"
                        t-att-transform="'translate(0,' + laneLabelY(lane) + ')'"
                        tabindex="0" role="button" t-att-aria-label="lane.role.name"
                        t-att-aria-expanded="state.selectedRoleId === lane.role.id ? 'true' : 'false'"
-                       t-on-click="() => this.openRolePanel(lane.role.id)"
-                       t-on-keydown="(ev) => this.onRoleKeydown(ev, lane.role.id)">
+                       t-on-click="() => this.openPanel(false, lane.role.id)"
+                       t-on-keydown="(ev) => this.onActivateKey(ev, () => this.openPanel(false, lane.role.id))">
                         <text class="o_pan_sl_role_label" x="12" y="0">
                             <t t-esc="lane.label"/>
                             <title t-esc="lane.role.name"/>
@@ -342,70 +194,34 @@
                         <text t-if="lane.role.is_external" class="o_pan_sl_role_sub" x="12" y="16">External</text>
                     </g>
                 </t>
-                <rect class="o_pan_sl_band" x="0" t-att-y="layout.lanesBottom"
+                <rect class="o_pan_sl_band o_pan_sl_label_cell" x="0" t-att-y="layout.lanesBottom"
                       t-att-width="layout.labelW" t-att-height="layout.odooHeight"/>
                 <text class="o_pan_sl_band_label" x="12" t-att-y="layout.lanesBottom + 25">Odoo</text>
             </g>
-
-            <!-- Sticky corner: total not settled (stop 1) and the progress band name -->
             <g class="o_pan_sl_sticky_corner" t-att-transform="'translate(' + stickyX + ',' + stickyY + ')'">
-                <rect class="o_pan_sl_canvas o_pan_sl_label_cell" x="0" y="0"
-                      t-att-width="layout.labelW" t-att-height="layout.headerH"/>
-                <text t-if="stop === geometry.STOP_COMPANY" class="o_pan_sl_counter" x="12" y="22">
-                    <tspan class="o_pan_sl_counter_value" t-esc="layout.notSettled"/>
-                    <tspan> not settled</tspan>
-                </text>
-                <rect class="o_pan_sl_band o_pan_sl_label_cell" x="0" t-att-y="layout.progressTop"
-                      t-att-width="layout.labelW" t-att-height="geometry.PROGRESS_H"/>
-                <text class="o_pan_sl_band_label" x="12" t-att-y="layout.progressTop + 24">Tested</text>
+                <rect class="o_pan_sl_canvas o_pan_sl_label_cell" x="0" y="0" t-att-width="layout.labelW" t-att-height="geometry.HEADER_H"/>
             </g>
         </svg>
     </t>
 
-    <!-- Side panel ("street view"): a non-modal region; focus moves to its title -->
+    <!-- Side panel: non-modal; focus moves to its title -->
     <t t-name="pan_self_learning_blueprint.CompanyMap.Panel">
-        <aside t-if="panel" class="o_pan_sl_panel card" role="region"
-               aria-labelledby="o_pan_sl_panel_title">
+        <aside t-if="panel" class="o_pan_sl_panel card" role="region" aria-labelledby="o_pan_sl_panel_title">
             <div class="card-header d-flex align-items-start gap-2">
                 <div class="flex-grow-1 min-w-0">
-                    <div class="text-muted small o_pan_sl_panel_context">
-                        <t t-esc="panel.chain.name"/> › <t t-esc="panel.process.name"/>
-                        <t t-if="panel.phase"> · <t t-esc="panel.phase.name"/></t>
-                    </div>
-                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1"
-                        t-esc="panel.activity.name"/>
+                    <div t-if="panel.flow" class="text-muted small" t-esc="panel.flow.name"/>
+                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1" t-esc="panel.task.name"/>
                 </div>
-                <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
-                        t-on-click="closePanel"/>
+                <button type="button" class="btn-close" aria-label="Close" t-on-click="closePanel"/>
             </div>
             <div class="card-body small">
                 <dl class="mb-0">
                     <dt>Role</dt>
-                    <dd>
-                        <a href="#" class="o_pan_sl_role_link" t-on-click.prevent="() => this.openRolePanel(panel.role.id)"
-                           t-esc="panel.role.name"/>
-                        <span t-if="panel.role.is_external" class="badge text-bg-light ms-1">External</span>
-                    </dd>
-                    <dt>Training</dt>
-                    <dd class="o_pan_sl_training">
-                        <t t-if="panel.trained">Trained</t>
-                        <t t-elif="panel.role.users.length">
-                            <div>Still to train</div>
-                            <div class="o_pan_sl_to_train" t-esc="panel.role.users.join(', ')"/>
-                        </t>
-                        <span t-else="" class="text-muted">Nobody holds this role yet</span>
-                    </dd>
-                    <dt>Choice</dt>
-                    <dd class="d-flex align-items-center gap-1">
-                        <svg width="14" height="14" aria-hidden="true">
-                            <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
-                                <t t-set="dot" t-value="panel.choiceDot"/>
-                            </t>
-                        </svg>
-                        <span t-esc="panel.choiceLabel"/>
-                    </dd>
+                    <dd><a href="#" class="o_pan_sl_role_link" t-on-click.prevent="() => this.openPanel(false, panel.role.id)" t-esc="panel.role.name"/></dd>
+                    <dt>Phase</dt>
+                    <dd t-esc="panel.phase.name"/>
                     <dt>Progress</dt>
-                    <dd class="d-flex align-items-center gap-1">
+                    <dd class="o_pan_sl_progress d-flex align-items-center gap-1">
                         <svg width="14" height="14" aria-hidden="true">
                             <t t-call="pan_self_learning_blueprint.CompanyMap.Dot">
                                 <t t-set="dot" t-value="panel.rungDot"/>
@@ -413,66 +229,31 @@
                         </svg>
                         <span t-esc="panel.rungLabel"/>
                     </dd>
-                    <dt>Hours</dt>
-                    <dd class="o_pan_sl_hours" t-esc="panel.hours"/>
-                    <t t-if="panel.activity.model">
-                        <dt>Odoo model</dt>
-                        <dd><code t-esc="panel.activity.model"/></dd>
+                    <t t-if="panel.task.user_names.length">
+                        <dt>Assignees</dt>
+                        <dd class="o_pan_sl_assignees" t-esc="panel.task.user_names.join(', ')"/>
                     </t>
-                    <dt>Tasks</dt>
-                    <dd>
-                        <ul t-if="panel.tasks.length" class="list-unstyled mb-0">
-                            <li t-foreach="panel.tasks" t-as="task" t-key="task.id">
-                                <a href="#" t-on-click.prevent="() => this.openTask(task.id)" t-esc="task.name"/>
-                                <span class="text-muted"> · <t t-esc="task.rungLabel"/></span>
-                            </li>
-                        </ul>
-                        <span t-else="" class="text-muted">No tasks linked yet</span>
-                    </dd>
-                    <dt>Click path</dt>
-                    <dd>
-                        <span t-if="panel.clickPath" t-esc="panel.clickPath"/>
-                        <span t-else="" class="text-muted">No click path yet</span>
-                    </dd>
-                    <dt>Scenarios</dt>
-                    <dd>
-                        <div t-if="panel.scenarios.length" class="d-flex flex-wrap gap-1">
-                            <button t-foreach="panel.scenarios" t-as="scenario" t-key="scenario.id"
-                                    type="button" class="btn btn-sm"
-                                    t-att-class="state.scenarioId === scenario.id ? 'btn-primary' : 'btn-outline-primary'"
-                                    t-att-title="scenario.name"
-                                    t-on-click="() => this.selectScenario(scenario.id)">
-                                <t t-esc="scenario.code"/>
-                            </button>
-                        </div>
-                        <span t-else="" class="text-muted">Not part of a scenario</span>
-                    </dd>
-                    <dt>Open point</dt>
-                    <dd>
-                        <span t-if="panel.activity.open_point" class="o_pan_sl_open_point"
-                              t-esc="panel.activity.open_point"/>
-                        <span t-else="" class="text-muted">None</span>
-                    </dd>
+                    <t t-if="panel.hours">
+                        <dt>Hours</dt>
+                        <dd class="o_pan_sl_hours" t-esc="panel.hours"/>
+                    </t>
+                    <t t-if="panel.task.description">
+                        <dt>Description</dt>
+                        <dd class="o_pan_sl_description" t-esc="panel.task.description"/>
+                    </t>
                 </dl>
             </div>
             <div class="card-footer">
-                <button type="button" class="btn btn-primary btn-sm" t-on-click="openActivity">
-                    Open activity
-                </button>
+                <button type="button" class="btn btn-primary btn-sm o_pan_sl_open_task" t-on-click="openTask">Open task</button>
             </div>
         </aside>
-        <aside t-elif="rolePanel" class="o_pan_sl_panel o_pan_sl_role_panel card" role="region"
-               aria-labelledby="o_pan_sl_panel_title">
+        <aside t-elif="rolePanel" class="o_pan_sl_panel o_pan_sl_role_panel card" role="region" aria-labelledby="o_pan_sl_panel_title">
             <div class="card-header d-flex align-items-start gap-2">
                 <div class="flex-grow-1 min-w-0">
-                    <div class="text-muted small">
-                        Role<t t-if="rolePanel.role.is_external"> · External</t>
-                    </div>
-                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1"
-                        t-esc="rolePanel.role.name"/>
+                    <div class="text-muted small">Role<t t-if="rolePanel.role.is_external"> · External</t></div>
+                    <h5 id="o_pan_sl_panel_title" class="o_pan_sl_panel_title mb-0" tabindex="-1" t-esc="rolePanel.role.name"/>
                 </div>
-                <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
-                        t-on-click="closePanel"/>
+                <button type="button" class="btn-close" aria-label="Close" t-on-click="closePanel"/>
             </div>
             <div class="card-body small">
                 <dl class="mb-0">
@@ -486,8 +267,8 @@
                         <t t-if="rolePanel.adkarBand" t-esc="rolePanel.adkarBand"/>
                         <span t-else="" class="text-muted">Needs three scored people</span>
                     </dd>
-                    <dt>Activities</dt>
-                    <dd t-esc="rolePanel.activityCount"/>
+                    <dt>Tasks</dt>
+                    <dd class="o_pan_sl_role_tasks" t-esc="rolePanel.taskCount"/>
                 </dl>
             </div>
         </aside>

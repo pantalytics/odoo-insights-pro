@@ -1,22 +1,21 @@
-"""Smoke test of the company map client action in a real browser.
+"""The company map in a real browser (data model v2.0: everything is a task).
 
-The detailed UI checks (zoom stops, scenario route and fit, side and role
-panels, Training colours, refresh, mobile) live in ``tools/ui_check.mjs``,
-which is run by hand and is not part of this suite. This test only proves,
-inside the module suite, that the map loads for a plain Blueprint user without
-a JS or template error, that "Colour by" offers exactly Choices, Progress and
-Training (E1), and that the empty state offers "Load template" to managers,
-which reloads the open map in place (E3), and only a line to users.
+One project with two phases, an internal and an external role, a flow with two
+subtasks, one task outside the flow and one task without a place. The map is
+opened from the project form and checked the way a user uses it: the three
+zoom stops, the colour modes, the flow filter, the task and role panels and
+the link to the tasks without a place. The screenshot script
+``tools/ui_check.mjs`` covers pan, pinch, keyboard and phone layouts by hand.
 """
 
 from odoo.tests import HttpCase, new_test_user, tagged
 
 MAP_URL = "/odoo/action-pan_self_learning_blueprint.action_blueprint_map"
 
-# Waits for a selector, then checks a condition; any thrown error fails the test.
+# Waits until a check returns something truthy; any thrown error fails the test.
 WAIT_JS = """
 const waitFor = async (check, label) => {
-    for (let attempt = 0; attempt < 200; attempt++) {
+    for (let attempt = 0; attempt < 100; attempt++) {
         const found = check();
         if (found) {
             return found;
@@ -24,6 +23,26 @@ const waitFor = async (check, label) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
     }
     throw new Error("Company map: not found: " + label);
+};
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const stop = () => parseInt($(".o_pan_sl_svg").dataset.stop, 10);
+const chip = (name) => $$(".o_pan_sl_chip").find((el) => el.querySelector("title").textContent === name);
+const tone = (name) => [...chip(name).querySelector(".o_pan_sl_dot").classList].find((c) => c.startsWith("o_pan_sl_tone_"));
+const expect = (condition, message) => {
+    if (!condition) {
+        throw new Error("Company map: " + message);
+    }
+};
+const zoomTo = async (label, value) => {
+    $$(".o_pan_sl_zoom_label").find((el) => el.textContent.trim() === label).click();
+    await waitFor(() => stop() === value, "zoom stop " + label);
+};
+const choose = async (selector, value) => {
+    const select = $(selector);
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
 };
 """
 
@@ -39,89 +58,152 @@ class TestMapUi(HttpCase):
             name="Map UI user",
             groups="pan_self_learning_blueprint.group_blueprint_user",
         )
-
-    def _make_model(self):
-        chain = self.env["pan.sl.chain"].create({"name": "UI chain", "code": "t_ui_chain"})
-        phase = self.env["pan.sl.phase"].create({"name": "UI phase", "code": "t_ui_phase"})
-        role = self.env["pan.sl.role"].create({"name": "UI lane role", "code": "t_ui_role"})
-        process = self.env["pan.sl.process"].create({"name": "UI process", "code": "t_ui_process", "chain_id": chain.id})
-        return self.env["pan.sl.activity"].create(
+        cls.project = cls.env["project.project"].create({"name": "UI map project"})
+        phase_project, phase_sales = cls.env["pan.sl.phase"].create(
+            [
+                {"name": "UI phase one", "code": "t_ui_phase_1", "sequence": 1, "app_labels": "project"},
+                {"name": "UI phase two", "code": "t_ui_phase_2", "sequence": 2, "app_labels": "t_ui_no_such_app"},
+            ]
+        )
+        person = cls.env["res.partner"].create({"name": "UI person"})
+        role, external = cls.env["pan.sl.role"].create(
+            [
+                {"name": "UI lane role", "code": "t_ui_role", "project_id": cls.project.id, "partner_ids": [(6, 0, person.ids)]},
+                {"name": "UI customer", "code": "t_ui_customer", "project_id": cls.project.id, "is_external": True},
+            ]
+        )
+        Task = cls.env["project.task"]
+        cls.flow = Task.create({"name": "UI flow", "project_id": cls.project.id})
+        common = {"project_id": cls.project.id, "pan_role_id": role.id}
+        Task.create(
             [
                 {
-                    "name": f"UI activity {index}",
-                    "code": f"t_ui_act_{index}",
-                    "process_id": process.id,
-                    "role_id": role.id,
-                    "phase_id": phase.id,
-                }
-                for index in range(3)
+                    **common,
+                    "name": "UI tested task",
+                    "parent_id": cls.flow.id,
+                    "pan_phase_id": phase_project.id,
+                    "pan_rung": "3",
+                    "user_ids": [(6, 0, cls.user.ids)],
+                    "allocated_hours": 4,
+                    "description": "<p>First line of the UI task</p><p>Second line</p>",
+                },
+                {**common, "name": "UI open task", "parent_id": cls.flow.id, "pan_phase_id": phase_project.id},
+                {**common, "name": "UI lone task", "pan_phase_id": phase_sales.id, "pan_rung": "1"},
+                {
+                    "name": "UI customer task",
+                    "project_id": cls.project.id,
+                    "pan_role_id": external.id,
+                    "pan_phase_id": phase_sales.id,
+                },
+                {**common, "name": "UI unplaced task"},
             ]
         )
 
-    def test_map_renders_for_a_blueprint_user(self):
-        self._make_model()
+    def test_map_without_project(self):
+        """Opened without a project the map shows one muted line and nothing else."""
         code = WAIT_JS + """
 (async () => {
-    await waitFor(() => document.querySelector(".o_pan_sl_map svg.o_pan_sl_svg"), "map svg");
-    // Stop 1 (Company): the role x phase cell is one block counting its 3 activities.
-    await waitFor(
-        () => [...document.querySelectorAll(".o_pan_sl_block .o_pan_sl_block_count")].some(
-            (el) => el.textContent.trim() === "3"
-        ),
-        "block with count 3"
-    );
-    await waitFor(() => document.body.textContent.includes("UI lane role"), "role lane label");
-    if (document.querySelector(".o_pan_sl_map .o_pan_sl_empty")) {
-        throw new Error("Company map: empty state shown although there are activities");
-    }
-    // E1: colour by is exactly Choices, Progress, Training (no People / ADKAR).
-    const modes = [...document.querySelectorAll(".o_pan_sl_color_select option")].map((el) => el.value);
-    if (modes.join(",") !== "choices,progress,training") {
-        throw new Error("Company map: colour by offers " + modes.join(",") + ", not choices,progress,training");
-    }
+    const empty = await waitFor(() => $(".o_pan_sl_map .o_pan_sl_empty"), "empty line");
+    expect(empty.textContent.trim() === "Open the map from a project.", "empty line reads " + empty.textContent);
+    expect(!$(".o_pan_sl_controls") && !$(".o_pan_sl_svg"), "controls or map shown without a project");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
         self.browser_js(MAP_URL, code, login=self.user.login)
 
-    def _empty_state_js(self, expect_button):
-        return WAIT_JS + """
+    def test_map_from_project(self):
+        flow_id = self.flow.id
+        code = WAIT_JS + """
 (async () => {
-    const empty = await waitFor(() => document.querySelector(".o_pan_sl_map .o_pan_sl_empty"), "empty state");
-    const button = [...empty.querySelectorAll("button")].find((el) => el.textContent.trim() === "Load template");
-    const expectButton = %s;
-    if (expectButton && !button) {
-        throw new Error("Company map: a manager's empty state has no 'Load template' button");
+    // The map opens from the project form ("Map").
+    const button = await waitFor(() => $("button[name=action_open_blueprint_map]"), "Map button on the project");
+    button.click();
+    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_svg"), "map svg");
+
+    // Company: a coloured block per cell with its count, no chips; apps band.
+    expect(stop() === 1, "the map does not open at the Company stop");
+    await waitFor(() => $$(".o_pan_sl_block_count").some((el) => el.textContent.trim() === "2"), "block of 2 tasks");
+    expect(!$(".o_pan_sl_chip"), "chips at the Company stop");
+    const apps = $$(".o_pan_sl_app:not(.o_pan_sl_app_off) text").map((el) => el.textContent.trim());
+    expect(apps.includes("Project"), "installed apps in the band: " + apps.join(", "));
+    const lanes = $$(".o_pan_sl_role_label_group").map((el) => el.getAttribute("aria-label"));
+    expect(lanes.join("|") === "UI lane role|UI customer", "lanes are " + lanes.join("|"));
+
+    // Colour by: exactly Progress and Training.
+    const modes = $$(".o_pan_sl_color_select option").map((el) => el.value);
+    expect(modes.join(",") === "progress,training", "colour by offers " + modes.join(","));
+
+    // Tasks: chips with names, coloured by progress.
+    await zoomTo("Tasks", 2);
+    expect($$(".o_pan_sl_chip").length === 4, $$(".o_pan_sl_chip").length + " chips, expected 4");
+    expect(tone("UI tested task") === "o_pan_sl_tone_ok", "a tested task is not green");
+    expect(tone("UI lone task") === "o_pan_sl_tone_warn", "a decided task is not amber");
+    expect(tone("UI open task") === "o_pan_sl_tone_off", "an open task is not grey");
+    const label = chip("UI tested task").getAttribute("aria-label");
+    expect(label.includes("UI tested task") && label.includes("UI flow") && label.includes("Tested"), "chip name: " + label);
+
+    // Training: amber below Trained, grey when the role has nobody.
+    await choose(".o_pan_sl_color_select", "training");
+    expect(tone("UI tested task") === "o_pan_sl_tone_warn", "training: a tested task is not amber");
+    expect(tone("UI customer task") === "o_pan_sl_tone_off", "training: a role without people is not grey");
+    const legend = $$(".o_pan_sl_legend li").map((el) => el.textContent.trim());
+    expect(legend.join("|") === "Trained|Still to train|Nobody in the role", "training legend: " + legend.join("|"));
+    await choose(".o_pan_sl_color_select", "progress");
+
+    // Detail: assignees, hours and the first line of the description.
+    await zoomTo("Detail", 3);
+    const detail = chip("UI tested task").querySelector(".o_pan_sl_detail").textContent;
+    for (const part of ["Tested", "00:00 of 04:00 h", "Map UI user", "First line of the UI task"]) {
+        expect(detail.includes(part), "detail lacks " + part + ": " + detail);
     }
-    if (!expectButton && empty.querySelector("button")) {
-        throw new Error("Company map: a user's empty state shows a button");
+    expect(!detail.includes("Second line"), "detail shows more than the first line");
+
+    // Flow filter: the Tasks stop with the flow in view, the rest dimmed, announced.
+    await zoomTo("Company", 1);
+    const option = $$(".o_pan_sl_flow_select option").find((el) => el.value === "%(flow_id)s");
+    expect(option && option.textContent.replace(/\\s+/g, " ").trim() === "UI flow · Tested 50%%", "flow option: " + (option && option.textContent));
+    await choose(".o_pan_sl_flow_select", "%(flow_id)s");
+    expect(stop() === 2, "selecting a flow does not show its tasks");
+    expect(chip("UI lone task").classList.contains("o_pan_sl_dim"), "a task outside the flow is not dimmed");
+    expect(!chip("UI open task").classList.contains("o_pan_sl_dim"), "a task of the flow is dimmed");
+    const body = $(".o_pan_sl_body").getBoundingClientRect();
+    for (const name of ["UI tested task", "UI open task"]) {
+        const r = chip(name).getBoundingClientRect();
+        expect(r.left >= body.left && r.right <= body.right && r.top >= body.top && r.bottom <= body.bottom, name + " is out of view");
     }
-    if (!expectButton && !empty.textContent.includes("Ask a Blueprint administrator.")) {
-        throw new Error("Company map: a user's empty state does not say who to ask");
+    const status = $(".o_pan_sl_flow_status").textContent.trim();
+    expect(status === "Showing flow UI flow, 2 tasks", "announced: " + status);
+    await choose(".o_pan_sl_flow_select", "");
+
+    // Task panel: one primary action.
+    chip("UI tested task").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const panel = await waitFor(() => $(".o_pan_sl_panel"), "task panel");
+    expect(panel.querySelector(".o_pan_sl_panel_title").textContent.trim() === "UI tested task", "panel title");
+    expect(panel.querySelector(".o_pan_sl_assignees").textContent.trim() === "Map UI user", "panel assignees");
+    const primary = $$(".o_pan_sl_map .btn-primary");
+    expect(primary.length === 1 && primary[0].textContent.trim() === "Open task", "primary buttons: " + primary.length);
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await waitFor(() => !$(".o_pan_sl_panel"), "panel closed after Escape");
+
+    // Role panel from the lane name.
+    $(".o_pan_sl_role_label_group").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const role = await waitFor(() => $(".o_pan_sl_role_panel"), "role panel");
+    expect(role.querySelector(".o_pan_sl_role_people").textContent.trim() === "UI person", "role people");
+    expect(role.querySelector(".o_pan_sl_role_adkar").textContent.trim() === "Needs three scored people", "role ADKAR");
+    expect(role.querySelector(".o_pan_sl_role_tasks").textContent.trim() === "3", "role task count");
+
+    // Tasks without a place: a muted link to their list.
+    const link = $(".o_pan_sl_unplaced");
+    expect(link && link.textContent.replace(/\\s+/g, " ").trim() === "1 task without a place", "unplaced link: " + (link && link.textContent));
+    link.click();
+    await waitFor(() => $(".o_list_view"), "unplaced list");
+    // The task list may come grouped by stage: open the group.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (!$(".o_data_row") && $(".o_group_header")) {
+        $(".o_group_header").click();
     }
-    if (expectButton) {
-        // E3: loading reloads the open map in place: same map element, no second map action.
-        const map = document.querySelector(".o_pan_sl_map");
-        button.click();
-        await waitFor(() => document.querySelector(".o_pan_sl_map .o_pan_sl_block"), "map after loading the template");
-        if (document.querySelector(".o_pan_sl_map") !== map || document.querySelectorAll(".o_pan_sl_map").length !== 1) {
-            throw new Error("Company map: loading the template opened a second map instead of reloading this one");
-        }
-        await waitFor(() => document.querySelector(".o_notification"), "notification of what was loaded");
-    }
+    await waitFor(() => $$(".o_list_view .o_data_row").some((row) => row.textContent.includes("UI unplaced task")), "unplaced list");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
-""" % ("true" if expect_button else "false")
-
-    def test_map_empty_state(self):
-        """D7/E3: managers get one "Load template" button that fills this map; users one muted line."""
-        if self.env["pan.sl.activity"].search_count([]):
-            self.skipTest("This database already has activities, so the map has no empty state.")
-        manager = new_test_user(
-            self.env,
-            login="pan_sl_map_ui_manager",
-            name="Map UI manager",
-            groups="pan_self_learning_blueprint.group_blueprint_manager",
-        )
-        self.browser_js(MAP_URL, self._empty_state_js(expect_button=False), login=self.user.login)
-        self.browser_js(MAP_URL, self._empty_state_js(expect_button=True), login=manager.login)
+""" % {"flow_id": flow_id}
+        self.browser_js(f"/odoo/project.project/{self.project.id}", code, login=self.user.login)
