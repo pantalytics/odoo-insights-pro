@@ -26,8 +26,8 @@ import { standardViewProps } from "@web/views/standard_view_props";
 // scrolls. Clicking an element flies to it. Odoo's search bar filters every level.
 
 export const MAP_VIEW_TYPE = "pan_blueprint";
-const USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user";
-const MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager";
+const USER_GROUP = "project.group_project_user";
+const MANAGER_GROUP = "project.group_project_manager";
 const MEMORY_KEY = "pan_sl_blueprint_map:zoom:";
 const TESTED_RUNG = 3;
 const MAX_ZOOM = 4;

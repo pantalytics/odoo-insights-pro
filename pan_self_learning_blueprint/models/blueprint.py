@@ -23,7 +23,7 @@ TEMPLATE_FILE = "pan_self_learning_blueprint/data/blueprints/generic_manufacturi
 SOURCE_LANG = "en_US"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_RECORDS = 5000
-MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager"
+MANAGER_GROUP = "project.group_project_manager"
 SECTIONS = ("stages", "phases", "roles", "flows", "tasks")
 
 # Per section: file key -> (field, type). "html" is text stored as HTML.
@@ -46,7 +46,7 @@ class PanSlBlueprint(models.AbstractModel):
     @api.model
     def _check_manager(self):
         if not self.env.user.has_group(MANAGER_GROUP):
-            raise AccessError(self.env._("Only a Blueprint administrator can import or export a blueprint."))
+            raise AccessError(self.env._("Only a Project administrator can import or export a blueprint."))
 
     @api.model
     def _project(self, project):
@@ -212,7 +212,7 @@ class PanSlBlueprint(models.AbstractModel):
         """
         if project.type_ids.filtered(lambda stage: stage.pan_rung != "0"):
             return
-        # sudo: a Blueprint administrator may set up the map's stages without
+        # sudo: a Project administrator may set up the map's stages without
         # being a project manager; only these six fixed stages are touched.
         Stage = self.env["project.task.type"].sudo().with_context(lang=SOURCE_LANG, active_test=True)
         langs = [lang for lang, _name in self.env["res.lang"].get_installed() if lang != SOURCE_LANG]

@@ -63,7 +63,7 @@ class TestMapUi(HttpCase):
             cls.env,
             login="pan_sl_map_ui_user",
             name="Map UI user",
-            groups="pan_self_learning_blueprint.group_blueprint_user",
+            groups="project.group_project_user",
         )
         cls.project = cls.env["project.project"].create({"name": "UI map project"})
         stage = {
@@ -411,7 +411,7 @@ class TestMapUi(HttpCase):
 })().catch((error) => console.error(error.message));
 """
         manager = new_test_user(
-            self.env, login="pan_sl_map_ui_manager", name="Map UI manager", groups="pan_self_learning_blueprint.group_blueprint_manager"
+            self.env, login="pan_sl_map_ui_manager", name="Map UI manager", groups="project.group_project_manager"
         )
         self.browser_js("/odoo/project", code, login=manager.login)
 

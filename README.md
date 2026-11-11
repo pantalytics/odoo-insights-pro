@@ -148,7 +148,7 @@ the shared roles; load the template in a project to get them back as tasks.
 
 ### For agents
 
-Over MCP, XML-RPC or JSON-RPC, as a Blueprint user unless noted:
+Over MCP, XML-RPC or JSON-RPC, as a Project user unless noted:
 
 - **Read the picture**: `project.project.get_blueprint_map_data()` on one
   project returns phases, roles (with people and open training), flows (worst
