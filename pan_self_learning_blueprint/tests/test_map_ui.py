@@ -232,8 +232,8 @@ class TestMapUi(HttpCase):
         self.browser_js("/odoo/project", code, login=self.user.login)
 
     def test_flow_swimlane(self):
-        """A flow opens as a swimlane: only its tasks, compact, joined by N-1
-        arrows in task order; its open tasks listed under it; the breadcrumb
+        """A flow opens as a swimlane: only its tasks, a column per step,
+        joined by N-1 arrows in task order, left to right; its open tasks listed under it; the breadcrumb
         "Map" goes back. The chip panel works there too."""
         self.env["project.task"].create(
             {
@@ -264,6 +264,19 @@ class TestMapUi(HttpCase):
     const pairs = arrows.map((path) => path.dataset.from + ">" + path.dataset.to).join("|");
     expect(pairs === ids.tested + ">" + ids.open + "|" + ids.open + ">" + ids.step, "arrow order: " + pairs);
     expect(arrows.every((path) => path.getAttribute("marker-end") && /^M[\\d.]+,[\\d.]+ /.test(path.getAttribute("d"))), "arrow paths");
+
+    // As in the client's charts: a column per step, the phase above it (adjacent steps merged);
+    // arrows run left to right, straight within a role, an elbow when the role changes.
+    const headers = $$(".o_pan_sl_phase").map((el) => text(el) + ":" + (el.style.gridColumn || "1"));
+    expect(headers.join("|") === "UI phase one:span 2|UI phase two:1", "step headers: " + headers.join("|"));
+    expect($$(".o_pan_sl_role")[0].parentElement.querySelectorAll(".o_pan_sl_cell").length === 6, "not one cell per step and role");
+    const ends = arrows.map((path) => {
+        const points = path.getAttribute("d").match(/-?[\\d.]+,-?[\\d.]+/g).map((pair) => pair.split(",").map(Number));
+        return { first: points[0], last: points.at(-1) };
+    });
+    expect(ends.every(({ first, last }) => last[0] > first[0]), "an arrow runs right to left");
+    expect(ends[0].first[1] === ends[0].last[1], "the step within one role is not a straight arrow");
+    expect(ends[1].first[1] !== ends[1].last[1], "the step to another role is not an elbow");
 
     // The arrow ends at the target chip, also after the grid scrolls.
     const end = (path) => {

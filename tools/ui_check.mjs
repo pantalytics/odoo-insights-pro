@@ -14,7 +14,8 @@
 //   the "Not decided" filter in the search bar and the chips follow it;
 // - the legend has four plain words; the flow list starts with "N of M flows
 //   late" and follows the server order (worst first), with "Late · N days";
-// - tapping a flow shows its swimlane: only its placed tasks, N-1 arrows
+// - tapping a flow shows its swimlane: a column per step (left to right),
+//   only its placed tasks, N-1 arrows running left to right
 //   ending at their chips, a breadcrumb "Map > flow"; its open tasks (in view,
 //   with hours) are listed right under it and announced; tapping again goes back;
 // - the task panel has exactly one primary button, "Open task"; Esc closes it;
@@ -198,6 +199,22 @@ async function checkFlows(page, out, viewport, data) {
         })
     );
     check(ends, `${viewport.name}: an arrow does not end at its chip.`);
+    // A column per step: every arrow runs left to right, none bunch in one column.
+    const rightward = await page.evaluate(() =>
+        [...document.querySelectorAll(".o_pan_sl_arrow")].every((path) => {
+            const xs = path.getAttribute("d").match(/-?[\d.]+,-?[\d.]+/g).map((pair) => Number(pair.split(",")[0]));
+            return xs.at(-1) > xs[0];
+        })
+    );
+    check(rightward, `${viewport.name}: an arrow runs right to left.`);
+    const columns = await page.locator(".o_pan_sl_grid .o_pan_sl_role").first().evaluate((el) => {
+        let count = 0;
+        for (let next = el.nextElementSibling; next?.classList.contains("o_pan_sl_cell"); next = next.nextElementSibling) {
+            count++;
+        }
+        return count;
+    });
+    check(columns === placed, `${viewport.name}: ${columns} step columns for ${placed} placed tasks.`);
     const open = data.tasks.filter((task) => flow.task_ids.includes(task.id) && task.rung < TESTED_RUNG).length;
     const listed = await page.locator(".o_pan_sl_flows .o_pan_sl_open_task").count();
     check(listed === open, `${viewport.name}: ${listed} open tasks listed, expected ${open}.`);

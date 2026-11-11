@@ -102,12 +102,13 @@
                                       t-att-marker-end="'url(#' + markerId + ')'"/>
                             </svg>
                             <div class="o_pan_sl_corner" role="columnheader"/>
-                            <div t-foreach="columns" t-as="phase" t-key="phase.id" class="o_pan_sl_phase" role="columnheader" t-esc="phase.name"/>
+                            <div t-foreach="headers" t-as="header" t-key="header.key" class="o_pan_sl_phase" role="columnheader"
+                                 t-att-style="header.span > 1 ? 'grid-column: span ' + header.span : undefined" t-esc="header.name"/>
                             <t t-foreach="rows" t-as="row" t-key="row.role.id">
                                 <button type="button" class="o_pan_sl_role" role="rowheader" t-att-data-role-id="row.role.id"
                                         t-att-aria-pressed="isSelected('role', row.role.id)"
                                         t-on-click="() => this.select('role', row.role.id)" t-esc="row.role.name"/>
-                                <div t-foreach="row.cells" t-as="cell" t-key="cell.phase.id" class="o_pan_sl_cell" role="cell">
+                                <div t-foreach="row.cells" t-as="cell" t-key="cell.key" class="o_pan_sl_cell" role="cell">
                                     <button t-foreach="cell.tasks" t-as="task" t-key="task.id" type="button"
                                             class="o_pan_sl_chip" t-att-data-task-id="task.id" t-att-aria-label="chipLabel(task)"
                                             t-att-aria-pressed="isSelected('task', task.id)"

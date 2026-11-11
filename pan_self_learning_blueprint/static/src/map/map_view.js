@@ -234,14 +234,36 @@ export class BlueprintMapController extends Component {
         return this.selectedFlow.task_ids.map((id) => byId[id]).filter(Boolean);
     }
 
-    /** All phases on the map; at the flow level only those with a task of the flow. */
+    /**
+     * The grid columns. On the whole map: the phases, a cell per role and
+     * phase. At the flow level, as in the client's swimlane charts: one
+     * column per step (task) of the flow, left to right in task order, so
+     * every arrow runs to the right.
+     */
     get columns() {
+        if (!this.isFlowLevel) {
+            return this.state.data.phases.map((phase) => ({ key: `phase-${phase.id}`, match: (task) => task.phase_id === phase.id }));
+        }
+        return this.gridTasks.map((step) => ({ key: `step-${step.id}`, match: (task) => task.id === step.id }));
+    }
+
+    /** Column headers: the phases; at the flow level the phase of each step, adjacent steps of one phase merged. */
+    get headers() {
         const { phases } = this.state.data;
         if (!this.isFlowLevel) {
-            return phases;
+            return phases.map((phase) => ({ key: phase.id, name: phase.name, span: 1 }));
         }
-        const used = new Set(this.gridTasks.map((task) => task.phase_id));
-        return phases.filter((phase) => used.has(phase.id));
+        const headers = [];
+        for (const task of this.gridTasks) {
+            const last = headers.at(-1);
+            if (last && last.phaseId === task.phase_id) {
+                last.span++;
+            } else {
+                const phase = phases.find((item) => item.id === task.phase_id);
+                headers.push({ key: `step-${task.id}`, phaseId: task.phase_id, name: phase?.name || "", span: 1 });
+            }
+        }
+        return headers;
     }
 
     /** Internal roles first, external at the bottom; only roles with a task on the grid. */
@@ -253,16 +275,16 @@ export class BlueprintMapController extends Component {
         return ordered
             .map((role) => ({
                 role,
-                cells: columns.map((phase) => ({
-                    phase,
-                    tasks: tasks.filter((task) => task.role_id === role.id && task.phase_id === phase.id),
+                cells: columns.map((column) => ({
+                    key: column.key,
+                    tasks: tasks.filter((task) => task.role_id === role.id && column.match(task)),
                 })),
             }))
             .filter((row) => row.cells.some((cell) => cell.tasks.length));
     }
 
     get gridStyle() {
-        const width = this.isFlowLevel ? "minmax(10rem, 13rem)" : "minmax(9rem, 1fr)";
+        const width = this.isFlowLevel ? "minmax(9rem, 11rem)" : "minmax(9rem, 1fr)";
         return `grid-template-columns: minmax(8.5rem, 10rem) repeat(${this.columns.length}, ${width})`;
     }
 

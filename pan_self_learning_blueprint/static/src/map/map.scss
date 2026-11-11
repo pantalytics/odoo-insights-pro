@@ -376,8 +376,13 @@
         animation: o_pan_sl_zoom_in 180ms ease-out;
 
         .o_pan_sl_cell {
-            gap: 1.25rem;
-            padding: 0.75rem 1.5rem;
+            justify-content: center;
+            padding: 0.75rem 1.25rem;
+        }
+
+        .o_pan_sl_phase {
+            font-size: 0.85em;
+            color: var(--pan-muted);
         }
 
         .o_pan_sl_chip {
