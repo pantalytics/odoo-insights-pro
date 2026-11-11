@@ -372,6 +372,16 @@
         background: var(--pan-accent);
     }
 
+    .o_pan_sl_burnup_tick_label {
+        position: absolute;
+        top: 0.875rem;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 0.8125rem;
+        color: var(--pan-text, inherit);
+    }
+
     .o_pan_sl_burnup_end {
         position: absolute;
         width: 8px;
@@ -884,7 +894,8 @@
         }
 
         // Too narrow for the milestone names: the ticks keep them in their title.
-        .o_pan_sl_tick_label {
+        .o_pan_sl_tick_label,
+        .o_pan_sl_burnup_tick_label {
             display: none;
         }
 
