@@ -239,6 +239,9 @@ class ProjectProject(models.Model):
                     "spent_hours": task.effective_hours,
                     "summary": task.pan_summary or False,
                     "keywords": _keywords(task.pan_keywords),
+                    "apps": [
+                        {"name": app.name, "label": app.shortdesc} for app in task.pan_app_ids.sorted("shortdesc")
+                    ],
                 }
                 for task in work
             ],

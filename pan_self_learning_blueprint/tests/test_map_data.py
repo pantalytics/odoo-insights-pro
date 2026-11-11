@@ -89,8 +89,16 @@ class TestMapData(BlueprintCase):
                 "spent_hours": 0.0,
                 "summary": False,
                 "keywords": [],
+                "apps": [],
             },
         )
+
+    def test_task_apps(self):
+        """A task lists its Odoo apps: technical name and the name people see, by that name."""
+        self.task_a.pan_app_ids = self.env.ref("base.module_stock") | self.env.ref("base.module_crm")
+        task = self._task(self.project.get_blueprint_map_data(), self.task_a)
+        self.assertEqual([app["name"] for app in task["apps"]], ["crm", "stock"])
+        self.assertTrue(all(app["label"] for app in task["apps"]))
 
     def test_company_summary_and_keywords(self):
         """Round 5: the company page, systems and dates on the project; a summary

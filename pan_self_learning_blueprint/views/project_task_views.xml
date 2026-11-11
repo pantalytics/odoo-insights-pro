@@ -12,6 +12,8 @@
                 <field name="pan_role_id" options="{'no_create': True}" invisible="subtask_count"/>
                 <field name="pan_phase_id" options="{'no_create': True}" invisible="subtask_count"/>
                 <field name="pan_flow_progress" widget="progressbar" invisible="not subtask_count"/>
+                <field name="pan_app_ids" widget="many2many_tags" options="{'no_create': True}"
+                       invisible="subtask_count" placeholder="e.g. Sales, Inventory"/>
                 <field name="pan_summary" placeholder="One line, shown on the map"/>
                 <field name="pan_keywords" placeholder="e.g. articles, BEMET, migration"/>
             </xpath>
@@ -27,6 +29,7 @@
             <xpath expr="//field[@name='stage_id']" position="after">
                 <field name="pan_role_id" optional="hide"/>
                 <field name="pan_phase_id" optional="hide"/>
+                <field name="pan_app_ids" optional="hide" widget="many2many_tags"/>
                 <field name="pan_rung" optional="hide" widget="badge"
                        decoration-muted="pan_rung == '0'"
                        decoration-warning="pan_rung in ('1', '2')"
@@ -46,6 +49,7 @@
             <xpath expr="//search" position="inside">
                 <field name="pan_role_id"/>
                 <field name="pan_phase_id"/>
+                <field name="pan_app_ids"/>
                 <field name="pan_rung" string="Progress step"/>
                 <separator groups="project.group_project_user"/>
                 <filter string="Activity" name="pan_activity"
@@ -71,6 +75,8 @@
                 <filter string="Role" name="pan_groupby_role" context="{'group_by': 'pan_role_id'}"
                         groups="project.group_project_user"/>
                 <filter string="Phase" name="pan_groupby_phase" context="{'group_by': 'pan_phase_id'}"
+                        groups="project.group_project_user"/>
+                <filter string="Odoo app" name="pan_groupby_app" context="{'group_by': 'pan_app_ids'}"
                         groups="project.group_project_user"/>
                 <filter string="Progress step" name="pan_groupby_rung" context="{'group_by': 'pan_rung'}"
                         groups="project.group_project_user"/>

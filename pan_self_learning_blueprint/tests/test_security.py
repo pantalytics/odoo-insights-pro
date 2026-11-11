@@ -63,6 +63,21 @@ class TestSecurity(BlueprintCase):
         with self.assertRaises(AccessError):
             self.Role.with_user(self.bp_user).create({"name": "Mine", "code": "mine", "project_id": self.project.id})
 
+    def test_user_links_apps_but_cannot_change_them(self):
+        """A Project user picks a task's Odoo apps and reads them on the map,
+        but cannot touch the module list itself."""
+        crm = self.env.ref("base.module_crm")
+        task = self.task_b.with_user(self.bp_user)
+        self.assertIn(crm, self.env["ir.module.module"].with_user(self.bp_user).search([("application", "=", True)]))
+        task.write({"pan_app_ids": [Command.set(crm.ids)]})
+        read = task.web_read({"pan_app_ids": {"fields": {"display_name": {}}}})
+        self.assertEqual(read[0]["pan_app_ids"][0]["display_name"], crm.shortdesc)
+        rows = self.project.with_user(self.bp_user).get_blueprint_map_data()["tasks"]
+        row = next(row for row in rows if row["id"] == task.id)
+        self.assertEqual(row["apps"], [{"name": "crm", "label": crm.shortdesc}])
+        with self.assertRaises(AccessError):
+            crm.with_user(self.bp_user).write({"shortdesc": "Changed"})
+
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_user_cannot_change_role_holders_from_the_contact(self):
         """#27: who holds a role is the administrator's, from either side."""
