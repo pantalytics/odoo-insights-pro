@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 ADKAR_FIELDS = ("awareness", "desire", "knowledge", "ability", "reinforcement")
 ADKAR_MIN = 1
@@ -143,6 +143,24 @@ class ResPartner(models.Model):
         groups="pan_self_learning_blueprint.group_blueprint_user",
         help="Blueprint roles this person holds (the other side of the people on each role).",
     )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        self._pan_check_role_write(vals_list)
+        return super().create(vals_list)
+
+    def write(self, vals):
+        self._pan_check_role_write([vals])
+        return super().write(vals)
+
+    def _pan_check_role_write(self, vals_list):
+        """Who holds a role is the Blueprint administrator's, as on the role
+        itself (#27). Writing the contact side would otherwise only need the
+        right to edit contacts."""
+        if self.env.su or not any("pan_role_ids" in vals for vals in vals_list):
+            return
+        if not self.env.user.has_group("pan_self_learning_blueprint.group_blueprint_manager"):
+            raise AccessError(_("Only a Blueprint administrator can change who holds a role."))
 
 
 class PanSlRole(models.Model):

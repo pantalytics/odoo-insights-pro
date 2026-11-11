@@ -10,6 +10,7 @@ access see no Blueprint fields on tasks.
 
 from lxml import etree
 
+from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import new_test_user, tagged
 from odoo.tools import mute_logger
@@ -61,6 +62,44 @@ class TestSecurity(BlueprintCase):
                 record.with_user(self.bp_user).write({"name": "Changed"})
         with self.assertRaises(AccessError):
             self.Role.with_user(self.bp_user).create({"name": "Mine", "code": "mine", "project_id": self.project.id})
+
+    @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
+    def test_user_cannot_change_role_holders_from_the_contact(self):
+        """#27: who holds a role is the administrator's, from either side."""
+        contacts = self.env.ref("base.group_partner_manager")
+        (self.bp_user | self.bp_manager).group_ids |= contacts
+        partner = self.bp_user.partner_id
+        with self.assertRaises(AccessError):
+            partner.with_user(self.bp_user).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
+        with self.assertRaises(AccessError):
+            self.env["res.partner"].with_user(self.bp_user).create(
+                {"name": "Smuggled in", "pan_role_ids": [Command.link(self.role_sales.id)]}
+            )
+        self.assertFalse(self.role_sales.partner_ids)
+        partner.with_user(self.bp_user).write({"name": "Blueprint user renamed"})
+        partner.with_user(self.bp_manager).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
+        self.assertEqual(self.role_sales.partner_ids, partner)
+
+    @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
+    def test_roles_follow_project_visibility(self):
+        """#28: a role and its people are seen only with their project."""
+        private = self.env["project.project"].create({"name": "Private project", "privacy_visibility": "followers"})
+        role = self.Role.create({"name": "Secret role", "code": "t_secret", "project_id": private.id})
+        role.partner_ids = self.bp_colleague.partner_id
+        domain = [("id", "=", role.id)]
+        self.assertFalse(self.Role.with_user(self.bp_user).search(domain))
+        with self.assertRaises(AccessError):
+            role.with_user(self.bp_user).read(["name", "partner_ids"])
+        self.assertEqual(self.Role.with_user(self.bp_manager).search(domain), role)
+        private.message_subscribe(partner_ids=self.bp_user.partner_id.ids)
+        self.assertEqual(self.Role.with_user(self.bp_user).search(domain), role)
+        # A task followed in a project the user cannot open still reads its role.
+        private.message_unsubscribe(partner_ids=self.bp_user.partner_id.ids)
+        task = self.Task.create({"name": "Followed task", "project_id": private.id, "pan_role_id": role.id})
+        task.message_subscribe(partner_ids=self.bp_user.partner_id.ids)
+        read = task.with_user(self.bp_user).web_read({"pan_role_id": {"fields": {"display_name": {}}}, "pan_role_people": {}})
+        self.assertEqual(read[0]["pan_role_id"]["display_name"], "Secret role")
+        self.assertEqual(read[0]["pan_role_people"], self.bp_colleague.partner_id.name)
 
     def test_manager_edits_roles(self):
         role = self.Role.with_user(self.bp_manager).create({"name": "Mine", "code": "mine", "project_id": self.project.id})
