@@ -1,54 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- The company map lives in the Projects app: one menu next to Reporting. -->
+    <!-- The company map lives in the Projects app: the map opens from a project;
+         this menu holds what the maps share or need besides tasks. -->
     <menuitem
         id="menu_blueprint_root"
         name="Company map"
         parent="project.menu_main_pm"
         groups="group_blueprint_user"
         sequence="90">
-
-        <menuitem
-            id="menu_blueprint_map"
-            name="Map"
-            action="action_blueprint_map"
-            groups="group_blueprint_user"
-            sequence="10"/>
-
-        <menuitem
-            id="menu_blueprint_model"
-            name="Model"
-            groups="group_blueprint_user"
-            sequence="20">
-            <menuitem id="menu_blueprint_chain" name="Chains" action="action_chain" sequence="10"/>
-            <menuitem id="menu_blueprint_process" name="Processes" action="action_process" sequence="20"/>
-            <menuitem id="menu_blueprint_activity" name="Activities" action="action_activity" sequence="30"/>
-            <menuitem id="menu_blueprint_scenario" name="Scenarios" action="action_scenario" sequence="40"/>
-            <menuitem id="menu_blueprint_phase" name="Phases" action="action_phase" sequence="50"/>
-            <menuitem id="menu_blueprint_role" name="Roles" action="action_role" sequence="60"/>
-        </menuitem>
-
-        <menuitem
-            id="menu_blueprint_people"
-            name="People"
-            groups="group_blueprint_user"
-            sequence="30">
-            <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" action="action_adkar_score" sequence="10"/>
-        </menuitem>
-
-        <!-- Managers only. Its server actions need read access on pan.sl.blueprint
-             (ir.model.access.csv), or Odoo hides them from the menu. -->
-        <menuitem
-            id="menu_blueprint_blueprint"
-            name="Import / export"
-            groups="group_blueprint_manager"
-            sequence="40">
-            <menuitem id="menu_blueprint_load_template" name="Load template" action="action_blueprint_load_template" sequence="10"/>
-            <menuitem id="menu_blueprint_import" name="Import file" action="action_blueprint_import" sequence="20"/>
-            <menuitem id="menu_blueprint_export" name="Export" action="action_blueprint_export" sequence="30"/>
-        </menuitem>
-
+        <menuitem id="menu_blueprint_phase" name="Phases" action="action_phase" sequence="10"/>
+        <menuitem id="menu_blueprint_role" name="Roles" action="action_role" sequence="20"/>
+        <menuitem id="menu_blueprint_adkar_score" name="ADKAR scores" action="action_adkar_score" sequence="30"/>
     </menuitem>
 
 </odoo>

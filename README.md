@@ -94,93 +94,62 @@ database manager) are not reported. The code is `server_errors.py`.
 
 `pan_self_learning_blueprint` is a second, independent module in this
 repository: a simple app that gives insight into an Odoo implementation and
-its continuous improvement. The company sits on one map you zoom like Google
-Maps, with its people, training and progress, on top of the Projects app.
+its continuous improvement, inside the Projects app. Everything is a project
+task; the company map is another view on the tasks of one project
+(`docs/data-model.md`).
 
 ### What it does
 
-- **One atom.** The business (what we do), the system (what Odoo must do)
-  and the people (can they do it) meet in the **activity**: one role does one
-  thing to one Odoo document.
-- **Hierarchy.** Chain → process → activity → click path. A **scenario** is a
-  test route across processes; its Tested % is the share of its activities
-  that are tested.
-- **Progress.** Project tasks get a scenario, the activities they move
-  forward and a progress: Open, Decided, Built, Tested, Trained, Live. An
-  activity is as far as its least advanced task, the same for everyone.
-  Archived tasks count; cancelled tasks do not. Choices per activity go
-  proposal → provisional → fixed → revised, with the history in the chatter.
-- **Hours.** Planned and spent hours per activity and scenario, summed from
-  the linked tasks.
+- **A project is a map.** Its roles are the lanes, the shared phases (with
+  their Odoo apps) the columns. A task with a role and a phase is one chip.
+- **Flows.** A parent task is a flow (a test scenario); its subtasks are the
+  route. Its Tested % is the share of subtasks at Tested or further; archived
+  subtasks count, cancelled ones do not.
+- **Progress.** Every task has a progress: Open, Decided, Built, Tested,
+  Trained, Live. Choices are discussed in the task chatter, click paths live
+  in the description, hours are the task's allocated hours and timesheets.
 - **People.** Roles list their people as contacts, so people without a login
   count too. ADKAR scores are personal: users see only their own,
   administrators see all. A role shows one band (high, medium or low) once
   three of its people have a score, never a number.
-- **Open format.** The whole model imports and exports as one JSON blueprint
-  (`docs/blueprint-format.md`). Records match on `code`, so importing again
-  updates and never deletes. A blueprint holds no personal data.
+- **Open format.** A project imports and exports as one JSON blueprint
+  (`docs/blueprint-format.md`). Importing again updates and never deletes.
+  A blueprint holds no personal data.
 
 ### Install
 
 1. Put the `pan_self_learning_blueprint` folder on your Odoo 19 addons path.
 2. Install **Odoo Self Learning: Blueprint**. It depends on `project`,
    `hr_timesheet`, `mail` and `web`.
-3. Under **Settings, Users**: *Blueprint / User* opens the map and reads the
-   model and their own ADKAR scores; *Blueprint / Administrator* edits
-   everything and imports or exports. System administrators get
-   Administrator.
+3. Under **Settings, Users**: *Blueprint / User* opens maps, sets role, phase
+   and progress on tasks and reads their own ADKAR scores; *Blueprint /
+   Administrator* edits phases and roles, sees all scores and loads, imports
+   or exports. System administrators get Administrator.
 
-### Load, import and export
+### Use
 
-Under **Blueprint, Import / export** (administrators):
+- Open a project and press **Map**. Tasks without a role or a phase are not
+  on the map; the map links to them.
+- On the project form (administrators): **Load template** fills the project
+  from the bundled template (again: only what is empty), **Import** reads a
+  blueprint file, **Export** downloads `blueprint.json`.
+- **Projects, Company map** holds the shared phases, the roles of all
+  projects and the ADKAR scores.
 
-- **Load template** loads the bundled template and opens the map with a
-  summary. Loading it again only fills what is missing and keeps your own
-  work. After installing a missing app, load it again to link it.
-- **Import file** imports your own blueprint. It is strict: an unknown model
-  refuses the file. Files above 5 MB or with more than 5,000 records are
-  refused.
-- **Export** downloads the current model as `blueprint.json`.
-
-### The company map
-
-**Blueprint, Company map**: phases from left to right; from top to bottom
-the Tested band, the role lanes (customer and supplier at the edges) and the
-Odoo apps per phase. A phase names its apps by technical module name
-(`sale_management`); the map shows the app's name, greyed out when it is not
-installed.
-
-- **Zoom stops**: Company, Activities, Status, Detail. More appears per stop,
-  up to the linked tasks.
-- **Scenario**: all activities, or one scenario with its numbered route,
-  zoomed so the whole route is in view.
-- **Colour by**: Choices (settled or not), Progress, or Training (trained, or
-  still to train). The legend shows only the active mode.
-- **Side panel**: an activity shows chain and process, role, training (who
-  still has to be trained), scenarios, choice, progress, hours and open
-  point. A role name opens the role: its people, ADKAR band and number of
-  activities.
-- **Keyboard**: arrow keys pan, `+`/`-` zoom, Home fits, Tab walks the
-  activities. Zoom, position, scenario and colour mode survive a page refresh
-  and the breadcrumb.
-
-With no activities yet, administrators get one button, *Load template*.
+Upgrading from 1.x removes chains, processes, activities and scenarios and
+the shared roles; load the template in a project to get them back as tasks.
 
 ### For agents
 
 Over MCP, XML-RPC or JSON-RPC, as a Blueprint user unless noted:
 
-- **Read the picture**: `pan.sl.activity.get_map_data()` returns chains,
-  processes, phases (with apps), roles (people, ADKAR band) and every
-  activity with process, chain, role, phase, choice, progress and hours, in
-  one call. `get_map_details()` adds the tasks and the first click path line.
-- **Read the model**: `pan.sl.blueprint.export_blueprint()` returns the
-  blueprint dict (`docs/blueprint-format.md`).
-- **Change the model** (administrators):
-  `pan.sl.blueprint.import_blueprint(data)` creates and updates by `code` and
-  returns a summary. Strict by default.
-- **Move progress**: write `pan_rung` (`"0"`..`"5"`) and `pan_activity_ids` on
-  `project.task`; activities and scenarios recompute.
+- **Read the picture**: `project.project.get_blueprint_map_data()` on one
+  project returns phases, roles, flows, tasks and the number of tasks not on
+  the map (contract in `docs/data-model.md`).
+- **Move progress**: write `pan_rung` (`"0"`..`"5"`), `pan_role_id` and
+  `pan_phase_id` on `project.task`.
+- **Blueprint** (administrators): `pan.sl.blueprint.export_blueprint(project_id)`
+  and `pan.sl.blueprint.import_blueprint(project_id, data)`.
 
 ### UI check
 
