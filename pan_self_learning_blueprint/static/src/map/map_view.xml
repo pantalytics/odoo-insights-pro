@@ -91,7 +91,7 @@
             <span class="o_pan_sl_timeline_edge o_pan_sl_timeline_end" t-esc="line.end"/>
             <span t-foreach="line.ticks" t-as="tick" t-key="tick.id" class="o_pan_sl_tick"
                   t-att-class="{ o_pan_sl_tick_reached: tick.reached }"
-                  t-attf-style="left: {{ tick.at }}%" t-att-title="tick.name + ', ' + tick.date">
+                  t-attf-style="left: {{ tick.at }}%" t-att-title="tick.title">
                 <span class="o_pan_sl_tick_mark"/>
                 <span class="o_pan_sl_tick_label"><t t-esc="tick.name"/> <span class="text-muted" t-esc="tick.date"/></span>
             </span>

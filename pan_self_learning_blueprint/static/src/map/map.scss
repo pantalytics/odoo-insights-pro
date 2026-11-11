@@ -185,8 +185,12 @@
     .o_pan_sl_brief {
         max-width: 48rem;
         margin: 0 auto;
-        text-align: left;
+        text-align: center;
         color: var(--pan-muted);
+
+        .o_pan_sl_brief_text {
+            text-align: left;
+        }
     }
 
     .o_pan_sl_brief_more {

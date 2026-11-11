@@ -36,6 +36,9 @@ const SNAP_MS = 250;
 export const PROGRESS_WORDS = [_t("Open"), _t("Decided"), _t("Built"), _t("Tested"), _t("Trained"), _t("Live")];
 const ADKAR_WORDS = { low: _t("Low"), medium: _t("Medium"), high: _t("High") };
 
+/** Milestones closer than this share of the timeline (in %) merge into one tick. */
+const CLUSTER_GAP = 10;
+
 /** The zoom range of every layer (like minzoom/maxzoom in a vector tile set). */
 export const LAYERS = {
     company: { minZoom: 0, maxZoom: 0 },
@@ -545,7 +548,7 @@ export class BlueprintMapController extends Component {
         const from = deserializeDate(start);
         const span = Math.max(1, deserializeDate(end).diff(from, "days").days);
         const at = (date) => clamp((100 * deserializeDate(date).diff(from, "days").days) / span, 0, 100);
-        const ticks = this.state.data.milestones
+        const points = this.state.data.milestones
             .filter((milestone) => milestone.deadline)
             .map((milestone) => ({
                 id: milestone.id,
@@ -553,7 +556,35 @@ export class BlueprintMapController extends Component {
                 date: this.dayMonth(milestone.deadline),
                 at: at(milestone.deadline),
                 reached: milestone.reached,
-            }));
+            }))
+            .sort((a, b) => a.at - b.at);
+        // Generalise like a map at low zoom: milestones less than
+        // CLUSTER_GAP % of the axis apart (chained) merge into one tick ("4 milestones,
+        // 16 Nov – 1 Dec"); the names stay in the tooltip.
+        const groups = [];
+        for (const point of points) {
+            const group = groups.at(-1);
+            if (group && point.at - group.at(-1).at < CLUSTER_GAP) {
+                group.push(point);
+            } else {
+                groups.push([point]);
+            }
+        }
+        const ticks = groups.map((group) => {
+            const first = group[0];
+            const last = group.at(-1);
+            if (group.length === 1) {
+                return { ...first, title: `${first.name}, ${first.date}` };
+            }
+            return {
+                id: first.id,
+                name: _t("%s milestones", group.length),
+                date: `${first.date} – ${last.date}`,
+                at: (first.at + last.at) / 2,
+                reached: group.every((point) => point.reached),
+                title: group.map((point) => `${point.name}, ${point.date}`).join("\n"),
+            };
+        });
         const now = clamp((100 * today().diff(from, "days").days) / span, 0, 100);
         return { start: this.dayMonth(start), end: this.dayMonth(end), today: now, ticks };
     }

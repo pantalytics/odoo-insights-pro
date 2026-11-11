@@ -1577,3 +1577,9 @@ msgstr "naar"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "without a place"
 msgstr "zonder plek"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s milestones"
+msgstr "%s mijlpalen"
