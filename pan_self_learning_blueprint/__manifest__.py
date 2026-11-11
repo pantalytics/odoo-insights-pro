@@ -5,12 +5,15 @@
 Odoo Self Learning: Blueprint
 =============================
 
-Everything is a project task. A project is a company map (Projects > Map):
-its roles are the rows, the shared phases the columns. A task with a role
+Everything is a project task. A project is a company map: "Map" is a view
+of the project's tasks next to Kanban and List, with Odoo's search bar, and
+Projects > Map opens it. Its roles are the rows, the shared phases the
+columns; a band on top answers on schedule, still to do, flows, training
+and choices. A task with a role
 and a phase is one chip on the map. Progress is the stage: each stage
 carries a step (Open, Decided, Built, Tested, Trained, Live), so the kanban
 and the map always agree. A parent task is a flow (a test scenario); its
-subtasks are the route, and its Tested % is the share of subtasks at Tested
+subtasks are the route, shown as a swimlane with arrows; its Tested % is the share of subtasks at Tested
 or further. Hours are the task's allocated hours and timesheets.
 
 People are contacts, so someone without a login can hold a role and be
@@ -26,7 +29,7 @@ creates and updates, never deletes.
     "author": "Pantalytics",
     "website": "https://pantalytics.com",
     "category": "Services/Project",
-    "version": "19.0.2.2.2",
+    "version": "19.0.2.3.1",
     "license": "LGPL-3",
     "depends": ["project", "hr_timesheet", "mail", "web"],
     "data": [

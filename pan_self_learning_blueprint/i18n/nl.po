@@ -17,6 +17,24 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%(done)s of %(total)s flows tested"
+msgstr "%(done)s van %(total)s flows getest"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%(done)s of %(total)s tasks decided"
+msgstr "%(done)s van %(total)s taken besloten"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%(done)s of %(total)s tasks trained"
+msgstr "%(done)s van %(total)s taken getraind"
+
+#. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/adkar.py:0
 msgid ""
@@ -28,7 +46,7 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "%(late)s of %(total)s flows late"
 msgstr "%(late)s van %(total)s flows te laat"
 
@@ -61,15 +79,39 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "%(spent)s of %(planned)s h"
 msgstr "%(spent)s van %(planned)s u"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "%s open"
 msgstr "%s open"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s open tasks"
+msgstr "%s open taken"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s people still to train"
+msgstr "%s mensen nog te trainen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s still open"
+msgstr "%s nog open"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "%s without an owner"
+msgstr "%s zonder eigenaar"
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -80,6 +122,18 @@ msgid ""
 msgstr ""
 "'%(value)s' komt twee keer voor in '%(section)s'. Maak elke %(key)s uniek en"
 " importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "1 open task"
+msgstr "1 open taak"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "1 person still to train"
+msgstr "1 persoon nog te trainen"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_adkar_score__ability
@@ -126,6 +180,12 @@ msgstr ""
 "fase en een voortgang."
 
 #. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/ir_ui_view.py:0
+msgid "A map view takes no content."
+msgstr "Een kaartweergave heeft geen inhoud."
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.constraint,message:pan_self_learning_blueprint.constraint_pan_sl_phase_code_unique
 msgid "A phase with this code already exists. Phase codes must be unique."
 msgstr "Er bestaat al een fase met deze code. Fasecodes moeten uniek zijn."
@@ -141,7 +201,7 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "ADKAR"
 msgstr "ADKAR"
 
@@ -170,6 +230,16 @@ msgid "Ability"
 msgstr "Vaardigheid"
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_ir_actions_act_window_view
+msgid "Action Window View"
+msgstr "Actie venster weergave"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Activity"
+msgstr "Activiteit"
+
+#. module: pan_self_learning_blueprint
 #: model:res.groups,name:pan_self_learning_blueprint.group_blueprint_manager
 msgid "Administrator"
 msgstr "Beheerder"
@@ -183,6 +253,12 @@ msgstr ""
 "Beheerder: kan fasen en rollen bewerken, ieders ADKAR-scores en notities "
 "lezen en vastleggen, en de blueprint van een project laden, importeren of "
 "exporteren."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "All milestones reached"
+msgstr "Alle mijlpalen bereikt"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__average
@@ -249,7 +325,13 @@ msgstr "Blueprint-structuur (codeverwerking)"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "Breadcrumb"
+msgstr "Kruimelpad"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__2
 msgid "Built"
 msgstr "Gebouwd"
@@ -260,6 +342,12 @@ msgid "Cancel"
 msgstr "Annuleren"
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Choices"
+msgstr "Keuzes"
+
+#. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid "Choose a blueprint file to import."
@@ -267,7 +355,7 @@ msgstr "Kies een blueprint-bestand om te importeren."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Close"
 msgstr "Sluiten"
 
@@ -335,10 +423,16 @@ msgstr "Datum waarop de score is afgenomen."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__1
 msgid "Decided"
 msgstr "Besloten"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Decided or Built"
+msgstr "Besloten of gebouwd"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__description
@@ -352,6 +446,8 @@ msgid "Desire"
 msgstr "Bereidheid"
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_actions_act_window_view__display_name
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_ui_view__display_name
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__display_name
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint__display_name
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__display_name
@@ -367,7 +463,7 @@ msgstr "Weergavenaam"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Due %s"
 msgstr "Deadline %s"
 
@@ -389,7 +485,7 @@ msgstr "Bestandsnaam"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_list_training
 msgid "Flow"
 msgstr "Flow"
@@ -401,7 +497,8 @@ msgstr "Flow op een kaart"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Flows"
 msgstr "Flows"
 
@@ -421,17 +518,19 @@ msgstr "Heeft een score onder 3"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "High"
 msgstr "Hoog"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Hours"
 msgstr "Uren"
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_actions_act_window_view__id
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_ui_view__id
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__id
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint__id
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__id
@@ -471,12 +570,6 @@ msgstr ""
 "lijst met teksten zoals beschreven, en importeer opnieuw."
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "Decided or Built"
-msgstr "Besloten of gebouwd"
-
-#. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid ""
@@ -485,6 +578,12 @@ msgid ""
 msgstr ""
 "In deze blueprint moet '%(section)s' een lijst met records tussen [ ] en { }"
 " zijn. Herstel het bestand en importeer opnieuw."
+
+#. module: pan_self_learning_blueprint
+#. odoo-python
+#: code:addons/pan_self_learning_blueprint/models/ir_ui_view.py:0
+msgid "Invalid attributes in a map view: %s"
+msgstr "Ongeldige attributen in een kaartweergave: %s"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__knowledge
@@ -509,25 +608,25 @@ msgstr "Laatst bijgewerkt op"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Late · %s days"
 msgstr "Te laat · %s dagen"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Late · 1 day"
 msgstr "Te laat · 1 dag"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Legend"
 msgstr "Legenda"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__5
 msgid "Live"
 msgstr "Live"
@@ -539,7 +638,7 @@ msgstr "Sjabloon laden"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Low"
 msgstr "Laag"
 
@@ -550,11 +649,14 @@ msgstr "Belangrijkste obstakel of context bij deze score..."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.actions.client,name:pan_self_learning_blueprint.action_blueprint_map
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__ir_actions_act_window_view__view_mode__pan_blueprint
+#: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__ir_ui_view__type__pan_blueprint
 #: model:ir.ui.menu,name:pan_self_learning_blueprint.menu_blueprint_map
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_form_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_kanban_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_map
 msgid "Map"
 msgstr "Kaart"
 
@@ -565,9 +667,15 @@ msgstr "Kaartrollen"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Medium"
 msgstr "Middel"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Milestones"
+msgstr "Mijlpalen"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_search
@@ -605,27 +713,44 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Needs three scored people"
 msgstr "Heeft drie mensen met een score nodig"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "No flows yet"
+msgstr "Nog geen flows"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "No flows yet."
 msgstr "Nog geen flows."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "No milestones"
+msgstr "Geen mijlpalen"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "No open tasks."
 msgstr "Geen open taken."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "No owner"
 msgstr "Geen eigenaar"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "No place on the map"
+msgstr "Geen plek op de kaart"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
@@ -635,21 +760,32 @@ msgstr "Nog geen project heeft een kaart."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "No task of this flow has a role and a phase yet."
+msgstr "Nog geen taak van deze flow heeft een rol en een fase."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "No tasks with a role and a phase yet."
 msgstr "Nog geen taken met een rol en een fase."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Nobody in this role yet."
 msgstr "Nog niemand in deze rol."
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "None"
 msgstr "Geen"
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
+msgid "Not decided"
+msgstr "Niet besloten"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
@@ -658,14 +794,8 @@ msgstr "Niet live"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
-msgid "Not on the map"
-msgstr "Niet op de kaart"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "Trained or Live"
-msgstr "Getraind of live"
+msgid "Not tested"
+msgstr "Niet getest"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_adkar_score__note
@@ -674,7 +804,7 @@ msgstr "Notitie"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Nothing left to train."
 msgstr "Niets meer te trainen."
 
@@ -685,6 +815,18 @@ msgid "Nothing to change."
 msgstr "Niets te wijzigen."
 
 #. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "On schedule?"
+msgstr "Op schema?"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "On track"
+msgstr "Op schema"
+
+#. module: pan_self_learning_blueprint
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid "Only a Blueprint administrator can import or export a blueprint."
@@ -693,14 +835,14 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__0
 msgid "Open"
 msgstr "Open"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Open task"
 msgstr "Taak openen"
 
@@ -711,13 +853,25 @@ msgstr "Open de kaart"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "Open the map from a project."
+msgstr "Open de kaart vanuit een project."
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "Overview"
+msgstr "Overzicht"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Owners"
 msgstr "Eigenaren"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__partner_ids
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_role_people
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
@@ -732,7 +886,7 @@ msgstr "Persoon"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_phase
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_phase_id
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
@@ -763,7 +917,7 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task_type__pan_rung
 msgid "Progress"
 msgstr "Voortgang"
@@ -775,8 +929,6 @@ msgid "Progress step"
 msgstr "Voortgangsstap"
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_project_project
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_blueprint_wizard__project_id
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_pan_sl_role__project_id
@@ -816,8 +968,8 @@ msgstr "Borging"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_pan_sl_role
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_role_id
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
@@ -853,15 +1005,21 @@ msgstr "Volgorde"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Showing %s tasks without a place"
 msgstr "%s taken zonder plek getoond"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "Showing flow %(flow)s, %(count)s open tasks"
 msgstr "Flow %(flow)s getoond, %(count)s open taken"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Still to do"
+msgstr "Nog te doen"
 
 #. module: pan_self_learning_blueprint
 #. odoo-python
@@ -870,12 +1028,6 @@ msgstr "Flow %(flow)s getoond, %(count)s open taken"
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_search_blueprint
 msgid "Still to train"
 msgstr "Nog te trainen"
-
-#. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-msgid "Still to train (%s)"
-msgstr "Nog te trainen (%s)"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_adkar_score_form
@@ -890,7 +1042,7 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.model,name:pan_self_learning_blueprint.model_project_task
 msgid "Task"
 msgstr "Taak"
@@ -927,8 +1079,8 @@ msgstr "Sjabloon geladen"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__3
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_kanban_blueprint
 msgid "Tested"
@@ -961,6 +1113,12 @@ msgstr ""
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
 msgid "The file"
 msgstr "Het bestand"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
+msgid "The map needs Blueprint access. Ask your administrator."
+msgstr "Voor de kaart is Blueprint-toegang nodig. Vraag het je beheerder."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_task__pan_role_people
@@ -1113,7 +1271,9 @@ msgstr ""
 msgid ""
 "This task has subtasks in a project with a map, so it is a flow: its stage "
 "follows its subtasks."
-msgstr "Deze taak heeft subtaken in een project met een kaart, dus is het een flow: de fase volgt de subtaken."
+msgstr ""
+"Deze taak heeft subtaken in een project met een kaart, dus is het een flow: "
+"de fase volgt de subtaken."
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__is_external
@@ -1126,16 +1286,28 @@ msgstr ""
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "To train on"
 msgstr "Te trainen op"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.js:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields.selection,name:pan_self_learning_blueprint.selection__project_task_type__pan_rung__4
 msgid "Trained"
 msgstr "Getraind"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Trained or Live"
+msgstr "Getraind of live"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Training"
+msgstr "Training"
 
 #. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_phase__code
@@ -1191,6 +1363,17 @@ msgstr ""
 "taken zetten, fasen en rollen lezen en de eigen ADKAR-scores lezen."
 
 #. module: pan_self_learning_blueprint
+#: model:ir.model,name:pan_self_learning_blueprint.model_ir_ui_view
+msgid "View"
+msgstr "Bekijk"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_actions_act_window_view__view_mode
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_ir_ui_view__type
+msgid "View Type"
+msgstr "Soort weergave"
+
+#. module: pan_self_learning_blueprint
 #: model:ir.model.fields,help:pan_self_learning_blueprint.field_pan_sl_role__description
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_role_form
 msgid "What this role is responsible for."
@@ -1216,9 +1399,15 @@ msgstr "Over wie gaat deze score?"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "Without a place"
 msgstr "Zonder plek"
+
+#. module: pan_self_learning_blueprint
+#. odoo-javascript
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
+msgid "Worst: %s"
+msgstr "Slechtste: %s"
 
 #. module: pan_self_learning_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_phase_form
@@ -1266,7 +1455,7 @@ msgstr "fasen"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "task"
 msgstr "taak"
 
@@ -1274,12 +1463,12 @@ msgstr "taak"
 #. odoo-javascript
 #. odoo-python
 #: code:addons/pan_self_learning_blueprint/models/blueprint.py:0
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "tasks"
 msgstr "taken"
 
 #. module: pan_self_learning_blueprint
 #. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_action.xml:0
+#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.xml:0
 msgid "without a place"
 msgstr "zonder plek"

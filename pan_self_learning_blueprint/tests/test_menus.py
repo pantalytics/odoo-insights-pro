@@ -26,7 +26,7 @@ class TestMenus(TransactionCase):
         return self.env.ref(f"pan_self_learning_blueprint.{name}")
 
     def test_map_menu_in_the_projects_app(self):
-        """One place to start: Projects > Map opens the map without a project."""
+        """One place to start: Projects > Map (it opens the Map view of the one mapped project, or a list)."""
         menu = self._menu("menu_blueprint_map")
         self.assertEqual((menu.name, menu.parent_id), ("Map", self.env.ref("project.menu_main_pm")))
         action = menu.action
@@ -46,10 +46,53 @@ class TestMenus(TransactionCase):
         self.assertTrue(all(self._menu(name).id in visible for name in CONFIG_MENUS))
 
     def test_project_opens_its_map(self):
+        """The map is the "Map" view of the project's tasks (2.3): first in the
+        switcher, all tasks (no "open tasks" default filter)."""
         project = self.env["project.project"].create({"name": "Map project"})
+        self.env["pan.sl.role"].create({"name": "Map role", "code": "t_map_role", "project_id": project.id})
         action = project.with_user(self.bp_user).action_open_blueprint_map()
-        self.assertEqual((action["tag"], action["name"]), ("pan_sl_blueprint_map", "Map"))
-        self.assertEqual(action["params"], {"project_id": project.id})
+        self.assertEqual((action["type"], action["res_model"]), ("ir.actions.act_window", "project.task"))
+        self.assertEqual(action["views"][0], (self.env.ref("pan_self_learning_blueprint.view_task_map").id, "pan_blueprint"))
+        self.assertEqual([view for view in action["views"] if view[1] == "pan_blueprint"], [action["views"][0]])
+        self.assertIn("kanban", [view[1] for view in action["views"]])
+        self.assertEqual(action["context"]["default_project_id"], project.id)
+        self.assertNotIn("search_default_open_tasks", action["context"])
+
+    def test_map_in_the_view_switcher(self):
+        """Inside a project with a map, Map sits next to Kanban and List, for
+        Blueprint users only; a project without roles does not offer it."""
+        task_action = self.env.ref("project.act_project_project_2_project_task_all")
+        self.assertIn("pan_blueprint", [mode for _id, mode in task_action.views])
+        mapped = self.env["project.project"].create({"name": "Mapped"})
+        self.env["pan.sl.role"].create({"name": "Mapped role", "code": "t_mapped", "project_id": mapped.id})
+        plain = self.env["project.project"].create({"name": "Plain"})
+        project_only = new_test_user(self.env, login="pan_sl_menu_po2", name="PO2", groups="project.group_project_user")
+
+        def modes(project, user):
+            return [mode for _id, mode in project.with_user(user).action_view_tasks()["views"]]
+
+        self.assertIn("pan_blueprint", modes(mapped, self.bp_user))
+        self.assertNotIn("pan_blueprint", modes(plain, self.bp_user))
+        self.assertNotIn("pan_blueprint", modes(mapped, project_only))
+        info = self.env["ir.ui.view"].get_view_info()["pan_blueprint"]
+        self.assertEqual((info["display_name"], info["icon"]), ("Map", "fa fa-map-o"))
+        arch = self.env["project.task"].with_user(self.bp_user).get_views([(False, "pan_blueprint")])["views"]["pan_blueprint"]["arch"]
+        self.assertTrue(arch.startswith("<pan_blueprint"))
+
+    def test_search_filters_for_the_map(self):
+        search_view = self.env.ref("project.view_task_search_form")
+        arch = self.env["project.task"].with_user(self.bp_user).get_views([(search_view.id, "search")])["views"]["search"]["arch"]
+        names = {node.get("name"): node.get("string") for node in etree.fromstring(arch).iter("filter")}
+        for name, label in (
+            ("pan_activity", "Activity"),
+            ("pan_unplaced", "No place on the map"),
+            ("pan_not_decided", "Not decided"),
+            ("pan_not_tested", "Not tested"),
+            ("pan_still_to_train", "Still to train"),
+            ("pan_groupby_role", "Role"),
+            ("pan_groupby_phase", "Phase"),
+        ):
+            self.assertEqual(names.get(name), label, name)
 
     def test_kanban_card_has_a_visible_map_button(self):
         """On an iPad there is no hover: the card shows "Map" next to the task count."""

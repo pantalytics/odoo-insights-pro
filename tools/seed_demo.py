@@ -6,7 +6,8 @@ environment variable:
     >>> exec(open("tools/seed_demo.py").read())
 Loads the generic template into the project "Blueprint demo", then gives its
 map tasks a progress step and hours, and creates demo people (contacts, no
-logins) per internal role with ADKAR scores, then commits. Development
+logins) per internal role with ADKAR scores, and two milestones, then
+commits. Development
 only: the script refuses to run, and creates nothing, unless
 BLUEPRINT_SEED_OK equals the name of the connected database.
 
@@ -96,5 +97,12 @@ flows = env["project.task"].search(
 for index, flow in enumerate(flows):
     flow.date_deadline = today + timedelta(days=-5 if index % 3 == 0 else 14 + index)
 env["project.task"].search([("project_id", "=", project.id), ("user_ids", "=", False)]).user_ids = env.ref("base.user_admin")
+# Two milestones, so the map's "On schedule?" answer has a next one (2.3).
+project.allow_milestones = True
+for name, days, reached in (("Design signed off", -20, True), ("Go-live", 30, False)):
+    if not env["project.milestone"].search_count([("project_id", "=", project.id), ("name", "=", name)]):
+        env["project.milestone"].create(
+            {"project_id": project.id, "name": name, "deadline": today + timedelta(days=days), "is_reached": reached}
+        )
 env.cr.commit()
 print("seeded", env["project.task"].search_count([("project_id", "=", project.id)]), "tasks")
