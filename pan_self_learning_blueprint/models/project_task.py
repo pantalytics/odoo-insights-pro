@@ -98,10 +98,10 @@ class ProjectTask(models.Model):
                 round(100 * sum(rung >= TESTED_RUNG for rung in values) / len(values)) if values else 0
             )
 
-    @api.depends("child_ids", "project_id.pan_role_ids")
+    @api.depends("child_ids", "project_id.pan_map_enabled")
     def _compute_pan_is_map_flow(self):
         for task in self:
-            task.pan_is_map_flow = bool(task.child_ids and task.project_id.pan_role_ids)
+            task.pan_is_map_flow = bool(task.child_ids and task.project_id.pan_map_enabled)
 
     @api.depends("pan_role_id.partner_ids.name")
     def _compute_pan_role_people(self):
@@ -148,7 +148,7 @@ class ProjectTask(models.Model):
         Task = self.env["project.task"].sudo().with_context(active_test=False, pan_flow_rollup=True)
         flows = Task.browse(self.ids)
         for _level in range(_MAX_FLOW_LEVELS):
-            flows = flows.filtered(lambda flow: flow.project_id.pan_role_ids)
+            flows = flows.filtered(lambda flow: flow.project_id.pan_map_enabled)
             if not flows:
                 break
             ladder_projects = flows.project_id.filtered(lambda project: project._pan_has_stage_ladder())

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Project form: "Map" next to Tasks; Load template, Import and Export for managers. -->
+    <!-- Project form: the Map switch under Settings; with it on, "Map" next to Tasks and
+         the Map page. Load template, Import and Export for managers. -->
     <record id="view_project_form_blueprint" model="ir.ui.view">
         <field name="name">project.project.form.blueprint</field>
         <field name="model">project.project</field>
@@ -15,8 +16,17 @@
                 <button name="action_blueprint_export" type="object" string="Export"
                         groups="pan_self_learning_blueprint.group_blueprint_manager"/>
             </xpath>
+            <xpath expr="//sheet" position="inside">
+                <field name="pan_map_enabled" invisible="1"/>
+            </xpath>
+            <xpath expr="//group[@name='group_tasks_managment']/div" position="inside">
+                <setting class="col-lg-12" id="pan_map_setting" groups="pan_self_learning_blueprint.group_blueprint_manager"
+                         help="Show this project as a company map: roles, phases and progress">
+                    <field name="pan_map_enabled"/>
+                </setting>
+            </xpath>
             <xpath expr="//notebook" position="inside">
-                <page name="pan_map" string="Map" groups="pan_self_learning_blueprint.group_blueprint_user">
+                <page name="pan_map" string="Map" invisible="not pan_map_enabled" groups="pan_self_learning_blueprint.group_blueprint_user">
                     <group>
                         <group>
                             <field name="pan_from_systems" placeholder="BEMET/PDC-Win, Excel" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
@@ -35,28 +45,30 @@
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button class="oe_stat_button" type="object" name="action_open_blueprint_map"
-                        icon="fa-map-o" string="Map"
+                        icon="fa-map-o" string="Map" invisible="not pan_map_enabled"
                         groups="pan_self_learning_blueprint.group_blueprint_user"/>
             </xpath>
         </field>
     </record>
 
-    <!-- Project card: a visible "Map" next to the task count on projects with a map
+    <!-- Project card: a visible "Map" next to the task count on projects with the map on
          (tap target, no hover needed on an iPad), and View > Map in the card menu. -->
     <record id="view_project_kanban_blueprint" model="ir.ui.view">
         <field name="name">project.project.kanban.blueprint</field>
         <field name="model">project.project</field>
         <field name="inherit_id" ref="project.view_project_kanban"/>
         <field name="arch" type="xml">
+            <xpath expr="//field[@name='allow_milestones']" position="after">
+                <field name="pan_map_enabled"/>
+            </xpath>
             <xpath expr="//div[@name='card_menu_view']" position="inside">
-                <div role="menuitem" groups="pan_self_learning_blueprint.group_blueprint_user">
+                <div role="menuitem" t-if="record.pan_map_enabled.raw_value" groups="pan_self_learning_blueprint.group_blueprint_user">
                     <a name="action_open_blueprint_map" type="object">Map</a>
                 </div>
             </xpath>
             <xpath expr="//div[hasclass('o_project_kanban_boxes')]" position="inside">
                 <t groups="pan_self_learning_blueprint.group_blueprint_user">
-                    <field name="pan_role_ids" invisible="1"/>
-                    <a t-if="record.pan_role_ids.raw_value.length" name="action_open_blueprint_map" type="object"
+                    <a t-if="record.pan_map_enabled.raw_value" name="action_open_blueprint_map" type="object"
                        class="o_project_kanban_box o_pan_sl_kanban_map me-1" role="button" title="Open the map">
                         <div><span class="fa fa-map-o me-1"/>Map</div>
                     </a>

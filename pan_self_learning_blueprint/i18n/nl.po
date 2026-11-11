@@ -658,6 +658,7 @@ msgstr "Belangrijkste obstakel of context bij deze score..."
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_form_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_kanban_blueprint
 #: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_task_map
+#: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_project__pan_map_enabled
 msgid "Map"
 msgstr "Kaart"
 
@@ -1552,3 +1553,13 @@ msgstr "zonder plek"
 #: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 msgid "%s milestones"
 msgstr "%s mijlpalen"
+
+#. module: pan_self_learning_blueprint
+#: model:ir.model.fields,help:pan_self_learning_blueprint.field_project_project__pan_map_enabled
+msgid "Show this project as a company map: Map next to Kanban and List, on its card and in Projects > Map."
+msgstr "Toon dit project als bedrijfskaart: Kaart naast Kanban en Lijst, op de projecttegel en in Projecten > Kaart."
+
+#. module: pan_self_learning_blueprint
+#: model_terms:ir.ui.view,arch_db:pan_self_learning_blueprint.view_project_form_blueprint
+msgid "Show this project as a company map: roles, phases and progress"
+msgstr "Toon dit project als bedrijfskaart: rollen, fasen en voortgang"

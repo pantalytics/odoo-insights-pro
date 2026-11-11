@@ -49,6 +49,8 @@ const openMap = async () => {
         "Map in the Projects menu"
     );
     menu.click();
+    const item = await waitFor(() => $$(".o_pan_sl_project").find((el) => text(el) === "UI map project"), "the project list");
+    item.click();
     await waitFor(() => $(".o_pan_sl_map .o_pan_sl_frame"), "the map");
 };
 """
@@ -448,9 +450,9 @@ class TestMapUi(HttpCase):
         self.browser_js("/odoo/project", code, login=manager.login)
 
     def test_project_list(self):
-        """With several mapped projects, Projects > Map starts with a plain list."""
-        other = self.env["project.project"].create({"name": "UI second project"})
-        self.env["pan.sl.role"].create({"name": "UI other role", "code": "t_ui_other", "project_id": other.id})
+        """Projects > Map is a plain list, also with one project with the map on:
+        clicking Map from another project never jumps into this one."""
+        self.env["project.project"].create({"name": "UI project without a map"})
         code = WAIT_JS + """
 (async () => {
     const menu = await waitFor(
@@ -460,7 +462,7 @@ class TestMapUi(HttpCase):
     menu.click();
     await waitFor(() => $$(".o_pan_sl_projects .o_pan_sl_project").length, "project list");
     const items = $$(".o_pan_sl_project").map(text);
-    expect(items.includes("UI map project") && items.includes("UI second project"), "projects: " + items.join("|"));
+    expect(items.includes("UI map project") && !items.includes("UI project without a map"), "projects: " + items.join("|"));
     $$(".o_pan_sl_project").find((el) => text(el) === "UI map project").click();
     await waitFor(() => $(".o_pan_sl_headline") && text($(".o_breadcrumb")).includes("UI map project"), "map of the chosen project");
     console.log("test successful");

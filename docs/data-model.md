@@ -84,9 +84,14 @@ grouped by role and phase).
 the Map view first (also on phones) and without the "open tasks" default
 filter. Projects > Map opens the client action `pan_sl_blueprint_map`: it
 calls `project.project.get_blueprint_map_projects()`, which returns
-`[{"id": 14, "name": "..."}]` (the projects the user can read with at least
-one role, by name); with one it opens that project's Map view, with more a
-plain list (`pan_sl_blueprint_map_list`). The client action with
+`[{"id": 14, "name": "..."}]` (the projects the user can read with
+`pan_map_enabled` on, by name) and shows them as a plain list
+(`pan_sl_blueprint_map_list`), also when there is only one, so the menu never
+jumps into another project than the one you came from. `pan_map_enabled` is
+the project's Map switch (Settings); it turns on by itself when the project
+gets its first role, and only the switch decides after that. A project with
+the switch off has no Map button, card link, Map page or Map view, and its
+flows do not follow their subtasks' stage. The client action with
 `params.project_id` (2.2 links) opens that project's Map view.
 
 Search filters on tasks (also in the Map view): Activity (`pan_activity`,
