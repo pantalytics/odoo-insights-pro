@@ -1,13 +1,13 @@
-"""The map in a real browser (Blueprint 2.3, docs/ux-test-2026-11-11.md).
+"""The map in a real browser (Blueprint 2.3.1, docs/ux-test-2026-11-11.md, round 5).
 
 One project with five progress stages (Open to Trained), two phases, an
-internal and an external role, a late flow (a third tested, late a day) with
-two open subtasks, one of them without a place, a finished flow (its one task
-Trained), a task outside any flow, a loose task without a place and two milestones (one
-reached). The map, the "Map" view of the project's tasks, is opened from the
-Projects menu and used the way a person uses it: read the overview band, tap
-an answer, a flow (its swimlane with arrows), a chip, a role name and the
-tasks without a place. ``tools/ui_check.mjs`` covers the iPad and phone.
+internal and an external role, a late flow (one task of three tested, late a
+day; one without a place), a finished flow (its one task Trained), a task
+outside any flow, a loose task without a place, two milestones (one reached),
+and the company in one page with keywords, systems and dates. The map is a
+zoomable stage with levels of detail z0 (company) to z4 (task); the tests
+zoom with + and -, Ctrl + wheel and clicks, and check which layers show at
+each level. ``tools/ui_check.mjs`` covers the iPad (pinch) and the phone.
 """
 
 from datetime import timedelta
@@ -27,21 +27,17 @@ const waitFor = async (check, label) => {
     }
     throw new Error("Map: not found: " + label);
 };
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const text = (el) => (el ? el.textContent : "").replace(/\\s+/g, " ").trim();
 const lines = (el) => el.innerText.split("\\n").map((line) => line.trim()).filter(Boolean).join(" / ");
 const chip = (name) => $$(".o_pan_sl_chip").find((el) => text(el) === name);
-// The task in the panel is Odoo's own form; its name field says which task.
-// Waits for the panel to finish sliding in before measuring it.
-const settled = async (panel) => {
-    await Promise.all(panel.getAnimations().map((animation) => animation.finished));
-    return panel;
-};
-const panelTask = () => $(".o_pan_sl_task_panel .o_form_view .o_field_widget[name='name'] :is(input, textarea)")?.value;
 const chips = () => $$(".o_pan_sl_chip").map(text).sort().join("|");
-const answer = (key) => $(".o_pan_sl_answer_" + key);
-const answerText = (key) => lines(answer(key));
+const zoom = () => Number($(".o_pan_sl_frame").dataset.zoom);
+const layers = () => [...new Set($$("[data-layer]").map((el) => el.dataset.layer))].sort().join(",");
+const crumbs = () => $$(".o_pan_sl_crumb, .o_pan_sl_crumb_current").map(text).join(" › ");
+const atZoom = (level) => waitFor(() => $(".o_pan_sl_frame") && zoom() === level && /^(scale\\(1\\))?$/.test($(".o_pan_sl_lod").style.transform), "zoom " + level);
 const expect = (condition, message) => {
     if (!condition) {
         throw new Error("Map: " + message);
@@ -53,7 +49,7 @@ const openMap = async () => {
         "Map in the Projects menu"
     );
     menu.click();
-    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_body"), "the map");
+    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_frame"), "the map");
 };
 """
 
@@ -146,113 +142,103 @@ class TestMapUi(HttpCase):
                 {"name": "UI go-live", "project_id": cls.project.id, "deadline": today + timedelta(days=10)},
             ]
         )
+        cls.project.write(
+            {
+                "pan_brief": "<p>UI Machines builds packaging lines. Forty people.</p><p>Second paragraph.</p>",
+                "pan_keywords": "machines, sheet metal, projects, extra",
+                "pan_from_systems": "UI old system",
+                "pan_to_systems": "Odoo 19",
+                "date_start": today - timedelta(days=60),
+                "date": today + timedelta(days=60),
+            }
+        )
+        cls.late_flow.write({"pan_summary": "UI late summary", "pan_keywords": "alpha, beta, gamma, delta"})
         cls.role, cls.external, cls.phase_one, cls.phase_two, cls.stage = role, external, phase_one, phase_two, stage
 
-    def test_overview_and_flows(self):
-        """Menu > Map opens the project's tasks in the Map view: five answers on
-        top, flows worst first, the plain grid."""
+    def test_levels_of_detail(self):
+        """Menu > Map opens at z0; each level shows only its layers; + and - change level."""
         code = WAIT_JS + """
 (async () => {
     await openMap();
     expect($(".o_switch_view.o_pan_blueprint.active"), "Map is not the active view in the switcher");
-    expect($(".o_switch_view.o_kanban") && $(".o_switch_view.o_list"), "Kanban and List are not next to Map");
     expect($(".o_pan_sl_map .o_searchview"), "no search bar");
+    await atZoom(0);
+    expect(layers() === "company,systems,timeline", "z0 layers: " + layers());
+    expect(text($(".o_pan_sl_headline")) === "UI Machines builds packaging lines.", "headline: " + text($(".o_pan_sl_headline")));
+    expect($$(".o_pan_sl_keywords li").map(text).join("|") === "machines|sheet metal|projects", "keywords");
+    expect(text($(".o_pan_sl_systems")).replace("→to", "→") === "UI old system → Odoo 19", "systems: " + text($(".o_pan_sl_systems")));
+    expect($$(".o_pan_sl_tick").length === 2 && $(".o_pan_sl_tick_reached") && $(".o_pan_sl_today"), "timeline ticks and today");
+    expect(crumbs() === "Company", "crumbs: " + crumbs());
+    expect($(".o_pan_sl_zoom_out").disabled && !$(".o_pan_sl_zoom_in").disabled, "zoom buttons at z0");
+    expect(!$(".o_pan_sl_missing"), "a user sees the managers' hint");
 
-    // Five plain answers over the tasks.
-    expect($$(".o_pan_sl_answer_label").map(text).join("|") === "On schedule?|Still to do|Flows|Training|Choices", "answers");
-    const schedule = answerText("schedule");
-    expect(/^On schedule\\? \\/ UI go-live \\/ Due .+ · At risk \\/ 1 flow late$/.test(schedule), "schedule: " + schedule);
-    expect(answerText("todo") === "Still to do / 4 open tasks / 3 without an owner", "todo: " + answerText("todo"));
-    expect(answerText("flows") === "Flows / 1 of 2 flows tested / Worst: UI late flow", "flows: " + answerText("flows"));
-    expect(answerText("training") === "Training / 0 of 3 tasks trained / 1 person still to train", "training: " + answerText("training"));
-    expect(answerText("choices") === "Choices / 4 of 6 tasks decided / 2 still open", "choices: " + answerText("choices"));
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(1);
+    expect(layers() === "caption,legend,projectBar,systems,timeline", "z1 layers: " + layers());
+    expect($$(".o_pan_sl_legend li").map(text).join("|") === "Open|Decided|Built|Tested|Trained|Live", "legend");
+    const caption = text($(".o_pan_sl_caption"));
+    expect(/^UI go-live · Due .+At risk \\(1 flow late\\)$/.test(caption), "caption: " + caption);
+    const parts = $$(".o_pan_sl_project_bar .o_pan_sl_stack > span").map((el) => el.className.match(/s\\d/)[0] + ":" + el.style.flexGrow);
+    expect(parts.join("|") === "s0:2|s1:2|s3:1|s4:1", "project bar: " + parts.join("|"));
 
-    // Worst first, as the server sorts them: the late flow (33%) above the finished one.
-    expect(text($(".o_pan_sl_flow_summary")) === "1 of 2 flows late", "summary: " + text($(".o_pan_sl_flow_summary")));
-    const flows = $$(".o_pan_sl_flow");
-    expect(flows.map((el) => text(el.querySelector(".o_pan_sl_flow_name"))).join("|") === "UI late flow|UI done flow", "flow order");
-    expect(text(flows[0]).includes("Tested 33%") && text(flows[0]).includes("2 open"), "late flow: " + text(flows[0]));
-    expect(text(flows[0].querySelector(".o_pan_sl_late")) === "Late · 1 day", "late label: " + text(flows[0]));
-    expect(/^Due (\\d{1,2} \\S+|\\S+ \\d{1,2})$/.test(text(flows[0].querySelector(".o_pan_sl_due"))), "due: " + text(flows[0]));
-    expect(text(flows[1]).includes("Tested 100%") && !flows[1].querySelector(".o_pan_sl_late"), "done flow: " + text(flows[1]));
-    expect(!flows[1].querySelector(".o_pan_sl_flow_open"), "a done flow shows no open count");
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(2);
+    expect(layers() === "caption,flows,legend,projectBar,unplaced", "z2 layers: " + layers());
+    expect(crumbs() === "Company › Project › Flows", "crumbs: " + crumbs());
+    const rows = $$(".o_pan_sl_flow");
+    expect(rows.map((el) => text(el.querySelector(".o_pan_sl_flow_name"))).join("|") === "UI late flow|UI done flow", "flow order");
+    const summary = rows[0].querySelector(".o_pan_sl_flow_summary");
+    const words = [...summary.querySelectorAll(".o_pan_sl_keyword")].map(text).join("|");
+    expect(summary.firstChild.textContent.trim() === "UI late summary" && words === "alpha|beta|gamma", "summary: " + text(summary));
+    expect(text(rows[0].querySelector(".o_pan_sl_flow_open")) === "2 open" && text(rows[0].querySelector(".o_pan_sl_late")) === "Late · 1 day", "late flow: " + text(rows[0]));
+    expect(!text(rows[1].querySelector(".o_pan_sl_late")) && !text(rows[1].querySelector(".o_pan_sl_flow_open")), "done flow: " + text(rows[1]));
+    expect(!$(".o_pan_sl_chip") && !$(".o_pan_sl_headline"), "task names or the company at z2");
 
-    // Four colours with the stage words.
-    expect($$(".o_pan_sl_legend li").map(text).join("|") === "Open|Decided or Built|Tested|Trained or Live", "legend");
-
-    // Grid: placed tasks only, each with a dot in its progress colour; no breadcrumb on the whole map.
-    expect(!$(".o_pan_sl_crumbs"), "a breadcrumb on the whole map");
-    expect($$(".o_pan_sl_phase").map(text).join("|") === "UI phase one|UI phase two", "phase columns");
-    expect($$(".o_pan_sl_role").map(text).join("|") === "UI lane role|UI customer", "role rows");
-    expect(chips() === "UI customer task|UI lone task|UI open task|UI tested task", "chips: " + chips());
-    expect(!$(".o_pan_sl_arrow"), "arrows on the whole map");
-    expect(chip("UI tested task").querySelector(".o_pan_sl_tone_ok"), "a tested task is not green");
-    expect(chip("UI lone task").querySelector(".o_pan_sl_tone_warn"), "a decided task is not amber");
-    expect(chip("UI open task").querySelector(".o_pan_sl_tone_off"), "an open task is not grey");
-    expect(chip("UI customer task").querySelector(".o_pan_sl_tone_done"), "a trained task is not dark green");
+    // + at z2 flies into the worst flow; - and - again back to z1.
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(3);
+    expect(crumbs() === "Company › Project › Flows › UI late flow", "crumbs at z3: " + crumbs());
+    $(".o_pan_sl_zoom_out").click();
+    await atZoom(2);
+    $(".o_pan_sl_zoom_out").click();
+    await atZoom(1);
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
         self.browser_js("/odoo/project", code, login=self.user.login)
 
-    def test_search_filters_the_map(self):
-        """The standard search bar filters the chips and the answers; an answer
-        that is a filter shows as a facet; the switcher goes to Kanban and back."""
+    def test_wheel_and_keyboard(self):
+        """Ctrl + wheel zooms (and snaps to a level); a plain wheel scrolls and never zooms."""
         code = WAIT_JS + """
 (async () => {
     await openMap();
-    // "Choices" filters on the tasks still Open: a facet, fewer chips, answers over those tasks.
-    answer("choices").click();
-    await waitFor(() => $$(".o_searchview_facet").some((el) => text(el).includes("Not decided")), "Not decided facet");
-    await waitFor(() => chips() === "UI open task", "chips after Not decided: " + chips());
-    await waitFor(() => answerText("choices") === "Choices / 0 of 2 tasks decided / 2 still open", "choices after the filter");
-    expect(answer("choices").getAttribute("aria-pressed") === "true", "the answer is not marked as a filter");
-    // Under a filter only the rows and columns with a matching task.
-    expect($$(".o_pan_sl_phase").map(text).join("|") === "UI phase one", "columns under a filter: " + $$(".o_pan_sl_phase").map(text).join("|"));
-    expect($$(".o_pan_sl_role").map(text).join("|") === "UI lane role", "rows under a filter");
-    expect(getComputedStyle(answer("choices")).cursor === "pointer" && answer("choices").querySelector(".o_pan_sl_answer_chevron"), "the answer does not look tappable");
-    expect(answerText("flows") === "Flows / 0 of 1 flows tested / Worst: UI late flow", "flows after the filter: " + answerText("flows"));
-    answer("choices").click();
-    await waitFor(() => !$(".o_searchview_facet") && $$(".o_pan_sl_chip").length === 4, "filter removed");
-
-    // "Still to do" is the filter of the same name.
-    answer("todo").click();
-    await waitFor(() => $$(".o_searchview_facet").some((el) => text(el).includes("Still to do")), "Still to do facet");
-    await waitFor(() => chips() === "UI lone task|UI open task", "chips after Still to do: " + chips());
-    await waitFor(() => answerText("todo") === "Still to do / 4 open tasks / 3 without an owner", "todo after the filter");
-
-    // Any search: the progress step is searchable ("test" offers it), then a task name.
-    $(".o_searchview_facet .o_facet_remove").click();
-    await waitFor(() => $$(".o_pan_sl_chip").length === 4, "facet removed");
-    const input = $(".o_searchview_input");
-    input.value = "UI lone";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    await waitFor(() => chips() === "UI lone task", "chips after a search: " + chips());
-    await waitFor(() => answerText("choices") === "Choices / 1 of 1 tasks decided / 0 still open", "choices after a search");
-    input.value = "test";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await waitFor(
-        () => $$(".o_searchview_autocomplete, .o-dropdown--menu").some((el) => /Search Progress step for: test/i.test(text(el))),
-        "Progress step offered for 'test'"
-    );
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-
-    // The view switcher: Kanban and back to Map.
-    $(".o_switch_view.o_kanban").click();
-    await waitFor(() => $(".o_kanban_view"), "kanban");
-    $(".o_switch_view.o_pan_blueprint").click();
-    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_body"), "back on the map");
+    await atZoom(0);
+    const stage = $(".o_pan_sl_stage");
+    const wheel = (ctrlKey, deltaY) =>
+        stage.dispatchEvent(new WheelEvent("wheel", { deltaY, ctrlKey, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
+    wheel(false, -300);
+    await sleep(700);
+    expect(zoom() === 0, "a plain wheel zoomed to " + zoom());
+    wheel(true, -250);
+    await atZoom(1);
+    wheel(true, -250);
+    await atZoom(2);
+    wheel(true, 250);
+    await atZoom(1);
+    // The breadcrumb zooms back out.
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(2);
+    $$(".o_pan_sl_crumb").find((el) => text(el) === "Company").click();
+    await atZoom(0);
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
         self.browser_js("/odoo/project", code, login=self.user.login)
 
-    def test_flow_swimlane(self):
-        """A flow opens as a swimlane: only its tasks, a column per step,
-        joined by N-1 arrows in task order, left to right; all its steps listed under it; the breadcrumb
-        "Map" goes back. The chip panel works there too."""
+    def test_fly_to_flow_and_task(self):
+        """Clicking a flow flies to its swimlane (z3); a chip flies to the task (z4):
+        its own form, chatter under it, over the map, saved when you leave it; the
+        breadcrumb goes back; back from the full-screen form the map is where it was."""
         self.env["project.task"].create(
             {
                 "name": "UI customer step",
@@ -268,246 +254,150 @@ class TestMapUi(HttpCase):
         code = WAIT_JS + """
 (async () => {
     await openMap();
-    const flow = $$(".o_pan_sl_flow").find((el) => text(el.querySelector(".o_pan_sl_flow_name")) === "UI late flow");
-    flow.click();
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(1);
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(2);
+    $$(".o_pan_sl_flow").find((el) => text(el.querySelector(".o_pan_sl_flow_name")) === "UI late flow").click();
+    await atZoom(3);
+    expect(layers() === "legend,steps,swimlane", "z3 layers: " + layers());
     await waitFor(() => text($(".o_pan_sl_status")) === "Showing flow UI late flow, 3 open tasks", "announcement");
-    expect(flow.getAttribute("aria-pressed") === "true", "the flow is not marked as selected");
-    expect(lines($(".o_pan_sl_crumbs")) === "Map / › / UI late flow", "breadcrumb: " + lines($(".o_pan_sl_crumbs")));
 
-    // Only the flow's placed tasks, in their role x phase cells.
+    // The swimlane: a column per step, N-1 arrows left to right, ending at their chips.
     expect(chips() === "UI customer step|UI open task|UI tested task", "chips: " + chips());
     expect($$(".o_pan_sl_role").map(text).join("|") === "UI lane role|UI customer", "rows");
     const arrows = await waitFor(() => $$(".o_pan_sl_arrow").length === 2 && $$(".o_pan_sl_arrow"), "two arrows");
     const ids = { tested: chip("UI tested task").dataset.taskId, open: chip("UI open task").dataset.taskId, step: chip("UI customer step").dataset.taskId };
     const pairs = arrows.map((path) => path.dataset.from + ">" + path.dataset.to).join("|");
     expect(pairs === ids.tested + ">" + ids.open + "|" + ids.open + ">" + ids.step, "arrow order: " + pairs);
-    expect(arrows.every((path) => path.getAttribute("marker-end") && /^M[\\d.]+,[\\d.]+ /.test(path.getAttribute("d"))), "arrow paths");
+    const ends = arrows.map((path) => path.getAttribute("d").match(/-?[\\d.]+,-?[\\d.]+/g).map((pair) => pair.split(",").map(Number)));
+    expect(ends.every((points) => points.at(-1)[0] > points[0][0]), "an arrow runs right to left");
+    const end = arrows[1].getPointAtLength(arrows[1].getTotalLength());
+    const svg = arrows[1].ownerSVGElement.getBoundingClientRect();
+    const box = chip("UI customer step").getBoundingClientRect();
+    expect(Math.abs(svg.left + end.x - box.left) < 4 && svg.top + end.y > box.top && svg.top + end.y < box.bottom, "the arrow does not end at its chip");
+    expect(chip("UI tested task").title === "UI tested task", "no full name in the chip's title");
 
-    // As in the client's charts: a column per step, the phase above it (adjacent steps merged);
-    // arrows run left to right, straight within a role, an elbow when the role changes.
-    const headers = $$(".o_pan_sl_phase").map((el) => text(el) + ":" + (el.style.gridColumn || "1"));
-    expect(headers.join("|") === "UI phase one:span 2|UI phase two:1", "step headers: " + headers.join("|"));
-    expect($$(".o_pan_sl_role")[0].parentElement.querySelectorAll(".o_pan_sl_cell").length === 6, "not one cell per step and role");
-    const ends = arrows.map((path) => {
-        const points = path.getAttribute("d").match(/-?[\\d.]+,-?[\\d.]+/g).map((pair) => pair.split(",").map(Number));
-        return { first: points[0], last: points.at(-1) };
-    });
-    expect(ends.every(({ first, last }) => last[0] > first[0]), "an arrow runs right to left");
-    expect(ends[0].first[1] === ends[0].last[1], "the step within one role is not a straight arrow");
-    expect(ends[1].first[1] !== ends[1].last[1], "the step to another role is not an elbow");
-
-    // The arrow ends at the target chip, also after the grid scrolls.
-    const end = (path) => {
-        const length = path.getTotalLength();
-        const point = path.getPointAtLength(length);
-        const svg = path.ownerSVGElement.getBoundingClientRect();
-        return { x: svg.left + point.x, y: svg.top + point.y };
-    };
-    const near = (point, el) => {
-        const rect = el.getBoundingClientRect();
-        return point.x >= rect.left - 3 && point.x <= rect.right + 3 && point.y >= rect.top - 3 && point.y <= rect.bottom + 3;
-    };
-    expect(near(end(arrows[1]), chip("UI customer step")), "the second arrow does not end at its chip");
-
-    // Its open tasks (also those without a place) listed right under it.
-    const listed = $$(".o_pan_sl_flows .o_pan_sl_open_task").map(lines);
+    // The steps listed with owner and hours, done ones muted with their stage word.
+    const listed = $$(".o_pan_sl_open_task").map(lines);
     expect(
         listed.join("|") ===
             "UI tested task / UI stage 3 (Tested) / No owner / 0:00 spent of 4:00 planned|UI open task / Map UI user / 0:00 spent of 0:00 planned|UI unplaced task / No owner / 0:00 spent of 0:00 planned|UI customer step / No owner / 0:00 spent of 0:00 planned",
         "steps: " + listed.join("|")
     );
-    expect($(".o_pan_sl_flows .o_pan_sl_open_task").classList.contains("o_pan_sl_step_done"), "a tested step is not muted");
-    expect(flow.nextElementSibling.matches(".o_pan_sl_open_tasks"), "the open tasks are not right under the flow");
 
-    // The chip panel at the flow level.
+    // A chip flies to the task: z4, the task itself (Odoo's form, chatter under it) over the map.
     chip("UI tested task").click();
-    await waitFor(() => panelTask() === "UI tested task", "task form at the flow level");
-    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    await waitFor(() => !$(".o_pan_sl_panel"), "panel closed");
+    await atZoom(4);
+    expect(layers() === "legend,swimlane", "z4 layers: " + layers());
+    expect(crumbs() === "Company › Project › Flows › UI late flow › UI tested task", "crumbs at z4: " + crumbs());
+    const panelTask = () => $(".o_pan_sl_task_panel .o_form_view .o_field_widget[name='name'] :is(input, textarea)")?.value;
+    await waitFor(() => panelTask() === "UI tested task", "the task form in the panel");
+    const panel = $(".o_pan_sl_task_panel");
+    await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+    const sheet = await waitFor(() => panel.querySelector(".o_form_sheet_bg"), "form sheet");
+    const chatter = await waitFor(() => panel.querySelector(".o-mail-Form-chatter"), "chatter in the panel");
+    expect(chatter.getBoundingClientRect().top >= sheet.getBoundingClientRect().bottom - 1, "the chatter is not under the form");
+    expect(text(panel.querySelector(".o_field_widget[name='description']")).includes("First line of the UI task"), "description");
+    const over = panel.getBoundingClientRect();
+    const stage = $(".o_pan_sl_stage").getBoundingClientRect();
+    expect(over.left < stage.right - 1 && Math.abs(over.right - stage.right) < 2, "the panel does not slide over the map");
+    expect($(".o_breadcrumb").textContent.includes("UI map project"), "the form renamed the map's breadcrumb");
+    expect(!$(".o_pan_sl_zoom"), "zoom buttons over the task form");
 
-    // Back from a task form: the flow is still open, highlighted and in view.
-    chip("UI open task").click();
-    await waitFor(() => panelTask() === "UI open task", "task form in the panel");
+    // A change is saved when the panel closes (zooming out to z3), and the chip follows.
+    const name = $(".o_pan_sl_task_panel .o_field_widget[name='name'] :is(input, textarea)");
+    name.value = "UI tested task renamed";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    name.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(0); // a person's click comes after the change, not in the same tick
+    $(".o_pan_sl_task_panel .o_pan_sl_close").click();
+    await atZoom(3);
+    await waitFor(() => !$(".o_pan_sl_task_panel") && chip("UI tested task renamed"), "the map does not show the saved name");
+
+    // The stage moves in the form's own status bar; the chip follows when leaving the task.
+    chip("UI tested task renamed").click();
+    await atZoom(4);
+    await waitFor(() => panelTask() === "UI tested task renamed", "the renamed task form");
+    const next = await waitFor(
+        () => $$(".o_pan_sl_task_panel .o_statusbar_status button").find((el) => text(el).startsWith("UI stage 4")),
+        "stage 4 in the status bar"
+    );
+    next.click();
+    await waitFor(
+        () => $(".o_pan_sl_task_panel .o_statusbar_status button.o_arrow_button_current")?.textContent.includes("UI stage 4"),
+        "stage 4 current"
+    );
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await atZoom(3);
+    await waitFor(() => chip("UI tested task renamed")?.querySelector(".o_pan_sl_tone_s4"), "the chip is not Trained");
+
+    // Full screen, then back: still at z4 on that task.
+    chip("UI tested task renamed").click();
+    await atZoom(4);
+    await waitFor(() => panelTask() === "UI tested task renamed", "panel");
     $(".o_pan_sl_expand").click();
     await waitFor(() => $(".o_form_view") && !$(".o_pan_sl_map"), "task form full screen");
     (await waitFor(() => $$(".o_breadcrumb a").find((el) => text(el).includes("UI map project")), "breadcrumb to the map")).click();
-    await waitFor(() => $(".o_pan_sl_crumbs") && $(".o_pan_sl_flow[aria-pressed='true']"), "flow kept after the form");
-    const kept = $(".o_pan_sl_flow[aria-pressed='true']").getBoundingClientRect();
-    const list = $(".o_pan_sl_flows").getBoundingClientRect();
-    expect(kept.top >= list.top - 1 && kept.top < list.bottom, "the flow is out of view after the form");
+    await waitFor(() => $(".o_pan_sl_task_panel") && zoom() === 4, "back at z4");
 
-    // Breadcrumb back to the whole map.
-    $(".o_pan_sl_crumb").click();
-    await waitFor(() => $$(".o_pan_sl_chip").length === 5 && !$(".o_pan_sl_arrow") && !$(".o_pan_sl_crumbs"), "back on the whole map");
-    expect(!$(".o_pan_sl_flows .o_pan_sl_open_task"), "the flow is still open");
-
-    // The "Flows" answer opens the worst flow; tapping the flow again goes back.
-    answer("flows").click();
-    await waitFor(() => $$(".o_pan_sl_arrow").length === 2, "worst flow from the answer");
-    $$(".o_pan_sl_flow")[0].click();
-    await waitFor(() => !$(".o_pan_sl_crumbs"), "second tap back on the map");
+    // The breadcrumb zooms out to the flows.
+    $$(".o_pan_sl_crumb").find((el) => text(el) === "Flows").click();
+    await atZoom(2);
+    expect(!$(".o_pan_sl_chip") && $(".o_pan_sl_flow[aria-current='true']"), "the flow is not marked at z2");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
         self.browser_js("/odoo/project", code, login=self.user.login)
 
-    def test_panels(self):
-        """A chip opens the task itself (Odoo's form, chatter under it) over the
-        map, saved on close; a role name opens its people and training."""
+    def test_search_filters_every_level(self):
+        """A search filter narrows the bars and the flows; z2 keeps only flows with matching tasks."""
         code = WAIT_JS + """
 (async () => {
     await openMap();
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(1);
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(2);
+    $(".o_searchview_dropdown_toggler").click();
+    (await waitFor(() => $$(".o_filter_menu .o-dropdown-item, .o_filter_menu .dropdown-item").find((el) => text(el) === "Not decided"), "Not decided filter")).click();
+    await waitFor(() => $$(".o_searchview_facet").some((el) => text(el).includes("Not decided")), "facet");
+    await waitFor(() => $$(".o_pan_sl_flow").length === 1, "one flow left");
+    expect(text($(".o_pan_sl_flow_name")) === "UI late flow", "flow under the filter");
+    expect($(".o_pan_sl_project_bar").getAttribute("aria-label") === "2 tasks by step", "project bar: " + $(".o_pan_sl_project_bar").getAttribute("aria-label"));
+    console.log("test successful");
+})().catch((error) => console.error(error.message));
+"""
+        self.browser_js("/odoo/project", code, login=self.user.login)
 
-    // Role panel: people, what to train on, ADKAR.
+    def test_role_unplaced_and_training(self):
+        """A role name opens its people and training (and the Still to train list); the
+        tasks without a place are one tap away at z2."""
+        code = WAIT_JS + """
+(async () => {
+    await openMap();
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(1);
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(2);
+    const link = $(".o_pan_sl_unplaced");
+    expect(link && text(link) === "2 tasks without a place", "unplaced link: " + (link && text(link)));
+    link.click();
+    const panel = await waitFor(() => $(".o_pan_sl_unplaced_panel"), "panel without a place");
+    expect($$(".o_pan_sl_unplaced_panel .o_pan_sl_chip").map(text).join("|") === "UI unplaced task|UI loose task", "tasks without a place");
+    panel.querySelector(".o_pan_sl_close").click();
+    await waitFor(() => !$(".o_pan_sl_panel"), "panel closed");
+
+    $(".o_pan_sl_zoom_in").click();
+    await atZoom(3);
     $$(".o_pan_sl_role").find((el) => text(el) === "UI lane role").click();
     const role = await waitFor(() => $(".o_pan_sl_role_panel"), "role panel");
     expect($$(".o_pan_sl_role_people li").map(text).join("|") === "UI person", "role people");
     const training = $$(".o_pan_sl_role_training li").map(text).sort().join("|");
     expect(training === "UI lone task|UI open task|UI tested task", "to train on: " + training);
     expect(text(role.querySelector(".o_pan_sl_role_adkar")) === "Needs three scored people", "role ADKAR");
-
-    // Task panel: the task itself, Odoo's form, chatter under it, over the map.
-    chip("UI tested task").click();
-    const panel = await settled(await waitFor(() => panelTask() === "UI tested task" && $(".o_pan_sl_task_panel"), "task form in the panel"));
-    expect(!$(".o_pan_sl_role_panel"), "two panels open");
-    const sheet = await waitFor(() => panel.querySelector(".o_form_sheet_bg"), "form sheet");
-    const chatter = await waitFor(() => panel.querySelector(".o-mail-Form-chatter"), "chatter in the panel");
-    expect(chatter.getBoundingClientRect().top >= sheet.getBoundingClientRect().bottom - 1, "the chatter is not under the form");
-    expect(text(panel.querySelector(".o_field_widget[name='description']")).includes("First line of the UI task"), "description");
-    const box = panel.getBoundingClientRect();
-    const content = $(".o_pan_sl_map .o_content").getBoundingClientRect();
-    expect(box.left < $(".o_pan_sl_grid_wrap").getBoundingClientRect().right && Math.abs(box.right - content.right) < 2, "the panel does not slide over the map ");
-    expect(Math.abs(box.top - content.top) < 2, "the panel does not cover the overview band");
-    expect($(".o_breadcrumb").textContent.includes("UI map project"), "the form renamed the map's breadcrumb");
-    expect($(".o_pan_sl_close").getBoundingClientRect().height >= 44, "close button under 44 px");
-    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    await waitFor(() => !$(".o_pan_sl_panel"), "panel closed after Escape");
-
-    // A change in the form is saved when the panel closes, and the map follows.
-    chip("UI lone task").click();
-    await waitFor(() => panelTask() === "UI lone task", "lone task form");
-    const name = $(".o_pan_sl_task_panel .o_field_widget[name='name'] :is(input, textarea)");
-    name.value = "UI lone task renamed";
-    name.dispatchEvent(new Event("input", { bubbles: true }));
-    name.dispatchEvent(new Event("change", { bubbles: true }));
-    await new Promise((resolve) => setTimeout(resolve)); // a person's click comes after the change, not in the same tick
-    $(".o_pan_sl_close").click();
-    await waitFor(() => !$(".o_pan_sl_panel") && chip("UI lone task renamed"), "the map does not show the saved name");
-
-    // The stage moves in the form's own status bar; the chip follows on close.
-    chip("UI lone task renamed").click();
-    await waitFor(() => panelTask() === "UI lone task renamed", "renamed task form");
-    const stage = await waitFor(
-        () => $$(".o_pan_sl_task_panel .o_statusbar_status button").find((el) => text(el).startsWith("UI stage 4")),
-        "stage 4 in the status bar"
-    );
-    stage.click();
-    await waitFor(
-        () => $(".o_pan_sl_task_panel .o_statusbar_status button.o_arrow_button_current")?.textContent.includes("UI stage 4"),
-        "stage 4 current"
-    );
-    $(".o_pan_sl_close").click();
-    await waitFor(() => !$(".o_pan_sl_panel") && chip("UI lone task renamed")?.querySelector(".o_pan_sl_tone_done"), "the chip is not Trained");
-
-    // Expand opens the task full screen, as Odoo does.
-    chip("UI tested task").click();
-    await waitFor(() => panelTask() === "UI tested task", "panel");
-    $(".o_pan_sl_expand").click();
-    await waitFor(() => $(".o_form_view") && !$(".o_pan_sl_map") && text($(".o_breadcrumb")).includes("UI tested task"), "task form");
-    console.log("test successful");
-})().catch((error) => console.error(error.message));
-"""
-        self.browser_js("/odoo/project", code, login=self.user.login)
-
-    def test_chip_opens_panel_anywhere(self):
-        """Fix 2: a chip low in a tall grid opens a panel that is in view (it
-        opened above the fold before); a chip opened from the list and then
-        in the grid stays open. Fix 7: a wide grid fades at the right edge."""
-        phases = self.env["pan.sl.phase"].create(
-            [{"name": f"UI wide phase {index}", "code": f"t_ui_wide_{index}", "sequence": 10 + index} for index in range(6)]
-        )
-        for index in range(12):
-            role = self.env["pan.sl.role"].create(
-                {"name": f"UI tall role {index:02d}", "code": f"t_ui_tall_{index}", "project_id": self.project.id}
-            )
-            self.env["project.task"].create(
-                {
-                    "name": f"UI tall task {index:02d}",
-                    "project_id": self.project.id,
-                    "pan_role_id": role.id,
-                    "pan_phase_id": phases[index % 6].id,
-                    "user_ids": [Command.clear()],
-                }
-            )
-        code = WAIT_JS + """
-(async () => {
-    await openMap();
-    const inView = (el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth;
-    };
-    const content = $(".o_pan_sl_map .o_content");
-    expect(!$(".o_pan_sl_crumbs"), "the map opened on a flow");
-    expect(content.scrollHeight <= content.clientHeight + 1, "the page scrolls; the grid should scroll on its own");
-
-    // A chip at the bottom of a tall grid.
-    const last = chip("UI tall task 11");
-    last.scrollIntoView({ block: "end" });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    last.click();
-    await waitFor(() => panelTask() === "UI tall task 11", "task form from a low chip");
-    const panel = await settled($(".o_pan_sl_task_panel"));
-    expect(inView(panel), "the panel opened out of view ");
-
-    // From the side list first, then the same task in the grid (the flow's swimlane): the panel stays open.
-    $$(".o_pan_sl_flow")[0].click();
-    const listed = await waitFor(
-        () => $$(".o_pan_sl_flows .o_pan_sl_open_task").find((el) => el.textContent.includes("UI open task")),
-        "listed task"
-    );
-    listed.click();
-    await waitFor(() => panelTask() === "UI open task", "panel from the list");
-    chip("UI open task").click();
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(panelTask() === "UI open task", "a second tap closed the panel");
-
-    // Fix 7: eight phase columns do not fit; the right edge fades until scrolled to the end.
-    $(".o_pan_sl_crumb").click();
-    await waitFor(() => !$(".o_pan_sl_crumbs"), "back on the whole map");
-    const wrap = $(".o_pan_sl_grid_wrap");
-    const area = $(".o_pan_sl_grid_area");
-    expect(area.scrollWidth > area.clientWidth, "the grid does not scroll sideways");
-    await waitFor(() => wrap.classList.contains("o_pan_sl_fade_right"), "fade at the right edge");
-    area.scrollLeft = area.scrollWidth;
-    await waitFor(() => !wrap.classList.contains("o_pan_sl_fade_right"), "fade gone at the end");
-    console.log("test successful");
-})().catch((error) => console.error(error.message));
-"""
-        self.browser_js("/odoo/project", code, login=self.user.login)
-
-    def test_unplaced_and_training(self):
-        """The tasks without a place are one tap away; the Training answer opens the training list."""
-        code = WAIT_JS + """
-(async () => {
-    await openMap();
-    const link = $(".o_pan_sl_unplaced");
-    expect(link && text(link) === "2 tasks without a place", "unplaced link: " + (link && text(link)));
-    link.click();
-    await waitFor(() => $(".o_pan_sl_flow_unplaced"), "pseudo-filter in the side list");
-    const listed = $$(".o_pan_sl_flows .o_pan_sl_open_task").map(lines);
-    expect(listed.join("|") === "UI unplaced task / No owner / 0:00 spent of 0:00 planned|UI loose task / No owner / 0:00 spent of 0:00 planned", "without a place: " + listed.join("|"));
-    expect(text($(".o_pan_sl_status")) === "Showing 2 tasks without a place", "announcement");
-    expect($$(".o_pan_sl_chip").length === 4, "the grid changed");
-    link.click();
-    await waitFor(() => !$(".o_pan_sl_flow_unplaced"), "pseudo-filter cleared");
-
-    // "Training": tasks of internal roles; tap opens "Still to train" (the customer's are left out).
-    answer("training").click();
+    role.querySelector(".o_pan_sl_training").click();
     await waitFor(() => $(".o_list_view") && text($(".o_breadcrumb")).includes("Still to train"), "still to train list");
-    const facets = await waitFor(() => $$(".o_searchview_facet").length >= 2 && $$(".o_searchview_facet").map(text), "facets");
-    expect(facets.some((facet) => facet.includes("Still to train")), "no visible filter: " + facets.join("|"));
-    const groups = await waitFor(() => $$(".o_group_header").length && $$(".o_group_header").map(text), "role groups");
-    expect(groups.length === 1 && groups[0].startsWith("UI lane role"), "groups: " + groups.join("|"));
     const rows = await waitFor(() => $$(".o_data_row").length === 3 && $$(".o_data_row"), "expanded group rows");
     const people = rows[0].querySelector("td.o_pan_sl_wrap");
     expect(people && text(people) === "UI person" && getComputedStyle(people).whiteSpace === "normal", "people do not wrap");
@@ -516,22 +406,21 @@ class TestMapUi(HttpCase):
 """
         self.browser_js("/odoo/project", code, login=self.user.login)
 
-    def test_schedule_opens_milestones(self):
-        """"On schedule?" says how late the next milestone is and opens the project's milestones."""
-        self.env["project.milestone"].search([("name", "=", "UI go-live")]).deadline = fields.Date.today() - timedelta(days=3)
+    def test_managers_hint(self):
+        """Without the company page, managers see one muted line; users nothing."""
+        self.project.pan_brief = False
         code = WAIT_JS + """
 (async () => {
     await openMap();
-    const schedule = answerText("schedule");
-    expect(/^On schedule\\? \\/ UI go-live \\/ Due .+ · Late · 3 days \\/ 1 flow late$/.test(schedule), "schedule: " + schedule);
-    expect(answer("schedule").querySelector(".o_pan_sl_status_late .o_pan_sl_tone_late"), "late is not marked red");
-    answer("schedule").click();
-    await waitFor(() => $(".o_list_view") && $$(".o_data_row").length === 2, "milestones list");
-    expect($$(".o_data_row").map(text).join("|").includes("UI go-live"), "milestones listed");
+    await atZoom(0);
+    expect(text($(".o_pan_sl_missing")) === "Add the company in one page on the project", "managers' hint");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
-        self.browser_js("/odoo/project", code, login=self.user.login)
+        manager = new_test_user(
+            self.env, login="pan_sl_map_ui_manager", name="Map UI manager", groups="pan_self_learning_blueprint.group_blueprint_manager"
+        )
+        self.browser_js("/odoo/project", code, login=manager.login)
 
     def test_project_list(self):
         """With several mapped projects, Projects > Map starts with a plain list."""
@@ -547,13 +436,8 @@ class TestMapUi(HttpCase):
     await waitFor(() => $$(".o_pan_sl_projects .o_pan_sl_project").length, "project list");
     const items = $$(".o_pan_sl_project").map(text);
     expect(items.includes("UI map project") && items.includes("UI second project"), "projects: " + items.join("|"));
-    $$(".o_pan_sl_project").find((el) => text(el) === "UI second project").click();
-    await waitFor(() => $(".o_pan_sl_grid_area .o_pan_sl_empty") && !$(".o_pan_sl_chip"), "map of the other project");
-    expect(text($(".o_breadcrumb")).includes("UI second project"), "breadcrumb: " + text($(".o_breadcrumb")));
-    $$(".o_breadcrumb a, .o_breadcrumb .o_back_button").find((el) => text(el) === "Map")?.click();
-    await waitFor(() => $(".o_pan_sl_projects"), "back to the list");
     $$(".o_pan_sl_project").find((el) => text(el) === "UI map project").click();
-    await waitFor(() => $$(".o_pan_sl_chip").length === 4, "map of the chosen project");
+    await waitFor(() => $(".o_pan_sl_headline") && text($(".o_breadcrumb")).includes("UI map project"), "map of the chosen project");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """
@@ -565,9 +449,8 @@ class TestMapUi(HttpCase):
 (async () => {
     const env = await waitFor(() => odoo.__WOWL_DEBUG__?.root?.env, "web client");
     await env.services.action.doAction({ type: "ir.actions.client", tag: "pan_sl_blueprint_map", params: { project_id: %(project)s } });
-    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_body"), "the map from an old link");
+    await waitFor(() => $(".o_pan_sl_map .o_pan_sl_frame"), "the map from an old link");
     expect($(".o_switch_view.o_pan_blueprint.active"), "not the Map view");
-    expect($$(".o_pan_sl_chip").length === 4, "chips");
     console.log("test successful");
 })().catch((error) => console.error(error.message));
 """ % {"project": self.project.id}

@@ -1,6 +1,7 @@
-// Map view (Blueprint 2.3). Tokens resolve Odoo's own variables first (Odoo 19
-// compiles Bootstrap without prefix and redefines them in the dark bundle),
-// then the Bootstrap 5 names, then a literal; so light and dark both work.
+// Map view (Blueprint 2.3.1): one zoomable stage, levels of detail z0..z4.
+// Tokens resolve Odoo's own variables first (Odoo 19 compiles Bootstrap
+// without prefix and redefines them in the dark bundle), then the Bootstrap 5
+// names, then a literal; so light and dark both work.
 
 .o_pan_sl_map {
     --pan-bg: var(--body-bg, var(--bs-body-bg, #ffffff));
@@ -9,24 +10,29 @@
     --pan-border: var(--border-color, var(--bs-border-color, #dee2e6));
     --pan-soft: color-mix(in srgb, var(--pan-fg) 4%, var(--pan-bg));
     --pan-ok: var(--success, var(--bs-success, #28a745));
-    --pan-done: color-mix(in srgb, var(--pan-ok) 55%, #000000);
     --pan-warn: var(--warning, var(--bs-warning, #ffac00));
-    --pan-off: var(--gray-500, var(--bs-gray-500, #adb5bd));
     --pan-late: var(--danger, var(--bs-danger, #d44c59));
     --pan-accent: #5b58d8;
     --pan-select: color-mix(in srgb, var(--pan-accent) 12%, var(--pan-bg));
     --pan-tap: 2.25rem;
+    --pan-row: 1.75rem;
+    // One colour per step, a sequence from grey (Open) to dark green (Live).
+    --pan-s0: #c3c8ce;
+    --pan-s1: #dfe9a8;
+    --pan-s2: #a9d47f;
+    --pan-s3: #5cb85c;
+    --pan-s4: #2e8b46;
+    --pan-s5: #1b5e30;
 
     background-color: var(--pan-bg);
     color: var(--pan-fg);
 
     @media (pointer: coarse), (max-width: 1199.98px) {
         --pan-tap: 44px;
+        --pan-row: 44px;
     }
 
-    // The flow list and the grid scroll on their own (the page does not), so
-    // the panel, over the grid, is in view whatever was tapped. Phones scroll
-    // the page (see the media query at the end).
+    // The page never scrolls: the stage (and the swimlane) scroll on their own.
     .o_content.o_pan_sl_content {
         display: flex;
         flex-direction: column;
@@ -44,117 +50,33 @@
         outline-offset: 1px;
     }
 
-    // Overview band: five plain answers, each a way into the detail ------
-    .o_pan_sl_overview {
+    // Frame: breadcrumb, then the stage and its side panel, + and - bottom right.
+    .o_pan_sl_frame {
         position: relative;
-        z-index: 2;
-        background: var(--pan-bg);
-        flex: none;
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 0.5rem;
-        margin: 0;
-        padding: 0.75rem;
-        border-bottom: 1px solid var(--pan-border);
-    }
-
-    .o_pan_sl_answer {
-        position: relative;
-        cursor: pointer;
         display: flex;
         flex-direction: column;
-        gap: 0.125rem;
-        width: 100%;
-        height: 100%;
-        min-height: var(--pan-tap);
-        padding: 0.5rem 1.75rem 0.5rem 0.75rem;
-        border: 1px solid var(--pan-border);
-        border-radius: 0.5rem;
-        background: var(--pan-bg);
-        transition: border-color 150ms, background-color 150ms;
-
-        &:hover,
-        &:focus-visible {
-            border-color: var(--pan-muted);
-            background: var(--pan-soft);
-        }
-
-        &[aria-pressed="true"] {
-            border-color: var(--pan-accent);
-            background: var(--pan-select);
-        }
+        flex: 1 1 0;
+        min-height: 0;
     }
 
-    .o_pan_sl_answer_label,
-    .o_pan_sl_answer_detail {
-        font-size: 0.85em;
-        color: var(--pan-muted);
-    }
-
-    .o_pan_sl_answer_value {
-        font-weight: 500;
-        overflow-wrap: anywhere;
-    }
-
-    .o_pan_sl_answer_status {
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-        font-size: 0.85em;
-
-        .o_pan_sl_dot {
-            margin-top: 0;
-            align-self: center;
-        }
-    }
-
-    .o_pan_sl_status_late {
-        font-weight: 500;
-        color: var(--pan-late);
-    }
-
-    .o_pan_sl_dot.o_pan_sl_tone_late {
-        background: var(--pan-late);
-    }
-
-    .o_pan_sl_dot.o_pan_sl_tone_risk {
-        background: var(--pan-warn);
-    }
-
-    .o_pan_sl_answer_chevron {
-        position: absolute;
-        top: 50%;
-        right: 0.75rem;
-        transform: translateY(-50%);
-        color: var(--pan-muted);
-    }
-
-    .o_pan_sl_answer[aria-pressed="true"] .o_pan_sl_answer_chevron {
-        color: var(--pan-accent);
-    }
-
-    // Steps of the selected flow that are tested or further: muted, with their stage word.
-    .o_pan_sl_step_done {
-        color: var(--pan-muted);
-    }
-
-    .o_pan_sl_step_word {
-        font-size: 0.85em;
-    }
-
-    // Toolbar above the grid: breadcrumb (flow level), legend, unplaced link.
     .o_pan_sl_toolbar {
+        flex: none;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        justify-content: space-between;
         gap: 0.25rem 1rem;
-        padding: 0.25rem 0.75rem 0;
+        padding: 0.25rem 0.75rem;
+        border-bottom: 1px solid var(--pan-border);
     }
 
     .o_pan_sl_crumbs {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 0.375rem;
+        min-width: 0;
+        min-height: var(--pan-tap);
         font-weight: 500;
     }
 
@@ -168,18 +90,279 @@
         color: var(--pan-muted);
     }
 
-    .o_pan_sl_legend li {
+    .o_pan_sl_unplaced {
+        min-height: var(--pan-tap);
+        color: var(--pan-accent);
+    }
+
+    .o_pan_sl_viewport {
+        position: relative;
         display: flex;
-        align-items: center;
-        gap: 0.35rem;
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    // One finger or a plain wheel scrolls the stage; zooming is handled in JS.
+    .o_pan_sl_stage {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: auto;
+        touch-action: pan-x pan-y;
+    }
+
+    .o_pan_sl_lod {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 100%;
+        padding: 1rem 1.25rem 4.5rem;
+        transition: transform 120ms ease-out;
+    }
+
+    .o_pan_sl_z0,
+    .o_pan_sl_z1 {
+        justify-content: center;
+        max-width: 64rem;
+        margin: 0 auto;
+    }
+
+    .o_pan_sl_z3,
+    .o_pan_sl_z4 {
+        padding-bottom: 0.75rem;
+    }
+
+    .o_pan_sl_zoom {
+        position: absolute;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 4;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--pan-border);
+        border-radius: 0.5rem;
+        background: var(--pan-bg);
+
+        .btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            text-align: center;
+            border-radius: 0;
+        }
+
+        .btn + .btn {
+            border-top: 1px solid var(--pan-border);
+        }
+    }
+
+    // z0: the company -------------------------------------------------------
+    .o_pan_sl_company {
+        text-align: center;
+    }
+
+    .o_pan_sl_headline {
+        margin: 0 auto 0.75rem;
+        max-width: 48rem;
+        font-size: 1.5rem;
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    .o_pan_sl_keywords {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.375rem;
+        margin: 0 0 0.5rem;
+
+        li {
+            padding: 0.125rem 0.625rem;
+            border: 1px solid var(--pan-border);
+            border-radius: 1rem;
+            color: var(--pan-muted);
+        }
+    }
+
+    .o_pan_sl_brief {
+        max-width: 48rem;
+        margin: 0 auto;
+        text-align: left;
         color: var(--pan-muted);
     }
 
-    .o_pan_sl_unplaced {
+    .o_pan_sl_brief_more {
+        min-height: var(--pan-tap);
         color: var(--pan-accent);
-        &[aria-pressed="true"] {
+    }
+
+    .o_pan_sl_systems {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    .o_pan_sl_systems_arrow {
+        color: var(--pan-accent);
+    }
+
+    // z0 and z1: the programme from start to target, milestones as ticks.
+    .o_pan_sl_timeline {
+        position: relative;
+        display: block;
+        width: calc(100% - 7rem);
+        height: 4rem;
+        margin: 0 auto;
+        padding: 0;
+        border: 0;
+        background: none;
+        font-size: 0.85em;
+    }
+
+    .o_pan_sl_timeline_track {
+        position: absolute;
+        top: 50%;
+        right: 0;
+        left: 0;
+        height: 2px;
+        background: var(--pan-border);
+    }
+
+    .o_pan_sl_timeline_edge {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--pan-muted);
+        white-space: nowrap;
+    }
+
+    .o_pan_sl_timeline_start {
+        right: calc(100% + 0.5rem);
+    }
+
+    .o_pan_sl_timeline_end {
+        left: calc(100% + 0.5rem);
+    }
+
+    .o_pan_sl_tick {
+        position: absolute;
+        top: 50%;
+    }
+
+    .o_pan_sl_tick_mark {
+        position: absolute;
+        top: -6px;
+        left: -6px;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--pan-accent);
+        border-radius: 50%;
+        background: var(--pan-bg);
+    }
+
+    .o_pan_sl_tick_reached .o_pan_sl_tick_mark {
+        background: var(--pan-accent);
+    }
+
+    .o_pan_sl_tick_label {
+        position: absolute;
+        bottom: 0.625rem;
+        left: 0;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }
+
+    .o_pan_sl_today {
+        position: absolute;
+        top: 50%;
+        height: 1.25rem;
+        width: 0;
+        border-left: 2px solid var(--pan-fg);
+
+        > span {
+            position: absolute;
+            top: 100%;
+            left: 0.25rem;
             font-weight: 500;
-            text-decoration: underline;
+        }
+    }
+
+    // z1 and z2: the project's bar by step, its caption and the legend.
+    .o_pan_sl_project_bar {
+        display: block;
+        width: 100%;
+        min-height: var(--pan-tap);
+        padding: 0.375rem 0;
+        border: 0;
+        background: none;
+
+        .o_pan_sl_stack {
+            height: 18px;
+            border-radius: 9px;
+        }
+    }
+
+    .o_pan_sl_z2 .o_pan_sl_project_bar .o_pan_sl_stack {
+        height: 10px;
+    }
+
+    .o_pan_sl_caption {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 0.75rem;
+        margin: 0;
+    }
+
+    .o_pan_sl_caption_milestone {
+        font-weight: 500;
+    }
+
+    .o_pan_sl_caption_status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+
+        .o_pan_sl_dot {
+            margin-top: 0;
+            align-self: center;
+        }
+    }
+
+    .o_pan_sl_status_late {
+        font-weight: 500;
+        color: var(--pan-late);
+    }
+
+    .o_pan_sl_dot.o_pan_sl_status_dot_ok {
+        background: var(--pan-ok);
+    }
+
+    .o_pan_sl_dot.o_pan_sl_status_dot_risk {
+        background: var(--pan-warn);
+    }
+
+    .o_pan_sl_dot.o_pan_sl_status_dot_late {
+        background: var(--pan-late);
+    }
+
+    .o_pan_sl_legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.875rem;
+        margin: 0;
+        font-size: 0.85em;
+
+        li {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--pan-muted);
+        }
+
+        .o_pan_sl_dot {
+            margin-top: 0;
+            align-self: center;
         }
     }
 
@@ -190,94 +373,92 @@
         height: 0.65rem;
         margin-top: 0.3rem;
         border-radius: 50%;
-        background: var(--pan-off);
+        background: var(--pan-s0);
         align-self: flex-start;
     }
 
-    .o_pan_sl_legend .o_pan_sl_dot {
-        margin-top: 0;
-        align-self: center;
+    @for $step from 0 through 5 {
+        .o_pan_sl_tone_s#{$step} {
+            background: var(--pan-s#{$step});
+        }
     }
 
-    .o_pan_sl_tone_warn {
-        background: var(--pan-warn);
-    }
-
-    .o_pan_sl_tone_ok {
-        background: var(--pan-ok);
-    }
-
-    .o_pan_sl_tone_done {
-        background: var(--pan-done);
-    }
-
-    // Body: flows | grid ---------------------------------------------------
-    .o_pan_sl_body {
-        position: relative;
+    // A stacked bar: the share of tasks at each step.
+    .o_pan_sl_stack {
         display: flex;
-        flex: 1 1 0;
-        min-height: 0;
+        height: 8px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: var(--pan-soft);
+
+        > span {
+            flex-basis: 0;
+        }
     }
 
-    .o_pan_sl_main {
-        display: flex;
-        flex-direction: column;
-        flex: 1 1 0;
-        min-width: 0;
-    }
-
-    .o_pan_sl_flows {
-        flex: none;
-        width: 16.5rem;
-        overflow-y: auto;
-        padding: 0.75rem;
-        border-right: 1px solid var(--pan-border);
-    }
-
-    .o_pan_sl_flow_summary {
-        margin: 0 0 0.5rem;
-        padding: 0 0.625rem;
-        font-weight: 500;
+    // z2: every flow as one row -------------------------------------------------
+    .o_pan_sl_flow_rows {
+        margin: 0;
     }
 
     .o_pan_sl_flow {
-        display: block;
+        display: grid;
+        // One line per flow: name, summary and keywords, bar, open, due, late.
+        grid-template-columns: minmax(9rem, 16rem) minmax(0, 1fr) minmax(6rem, 12rem) 4rem 5.5rem 6.5rem;
+        grid-auto-flow: dense;
+        align-items: center;
+        gap: 0 0.75rem;
         width: 100%;
-        min-height: var(--pan-tap);
-        padding: 0.5rem 0.625rem;
-        margin-bottom: 0.25rem;
-        border: 1px solid transparent;
-        border-radius: 0.5rem;
+        min-height: var(--pan-row);
+        padding: 0.125rem 0.5rem;
+        border: 0;
+        border-bottom: 1px solid var(--pan-border);
         background: none;
+        font-size: 0.95em;
 
         &:hover {
             background: var(--pan-soft);
         }
 
-        &[aria-pressed="true"] {
-            border-color: var(--pan-accent);
+        &[aria-current="true"] {
             background: var(--pan-select);
         }
+
+        .o_pan_sl_flow_name,
+        .o_pan_sl_flow_summary {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .o_pan_sl_flow_name { grid-column: 1; }
+        .o_pan_sl_flow_summary { grid-column: 2; }
+        .o_pan_sl_stack { grid-column: 3; }
+        .o_pan_sl_flow_open { grid-column: 4; }
+        .o_pan_sl_due { grid-column: 5; }
+        .o_pan_sl_late { grid-column: 6; }
     }
 
     .o_pan_sl_flow_name {
-        display: block;
         font-weight: 500;
     }
 
-    .o_pan_sl_bar {
-        display: block;
-        height: 4px;
-        margin: 0.4rem 0;
-        border-radius: 2px;
-        background: var(--pan-border);
+    .o_pan_sl_flow_summary {
+        font-size: 0.85em;
+        color: var(--pan-muted);
+    }
 
-        > span {
-            display: block;
-            height: 100%;
-            border-radius: 2px;
-            background: var(--pan-ok);
-        }
+    .o_pan_sl_keyword {
+        margin-left: 0.5rem;
+        padding: 0 0.375rem;
+        border: 1px solid var(--pan-border);
+        border-radius: 0.75rem;
+    }
+
+    .o_pan_sl_flow_open,
+    .o_pan_sl_due {
+        font-size: 0.9em;
+        color: var(--pan-muted);
     }
 
     .o_pan_sl_flow_meta {
@@ -293,10 +474,30 @@
         color: var(--pan-late);
     }
 
+    // z3 and z4: the flow's steps beside its swimlane -------------------------
+    .o_pan_sl_detail {
+        display: flex;
+        flex: 1 1 auto;
+        gap: 0.75rem;
+        min-height: 0;
+    }
+
+    .o_pan_sl_flows {
+        flex: none;
+        width: 15rem;
+        padding-right: 0.75rem;
+        border-right: 1px solid var(--pan-border);
+    }
+
+    .o_pan_sl_flow_head {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        margin-bottom: 0.5rem;
+    }
+
     .o_pan_sl_open_tasks {
-        margin: 0 0 0.75rem 0.5rem;
-        padding-left: 0.5rem;
-        border-left: 2px solid var(--pan-accent);
+        margin: 0;
     }
 
     .o_pan_sl_open_task {
@@ -314,6 +515,11 @@
         }
     }
 
+    .o_pan_sl_step_done {
+        color: var(--pan-muted);
+    }
+
+    .o_pan_sl_step_word,
     .o_pan_sl_owners,
     .o_pan_sl_hours {
         font-size: 0.85em;
@@ -321,10 +527,9 @@
 
     .o_pan_sl_grid_wrap {
         position: relative;
-        isolation: isolate; // the sticky role column stays inside the grid area
+        isolation: isolate; // the sticky role column stays inside the swimlane
         flex: 1 1 0;
         min-width: 0;
-        min-height: 0;
 
         // A fade at the right edge says "more to the right".
         &::after {
@@ -333,7 +538,7 @@
             top: 0;
             right: 0;
             bottom: 0;
-            z-index: 1;
+            z-index: 3;
             width: 2.5rem;
             pointer-events: none;
             background: linear-gradient(to right, transparent, var(--pan-bg));
@@ -347,15 +552,14 @@
     }
 
     .o_pan_sl_grid_area {
-        height: 100%;
         overflow: auto;
-        padding: 0.75rem;
     }
 
     .o_pan_sl_grid {
         position: relative;
         display: grid;
-        // As wide as its columns, so the sticky role column sticks all the way when the grid scrolls sideways.
+        justify-content: start;
+        // As wide as its columns, so the sticky role column sticks all the way.
         width: fit-content;
         min-width: 100%;
         border-top: 1px solid var(--pan-border);
@@ -371,15 +575,17 @@
 
     .o_pan_sl_corner,
     .o_pan_sl_phase {
-        padding: 0.5rem 0.625rem;
+        padding: 0.375rem 0.5rem;
+        font-size: 0.85em;
         font-weight: 500;
+        color: var(--pan-muted);
         background: var(--pan-soft);
     }
 
     .o_pan_sl_role {
         position: sticky;
         left: 0;
-        z-index: 1;
+        z-index: 2;
         padding: 0.5rem 0.625rem;
         border-top: 0;
         border-left: 0;
@@ -398,11 +604,20 @@
     .o_pan_sl_cell {
         display: flex;
         flex-direction: column;
+        justify-content: center;
         gap: 0.25rem;
-        padding: 0.375rem;
+        padding: 0.75rem 1.25rem;
+    }
+
+    .o_pan_sl_cell_tasks {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
     }
 
     .o_pan_sl_chip {
+        position: relative;
+        z-index: 1;
         display: flex;
         gap: 0.5rem;
         min-height: var(--pan-tap);
@@ -410,7 +625,6 @@
         border: 1px solid var(--pan-border);
         border-radius: 0.375rem;
         background: var(--pan-bg);
-        transition: opacity 150ms;
 
         &:hover {
             border-color: var(--pan-muted);
@@ -420,29 +634,15 @@
             border-color: var(--pan-accent);
             background: var(--pan-select);
         }
-
     }
 
-    // Flow level: one flow as a swimlane, its chips joined by arrows. The
-    // arrows lie under the chips, in the grid's own box, so they scroll with it.
-    .o_pan_sl_swimlane {
-        justify-content: start;
-        animation: o_pan_sl_zoom_in 180ms ease-out;
-
-        .o_pan_sl_cell {
-            justify-content: center;
-            padding: 0.75rem 1.25rem;
-        }
-
-        .o_pan_sl_phase {
-            font-size: 0.85em;
-            color: var(--pan-muted);
-        }
-
-        .o_pan_sl_chip {
-            position: relative;
-            z-index: 1;
-        }
+    // A long task name: at most two lines; the full name is the chip's title.
+    .o_pan_sl_chip_name {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        overflow-wrap: anywhere;
     }
 
     .o_pan_sl_arrows {
@@ -462,24 +662,8 @@
         stroke-linejoin: round;
     }
 
-    @keyframes o_pan_sl_zoom_in {
-        from {
-            opacity: 0;
-            transform: scale(0.97);
-        }
-        to {
-            opacity: 1;
-            transform: none;
-        }
-    }
-
-    // Panel ----------------------------------------------------------------
-    // Slides in from the right over the map (overview band included); the
-    // map keeps its size underneath.
-    .o_content.o_pan_sl_content {
-        position: relative;
-    }
-
+    // Side panel: slides in from the right over the stage; the map keeps
+    // its size underneath.
     .o_pan_sl_panel {
         position: absolute;
         inset: 0 0 0 auto;
@@ -487,7 +671,7 @@
         width: 21rem;
         max-width: 100%;
         overflow-y: auto;
-        padding: 1rem;
+        padding: 1rem 1rem 4.5rem;
         border-left: 1px solid var(--pan-border);
         background: var(--pan-bg);
         box-shadow: -0.5rem 0 1.5rem rgba(0, 0, 0, 0.12);
@@ -550,49 +734,61 @@
         color: var(--pan-muted);
     }
 
-    // Phones: flows above the grid, the role panel as a bottom sheet, the
-    // task full screen as Odoo shows a form on a phone.
+    .o_pan_sl_training {
+        min-height: var(--pan-tap);
+    }
+
+    // Phones: a flow's steps above its swimlane, the panel as a bottom sheet.
     @media (max-width: 767.98px) {
-        .o_content.o_pan_sl_content {
-            display: block;
-            overflow: auto;
+        .o_pan_sl_lod {
+            padding: 0.75rem 0.75rem 4.5rem;
         }
 
-        .o_pan_sl_overview {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+        .o_pan_sl_headline {
+            font-size: 1.2rem;
         }
 
-        .o_pan_sl_body {
+        // Too narrow for the milestone names: the ticks keep them in their title.
+        .o_pan_sl_tick_label {
+            display: none;
+        }
+
+        .o_pan_sl_flow {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem 0.75rem;
+            padding: 0.375rem 0.5rem;
+
+            .o_pan_sl_flow_name,
+            .o_pan_sl_flow_summary,
+            .o_pan_sl_stack {
+                flex: 1 0 100%;
+                white-space: normal;
+            }
+        }
+
+        .o_pan_sl_detail {
             flex-direction: column;
-            height: auto;
         }
 
         .o_pan_sl_flows {
             width: auto;
-            overflow-y: visible;
+            padding-right: 0;
             border-right: 0;
-            border-bottom: 1px solid var(--pan-border);
-        }
-
-        .o_pan_sl_main,
-        .o_pan_sl_grid_wrap {
-            flex: none;
-        }
-
-        .o_pan_sl_grid_area {
-            height: auto;
         }
 
         .o_pan_sl_panel {
             position: fixed;
             inset: auto 0 0 0;
-            z-index: 3;
+            z-index: 5;
             width: auto;
             max-height: 65vh;
+            padding-bottom: 1rem;
             border: 1px solid var(--pan-border);
             border-radius: 0.75rem 0.75rem 0 0;
         }
 
+        // The task full screen, as Odoo shows a form on a phone.
         .o_pan_sl_task_panel {
             inset: 0;
             z-index: 1040;
@@ -603,12 +799,11 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .o_pan_sl_chip,
+        .o_pan_sl_lod,
         .o_pan_sl_grid_wrap::after {
             transition: none;
         }
 
-        .o_pan_sl_swimlane,
         .o_pan_sl_panel {
             animation: none;
         }
@@ -620,16 +815,19 @@
     white-space: normal !important;
 }
 
-.o_pan_sl_map .o_pan_sl_unplaced,
 .o_pan_sl_map .o_pan_sl_project {
     min-height: var(--pan-tap);
 }
 
-// Accent in Odoo's dark bundle (brand: #9b99ff, never the light purple on dark).
+// Odoo's dark bundle: the brand's dark accent, and the steps from dark grey to light green.
 @if global-variable-exists("o-webclient-color-scheme") and $o-webclient-color-scheme == dark {
     .o_pan_sl_map {
         --pan-accent: #9b99ff;
-        // On a dark background "Trained" is the light end of green, still apart from Tested.
-        --pan-done: color-mix(in srgb, var(--pan-ok) 55%, #ffffff);
+        --pan-s0: #5b616b;
+        --pan-s1: #6f7a3e;
+        --pan-s2: #5f9a45;
+        --pan-s3: #4caf50;
+        --pan-s4: #7fd18a;
+        --pan-s5: #b9efc0;
     }
 }

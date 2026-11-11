@@ -1,4 +1,4 @@
-# Data model behind an Odoo implementation (v2.3, 11-11-2026)
+# Data model behind an Odoo implementation (v2.3.1, 11-11-2026)
 
 Rule: as simple as possible. Everything is a project task; the company map is
 another view on the tasks of one project, inside the Projects app (#22).
@@ -20,12 +20,14 @@ erDiagram
 |---|---|
 | Map | One project: the "Map" view (type `pan_blueprint`) of the project's tasks, next to Kanban and List, with Odoo's search bar. Projects > Map, or "Map" on the project form and card. |
 | Flow (scenario, S01 ...) | A parent task in the project. Its subtasks are the flow. |
-| Activity / work | A task with a role and a phase: one chip on the map. A chip opens the task itself, Odoo's own task form with its chatter under it, in a panel that slides over the map; a change is saved when the panel closes. |
-| Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows four colours: grey Not started (Open), amber In progress (Decided, Built), green Tested, dark green Trained (Trained, Live). |
+| Activity / work | A task with a role and a phase: one chip on the map. At z4 the task itself opens over the map: Odoo's own task form with its chatter under it, saved when you leave it. |
+| Progress | The stage: `pan_rung` on `project.task.type` (Open, Decided, Built, Tested, Trained, Live); `project.task.pan_rung` follows it (stored, read-only). The map shows one colour per step, from grey (Open) to dark green (Live); bars are stacked by step. Tasks may move back a step; the bars show the current step. |
 | Choices | Rung "Decided". A choice that needs discussion is discussed in the task chatter. |
 | Click path, notes | The task description. |
 | Hours | Standard: allocated hours and timesheets on the task. |
-| Gates | Standard project milestones; the next one not reached answers "On schedule?" on the map. |
+| Gates | Standard project milestones: ticks on the map's timeline; the next one not reached, with On track / At risk / Late, is the caption under the project's bar. |
+| Company in one page | On the project: `pan_brief` (Html, sanitized), `pan_keywords`, `pan_from_systems`, `pan_to_systems` (Char); the programme runs from the project's `date_start` to its `date`. Project form, page "Map" (Blueprint users read, managers write). |
+| Summary, keywords | On a flow or task: `pan_summary` (one line; empty: the description's first line) and `pan_keywords` (comma separated, the map shows up to three). |
 | Phase (map column) | `pan.sl.phase`, shared by all projects. |
 | Role (map row) | `pan.sl.role`, per project (`project_id`), with its people (contacts). |
 | ADKAR | `pan.sl.adkar.score` per person, shown as a band per role. |
@@ -54,10 +56,10 @@ Removed in 2.1: the phase's Odoo apps (`app_labels`, no app chips any more),
 without a place itself), the Company map menu (Projects > Map and
 Projects > Configuration instead).
 
-Changed in 2.3.2: the task panel is the task's own form (status bar, fields,
-chatter under it) instead of a summary with "Move to" and "Open task"; the
-map data no longer carries `stages`, nor a task's `stage_id` and
-`description`.
+Changed in 2.4.1: the task at z4 is the task's own form (status bar, fields,
+chatter under it) in a panel over the map, instead of a summary with
+"Move to" and "Open task". The map data no longer carries `stages`, nor a
+task's `stage_id` and `description`.
 
 Removed in 2.0: chains, processes, activities, scenarios and scenario steps,
 choice state, open point, Odoo model link. Production held only template
@@ -99,20 +101,26 @@ project returns:
 
 ```json
 {
-  "project": {"id": 14, "name": "..."},
+  "project": {"id": 14, "name": "...", "brief": "<p>...</p>" | false,
+              "keywords": ["machines"], "from_systems": "BEMET" | false,
+              "to_systems": "Odoo 19" | false, "date_start": "2026-09-01" | false,
+              "date_end": "2027-03-01" | false},
   "milestones": [{"id": 2, "name": "Go-live", "deadline": "2026-12-11" | false,
                   "reached": false}],
   "phases": [{"id": 1, "code": "quotation", "name": "Quotation"}],
   "roles":  [{"id": 3, "code": "sales", "name": "Sales", "is_external": false,
               "people": ["Name"], "adkar": "low" | "medium" | "high" | false,
               "open_training_task_ids": [1300]}],
-  "flows":  [{"id": 1245, "name": "S01 ...", "progress": 40,
+  "flows":  [{"id": 1245, "name": "S01 ...", "summary": "one line" | false,
+              "keywords": ["articles"], "progress": 40,
               "deadline": "2026-12-01" | false, "late": true,
-              "days_late": 5, "open_count": 2,
+              "days_late": 5, "open_count": 2, "mean_rung": 1.33,
               "task_ids": [1300, 1301]}],
   "tasks":  [{"id": 1300, "name": "...", "role_id": 3 | false, "phase_id": 1 | false,
               "flow_id": 1245 | false, "stage": "Built" | false, "rung": 2,
-              "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5}]
+              "user_names": ["Name"], "planned_hours": 4.0, "spent_hours": 1.5,
+              "summary": "one line" | false,
+              "keywords": ["x"]}]
 }
 ```
 
@@ -126,9 +134,15 @@ project returns:
 - `phases`: all phases, by sequence. `roles`: the project's roles, by
   sequence. `people`: names of the role's contacts. `open_training_task_ids`:
   the role's tasks below Trained (rung < 4), the same list for each person.
-- `flows`: parent tasks of the project that have subtasks, worst first:
-  lowest `progress` (Tested %), then late before not late, then more
-  `days_late`, then more `open_count`, then sequence. `deadline` is the task
+- `project`: `brief` is the sanitized HTML of the company page; `keywords`
+  at most three; `date_start` and `date_end` are the project's start and
+  target dates.
+- `flows`: parent tasks of the project that have subtasks, worst first
+  (2.3.1): lowest `mean_rung` (the mean step over its non-cancelled
+  subtasks: work runs in parallel and goes back and forth, so every step
+  counts), then late before not late, then more `open_count`, then
+  sequence. `progress` stays the Tested %. `summary` falls back to the first
+  line of the description. `deadline` is the task
   deadline as a date in the user's time zone; `late` means that date is
   before today and progress is below 100; `days_late` counts the days since
   (0 when not late). `open_count`: its subtasks below Tested. `task_ids`: all

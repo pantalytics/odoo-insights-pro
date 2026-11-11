@@ -1,39 +1,27 @@
 #!/usr/bin/env node
-// UI check for the map (pan_self_learning_blueprint, Blueprint 2.3).
+// UI check for the map (pan_self_learning_blueprint, Blueprint 2.3.1).
 //
-// Logs in to a running Odoo as admin/admin and opens the map action without a
-// project (as the Projects menu "Map" does), which opens the "Map" view of the
-// project's tasks. At desktop (1440x900), iPad landscape (1024x768, touch) and
-// phone (390x844, touch) it screenshots the map, a flow's swimlane, a filter
-// from the overview, the task panel, the role panel and the tasks without a
-// place, and checks:
+// Logs in to a running Odoo as admin/admin and opens Projects > Map (the "Map"
+// view of the project's tasks). The map is one zoomable stage with levels of
+// detail z0 (company) to z4 (task). At desktop (1440x900), iPad landscape
+// (1024x768, touch) and phone (390x844, touch) it walks the levels and
+// screenshots each (z0_company ... z4_task), and checks:
 //
-// - Map is the active view in the switcher and the search bar is there;
-// - the overview band has five answers (On schedule?, Still to do, Flows,
-//   Training, Choices) with the numbers of the server data; "Choices" puts
-//   the "Not decided" filter in the search bar and the chips follow it;
-// - the legend has four plain words; the flow list starts with "N of M flows
-//   late" and follows the server order (worst first), with "Late · N days";
-// - tapping a flow shows its swimlane: a column per step (left to right),
-//   only its placed tasks, N-1 arrows running left to right
-//   ending at their chips, a breadcrumb "Map > flow"; its open tasks (in view,
-//   with hours) are listed right under it and announced; tapping again goes back;
-// - a chip opens the task itself (Odoo's form, chatter under it) sliding over
-//   the map (full screen on a phone); Esc closes it;
-//   the last chip of the grid (bottom right) opens a panel that is in view;
-// - the grid fades at the right edge while it can scroll sideways;
-// - the "Training" answer counts the internal roles' tasks and opens the
-//   "Still to train" list (screenshot 6_still_to_train);
-// - the role panel lists people, "To train on" and the ADKAR line;
-// - the "N tasks without a place" link matches the data;
-// - the page never scrolls sideways; on the iPad the flow list and at least
-//   four phase columns are in view; on touch, every button of the map is
-//   44 px or taller;
-// - nothing is painted with an undefined colour; the map follows Odoo's dark
-//   colour variables (desktop_dark).
+// - each level shows exactly its layers (data-layer); the legend has the six
+//   steps; z2 lists the flows in the server's order, without task names, and
+//   at 1440x900 every flow row is in view;
+// - zooming: Ctrl + wheel on desktop (a plain wheel does not zoom), a
+//   two-finger pinch on the iPad, + on the phone; the breadcrumb and - zoom out;
+// - clicking a flow flies to its swimlane: its placed tasks, N-1 arrows left
+//   to right ending at their chips, its steps listed; a chip flies to the task:
+//   Odoo's own task form, chatter under it, sliding over the stage;
+// - the page never scrolls (sideways or down) at any level; on touch every
+//   button of the map is 44 px or taller; nothing in an undefined colour;
+// - the map follows Odoo's dark colour variables (desktop_dark).
 //
 // Never waits for "networkidle" (Odoo's bus long-polls). Exits non-zero on a
-// page error, console error, Odoo error dialog or failed check.
+// page error, console error, Odoo error dialog or failed check. For a big map
+// seed with BLUEPRINT_SEED_SIZE=large (tools/seed_demo.py).
 //
 // Usage:
 //   DB=mydb OUT=/tmp/ui [URL=http://localhost:8069] node tools/ui_check.mjs
@@ -54,7 +42,6 @@ const VIEWPORTS = [
     { name: "phone", width: 390, height: 844, touch: true },
     { name: "desktop_dark", width: 1440, height: 900, touch: false, dark: true },
 ];
-const TESTED_RUNG = 3;
 
 class CheckError extends Error {}
 
@@ -109,11 +96,11 @@ async function shot(page, out, viewport, name) {
 /** Opens the map like the menu does; several projects show a list, so pick the one with the most tasks. */
 async function openMap(page, project) {
     await page.goto(MAP_URL);
-    await page.locator(".o_pan_sl_map .o_pan_sl_body, .o_pan_sl_map .o_pan_sl_projects").first().waitFor({ timeout: TIMEOUT });
+    await page.locator(".o_pan_sl_map .o_pan_sl_frame, .o_pan_sl_map .o_pan_sl_projects").first().waitFor({ timeout: TIMEOUT });
     if (await page.locator(".o_pan_sl_projects").count()) {
         await page.locator(".o_pan_sl_project", { hasText: project.name }).click();
     }
-    await page.locator(".o_pan_sl_map .o_pan_sl_body").waitFor({ timeout: TIMEOUT });
+    await page.locator(".o_pan_sl_map .o_pan_sl_frame").waitFor({ timeout: TIMEOUT });
     check(await page.locator(".o_switch_view.o_pan_blueprint.active, .o_pan_sl_map .o_control_panel .fa-map-o").count(), "Map is not the active view.");
     check(await page.locator(".o_pan_sl_map .o_searchview, .o_pan_sl_map .o_searchview_toggler, .o_pan_sl_map .o_control_panel button .fa-search, .o_pan_sl_map .o_control_panel .oi-search").count(), "no search bar.");
 }
@@ -132,255 +119,174 @@ async function useDarkTokens(page) {
     check(bg === "rgb(38, 42, 54)", `dark: the map background is ${bg}, it ignores Odoo's colour variables.`);
 }
 
-async function checkLayout(page, viewport, data) {
+/** Waits until the stage rests at a whole level (no transform left from a gesture). */
+async function atZoom(page, viewport, level) {
+    await page.waitForFunction(
+        (want) => {
+            const frame = document.querySelector(".o_pan_sl_frame");
+            const lod = document.querySelector(".o_pan_sl_lod");
+            return frame && Number(frame.dataset.zoom) === want && /^(scale\(1\))?$/.test(lod.style.transform);
+        },
+        level,
+        { timeout: TIMEOUT }
+    ).catch(async () => {
+        const now = await page.locator(".o_pan_sl_frame").getAttribute("data-zoom");
+        throw new CheckError(`${viewport.name}: expected zoom ${level}, the map is at ${now}.`);
+    });
+    await page.waitForTimeout(150);
+}
+
+async function layers(page) {
+    return page.evaluate(() => [...new Set([...document.querySelectorAll("[data-layer]")].map((el) => el.dataset.layer))].sort().join(","));
+}
+
+/** No page scroll; on touch, every button of the map 44 px or taller; nothing in an undefined colour. */
+async function checkLayout(page, viewport, label) {
     const layout = await page.evaluate(() => {
-        const rect = (el) => el && el.getBoundingClientRect();
-        const flows = rect(document.querySelector(".o_pan_sl_flows"));
-        const phases = [...document.querySelectorAll(".o_pan_sl_phase")].map(rect);
+        const rect = (el) => el.getBoundingClientRect();
         const small = [...document.querySelectorAll(".o_pan_sl_map .o_content button")]
-            .filter((el) => el.offsetParent && rect(el).height < 43.5)
+            .filter((el) => el.offsetParent && rect(el).height < 43.5 && !el.closest(".o_pan_sl_task_form")) // the task form is Odoo's own
             .map((el) => `${el.className.split(" ")[0]} "${el.textContent.trim().slice(0, 20)}" ${Math.round(rect(el).height)}px`);
-        const black = [...document.querySelectorAll(".o_pan_sl_map .o_pan_sl_dot, .o_pan_sl_map .o_pan_sl_bar > span")]
+        const black = [...document.querySelectorAll(".o_pan_sl_map .o_pan_sl_dot, .o_pan_sl_map .o_pan_sl_stack > span")]
             .filter((el) => getComputedStyle(el).backgroundColor === "rgb(0, 0, 0)").length;
+        const doc = document.documentElement;
         return {
-            pageScrolls: document.documentElement.scrollWidth > window.innerWidth + 1,
-            flowsInView: flows && flows.left >= 0 && flows.right <= window.innerWidth,
-            phasesInView: phases.filter((r) => r.left >= 0 && r.right <= window.innerWidth).length,
+            scrollsX: doc.scrollWidth > window.innerWidth + 1,
+            scrollsY: doc.scrollHeight > window.innerHeight + 1,
             small,
             black,
         };
     });
-    check(!layout.pageScrolls, `${viewport.name}: the page scrolls sideways.`);
-    check(!layout.black, `${viewport.name}: ${layout.black} dots or bars are black (undefined colour).`);
-    if (viewport.name === "ipad") {
-        check(layout.flowsInView, "ipad: the flow list is not in view.");
-        check(layout.phasesInView >= Math.min(4, data.phases.length), `ipad: only ${layout.phasesInView} phase columns in view.`);
-    }
+    check(!layout.scrollsX, `${viewport.name} ${label}: the page scrolls sideways.`);
+    check(!layout.scrollsY, `${viewport.name} ${label}: the page scrolls down.`);
+    check(!layout.black, `${viewport.name} ${label}: ${layout.black} dots or bars are black (undefined colour).`);
     if (viewport.touch) {
-        check(!layout.small.length, `${viewport.name}: tap targets under 44 px: ${layout.small.slice(0, 5).join("; ")}`);
+        check(!layout.small.length, `${viewport.name} ${label}: tap targets under 44 px: ${layout.small.slice(0, 5).join("; ")}`);
     }
 }
 
-async function checkFlows(page, out, viewport, data) {
-    const legend = await page.locator(".o_pan_sl_legend li").allTextContents();
-    check(legend.map((item) => item.trim()).join("|") === "Open|Decided or Built|Tested|Trained or Live", `${viewport.name}: legend ${legend.join("|")}`);
-    if (data.flows.length) {
-        const summary = (await page.locator(".o_pan_sl_flow_summary").textContent()).trim();
-        const late = data.flows.filter((flow) => flow.late).length;
-        check(summary === `${late} of ${data.flows.length} flows late`, `${viewport.name}: summary "${summary}"`);
+/** A two-finger pinch through the DevTools protocol (Playwright has no pinch). */
+async function pinch(page, factor) {
+    const client = await page.context().newCDPSession(page);
+    const box = await page.locator(".o_pan_sl_stage").boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + Math.min(box.height / 2, 250);
+    const points = (spread) => [
+        { x: cx - spread, y: cy, id: 0 },
+        { x: cx + spread, y: cy, id: 1 },
+    ];
+    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: points(60) });
+    for (let step = 1; step <= 8; step++) {
+        await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: points(60 * factor ** (step / 8)) });
     }
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await client.detach();
+}
+
+async function checkLevels(page, out, viewport, data) {
+    const placed = data.tasks.filter((task) => task.role_id && task.phase_id).map((task) => task.id);
+    // z0: the company and the timeline.
+    await atZoom(page, viewport, 0);
+    check((await layers(page)) === "company,systems,timeline", `${viewport.name}: z0 layers ${await layers(page)}`);
+    if (data.project.brief) {
+        check(await page.locator(".o_pan_sl_headline").count(), `${viewport.name}: no headline at z0.`);
+    }
+    await checkLayout(page, viewport, "z0");
+    await shot(page, out, viewport, "z0_company");
+
+    // z1, with a pinch on touch, Ctrl + wheel on desktop, + on the phone.
+    const stage = page.locator(".o_pan_sl_stage");
+    if (viewport.name === "ipad") {
+        await pinch(page, 2.2);
+    } else if (!viewport.touch) {
+        const box = await stage.boundingBox();
+        await page.mouse.move(box.x + box.width / 2, box.y + 200);
+        await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(600);
+        check((await page.locator(".o_pan_sl_frame").getAttribute("data-zoom")) === "0", `${viewport.name}: a plain wheel zoomed.`);
+        await page.keyboard.down("Control");
+        await page.mouse.wheel(0, -250);
+        await page.keyboard.up("Control");
+    } else {
+        await page.locator(".o_pan_sl_zoom_in").click();
+    }
+    await atZoom(page, viewport, 1);
+    check((await layers(page)) === "caption,legend,projectBar,systems,timeline", `${viewport.name}: z1 layers ${await layers(page)}`);
+    const legend = (await page.locator(".o_pan_sl_legend li").allTextContents()).map((item) => item.trim()).join("|");
+    check(legend === "Open|Decided|Built|Tested|Trained|Live", `${viewport.name}: legend ${legend}`);
+    await checkLayout(page, viewport, "z1");
+    await shot(page, out, viewport, "z1_project");
+
+    // z2: the flows, worst first, no task names.
+    await page.locator(".o_pan_sl_zoom_in").click();
+    await atZoom(page, viewport, 2);
     const names = await page.locator(".o_pan_sl_flow .o_pan_sl_flow_name").allTextContents();
     check(names.join("|") === data.flows.map((flow) => flow.name).join("|"), `${viewport.name}: flow order differs from the server.`);
-    const late = await page.locator(".o_pan_sl_flow .o_pan_sl_late").count();
-    check(late === data.flows.filter((flow) => flow.late).length, `${viewport.name}: ${late} Late tags.`);
-    if (!data.flows.length) {
-        return;
+    check(!(await page.locator(".o_pan_sl_chip").count()), `${viewport.name}: task chips at z2.`);
+    await checkLayout(page, viewport, "z2");
+    if (!viewport.touch) {
+        // At 1440x900 every flow row is in view without scrolling.
+        const hidden = await page.evaluate(() => {
+            const stage = document.querySelector(".o_pan_sl_stage").getBoundingClientRect();
+            return [...document.querySelectorAll(".o_pan_sl_flow")].filter((el) => el.getBoundingClientRect().bottom > stage.bottom + 1).length;
+        });
+        check(!hidden, `${viewport.name}: ${hidden} flow rows below the fold at z2.`);
     }
-    // The flow with the most placed tasks shows the most lines.
-    const placedIds = data.tasks.filter((task) => task.role_id && task.phase_id).map((task) => task.id);
-    const placedOf = (item) => item.task_ids.filter((id) => placedIds.includes(id)).length;
+    await shot(page, out, viewport, "z2_flows");
+
+    // z3: click the flow with the most placed tasks: it flies to its swimlane.
+    const placedOf = (flow) => flow.task_ids.filter((id) => placed.includes(id)).length;
     const flow = data.flows.reduce((best, item) => (placedOf(item) > placedOf(best) ? item : best));
-    const button = page.locator(`.o_pan_sl_flow[data-flow-id="${flow.id}"]`);
-    await button.click();
-    await page.waitForFunction((name) => document.querySelector(".o_pan_sl_status")?.textContent.includes(name), flow.name);
-    const placed = placedOf(flow);
-    const chips = await page.locator(".o_pan_sl_chip").count();
-    check(chips === placed, `${viewport.name}: ${chips} chips in the swimlane, expected ${placed}.`);
-    await page.waitForFunction((count) => document.querySelectorAll(".o_pan_sl_arrow").length === count, Math.max(0, placed - 1), { timeout: TIMEOUT });
-    await page.waitForTimeout(300); // the swimlane fades in (180 ms)
-    const crumbs = (await page.locator(".o_pan_sl_crumbs").innerText()).replace(/\s+/g, " ").trim();
-    check(crumbs === `Map › ${flow.name}`, `${viewport.name}: breadcrumb "${crumbs}"`);
-    const ends = await page.evaluate(() =>
+    await page.locator(`.o_pan_sl_flow[data-flow-id="${flow.id}"]`).click();
+    await atZoom(page, viewport, 3);
+    const steps = placedOf(flow);
+    check((await page.locator(".o_pan_sl_chip").count()) === steps, `${viewport.name}: chips in the swimlane, expected ${steps}.`);
+    await page.waitForFunction((count) => document.querySelectorAll(".o_pan_sl_arrow").length === count, Math.max(0, steps - 1), { timeout: TIMEOUT });
+    const arrowsOk = await page.evaluate(() =>
         [...document.querySelectorAll(".o_pan_sl_arrow")].every((path) => {
             const point = path.getPointAtLength(path.getTotalLength());
             const svg = path.ownerSVGElement.getBoundingClientRect();
             const rect = document.querySelector(`.o_pan_sl_chip[data-task-id="${path.dataset.to}"]`).getBoundingClientRect();
-            const [x, y] = [svg.left + point.x, svg.top + point.y];
-            return x >= rect.left - 3 && x <= rect.right + 3 && y >= rect.top - 3 && y <= rect.bottom + 3;
-        })
-    );
-    check(ends, `${viewport.name}: an arrow does not end at its chip.`);
-    // A column per step: every arrow runs left to right, none bunch in one column.
-    const rightward = await page.evaluate(() =>
-        [...document.querySelectorAll(".o_pan_sl_arrow")].every((path) => {
             const xs = path.getAttribute("d").match(/-?[\d.]+,-?[\d.]+/g).map((pair) => Number(pair.split(",")[0]));
-            return xs.at(-1) > xs[0];
+            const [x, y] = [svg.left + point.x, svg.top + point.y];
+            return xs.at(-1) > xs[0] && x >= rect.left - 3 && x <= rect.right + 3 && y >= rect.top - 3 && y <= rect.bottom + 3;
         })
     );
-    check(rightward, `${viewport.name}: an arrow runs right to left.`);
-    const columns = await page.locator(".o_pan_sl_grid .o_pan_sl_role").first().evaluate((el) => {
-        let count = 0;
-        for (let next = el.nextElementSibling; next?.classList.contains("o_pan_sl_cell"); next = next.nextElementSibling) {
-            count++;
-        }
-        return count;
+    check(arrowsOk, `${viewport.name}: an arrow runs backwards or does not end at its chip.`);
+    const crumbs = (await page.locator(".o_pan_sl_crumbs").innerText()).replace(/\s+/g, " ").trim();
+    check(crumbs.endsWith(`› ${flow.name}`), `${viewport.name}: breadcrumb "${crumbs}"`);
+    const listed = await page.locator(".o_pan_sl_open_task").count();
+    const all = data.tasks.filter((task) => flow.task_ids.includes(task.id)).length;
+    check(listed === all, `${viewport.name}: ${listed} steps listed, expected ${all}.`);
+    await checkLayout(page, viewport, "z3");
+    await shot(page, out, viewport, "z3_flow");
+
+    // z4: a chip flies to its task: Odoo's own form, chatter under it, over the map.
+    await page.locator(".o_pan_sl_chip").first().click();
+    await atZoom(page, viewport, 4);
+    const panel = page.locator(".o_pan_sl_task_panel");
+    await panel.locator(".o_form_view .o-mail-Form-chatter").waitFor({ timeout: TIMEOUT });
+    await panel.evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+    const layout = await page.evaluate(() => {
+        const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+        const panel = box(".o_pan_sl_task_panel");
+        return {
+            over: Math.abs(panel.right - box(".o_pan_sl_stage").right) < 2,
+            chatterBelow: box(".o_pan_sl_task_panel .o-mail-Form-chatter").top >= box(".o_pan_sl_task_panel .o_form_sheet_bg").bottom - 1,
+        };
     });
-    check(columns === placed, `${viewport.name}: ${columns} step columns for ${placed} placed tasks.`);
-    // Every step of the flow is listed (done ones muted), as in its chart.
-    const open = data.tasks.filter((task) => flow.task_ids.includes(task.id)).length;
-    const listed = await page.locator(".o_pan_sl_flows .o_pan_sl_open_task").count();
-    check(listed === open, `${viewport.name}: ${listed} steps listed, expected ${open}.`);
-    if (open) {
-        const list = page.locator(".o_pan_sl_flows .o_pan_sl_open_tasks");
-        check(await list.evaluate((el) => el.previousElementSibling?.classList.contains("o_pan_sl_flow")), `${viewport.name}: open tasks not under the flow.`);
-        const box = await list.boundingBox();
-        check(box && box.y < viewport.height && box.y + 20 > 0, `${viewport.name}: the open tasks are out of view.`);
-        const hours = await page.locator(".o_pan_sl_flows .o_pan_sl_hours").count();
-        check(hours === open, `${viewport.name}: ${hours} hour lines for ${open} steps.`);
-        const label = (await page.locator(".o_pan_sl_flows .o_pan_sl_hours").first().textContent()).trim();
-        check(/^\d+:\d\d spent of \d+:\d\d planned$/.test(label), `${viewport.name}: hours read "${label}"`);
-    }
-    const status = (await page.locator(".o_pan_sl_status").textContent()).trim();
-    check(status.includes(flow.name), `${viewport.name}: flow not announced: "${status}".`);
-    await shot(page, out, viewport, "2_flow");
-    await page.locator(".o_pan_sl_grid_area").evaluate((el) => el.scrollIntoView({ block: "start" }));
-    await shot(page, out, viewport, "2b_flow_swimlane");
-    await button.click();
-    await page.waitForFunction(() => !document.querySelector(".o_pan_sl_status")?.textContent.trim());
-    check(!(await page.locator(".o_pan_sl_crumbs").count()), `${viewport.name}: a second tap does not go back to the map.`);
-    const all = await page.locator(".o_pan_sl_chip").count();
-    check(all === placedIds.length, `${viewport.name}: ${all} chips on the map, expected ${placedIds.length}.`);
-}
+    check(viewport.name === "phone" || layout.over, `${viewport.name}: the task panel does not slide over the map.`);
+    check(layout.chatterBelow, `${viewport.name}: the chatter is not under the task form.`);
+    await checkLayout(page, viewport, "z4");
+    await shot(page, out, viewport, "z4_task");
 
-async function checkOverview(page, out, viewport, data) {
-    const labels = await page.locator(".o_pan_sl_answer_label").allTextContents();
-    check(labels.join("|") === "On schedule?|Still to do|Flows|Training|Choices", `${viewport.name}: answers ${labels.join("|")}`);
-    const value = async (key) => (await page.locator(`.o_pan_sl_answer_${key} .o_pan_sl_answer_value`).textContent()).trim();
-    const open = data.tasks.filter((task) => task.rung < TESTED_RUNG).length;
-    check((await value("todo")) === (open === 1 ? "1 open task" : `${open} open tasks`), `${viewport.name}: still to do "${await value("todo")}"`);
-    const tested = data.flows.filter((flow) => flow.progress >= 100).length;
-    check((await value("flows")) === `${tested} of ${data.flows.length} flows tested`, `${viewport.name}: flows "${await value("flows")}"`);
-    const decided = data.tasks.filter((task) => task.rung >= 1).length;
-    check((await value("choices")) === `${decided} of ${data.tasks.length} tasks decided`, `${viewport.name}: choices "${await value("choices")}"`);
-    const next = data.milestones.find((milestone) => !milestone.reached);
-    if (next) {
-        check((await value("schedule")) === next.name, `${viewport.name}: next milestone "${await value("schedule")}"`);
-        const status = (await page.locator(".o_pan_sl_answer_schedule .o_pan_sl_answer_status").textContent()).trim();
-        const past = next.deadline && new Date(next.deadline) < new Date(new Date().toDateString());
-        const want = past ? "Late" : data.flows.some((flow) => flow.late) ? "At risk" : "On track";
-        check(status.includes(want), `${viewport.name}: schedule says "${status}", expected ${want}.`);
-    }
-
-    // "Choices" is the filter "Not decided": a facet, and only the tasks still Open.
-    await page.locator(".o_pan_sl_answer_choices").click();
-    const notDecided = data.tasks.filter((task) => task.rung < 1 && task.role_id && task.phase_id).length;
-    await page.waitForFunction((count) => document.querySelectorAll(".o_pan_sl_chip").length === count, notDecided, { timeout: TIMEOUT });
-    check((await page.locator(".o_pan_sl_answer_choices").getAttribute("aria-pressed")) === "true", `${viewport.name}: Choices not pressed.`);
-    if (viewport.name !== "phone") {
-        const facets = await page.locator(".o_searchview_facet").allTextContents();
-        check(facets.some((facet) => facet.includes("Not decided")), `${viewport.name}: no "Not decided" facet: ${facets.join("|")}`);
-    }
-    await shot(page, out, viewport, "1b_filter_not_decided");
-    await page.locator(".o_pan_sl_answer_choices").click();
-    const placed = data.tasks.filter((task) => task.role_id && task.phase_id).length;
-    await page.waitForFunction((count) => document.querySelectorAll(".o_pan_sl_chip").length === count, placed, { timeout: TIMEOUT });
-}
-
-async function checkPanels(page, out, viewport, data) {
-    const chip = page.locator(".o_pan_sl_chip").first();
-    if (await chip.count()) {
-        await chip.click();
-        const panel = page.locator(".o_pan_sl_task_panel");
-        await panel.waitFor({ timeout: TIMEOUT });
-        // The task itself: Odoo's form, its chatter under it, sliding over the map.
-        await panel.locator(".o_form_view .o-mail-Form-chatter").waitFor({ timeout: TIMEOUT });
-        await panel.evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
-        const layout = await page.evaluate(() => {
-            const panel = document.querySelector(".o_pan_sl_task_panel").getBoundingClientRect();
-            const content = document.querySelector(".o_pan_sl_map .o_content").getBoundingClientRect();
-            const sheet = document.querySelector(".o_pan_sl_task_panel .o_form_sheet_bg").getBoundingClientRect();
-            const chatter = document.querySelector(".o_pan_sl_task_panel .o-mail-Form-chatter").getBoundingClientRect();
-            return { over: Math.abs(panel.right - content.right) < 2, chatterBelow: chatter.top >= sheet.bottom - 1 };
-        });
-        check(viewport.name === "phone" || layout.over, `${viewport.name}: the task panel does not slide over the map.`);
-        check(layout.chatterBelow, `${viewport.name}: the chatter is not under the task form.`);
-        await shot(page, out, viewport, "3_task_panel");
-        await page.mouse.move(0, 0); // a tooltip under the pointer would take the first Escape, as anywhere in Odoo
-        await page.keyboard.press("Escape");
-        await panel.waitFor({ state: "detached", timeout: TIMEOUT });
-
-        // The last chip (bottom right of the grid) opens a panel in view.
-        const last = page.locator(".o_pan_sl_chip").last();
-        await last.scrollIntoViewIfNeeded();
-        await last.click();
-        await panel.waitFor({ timeout: TIMEOUT });
-        const box = await panel.boundingBox();
-        check(box && box.y >= 0 && box.y + Math.min(box.height, 200) <= viewport.height, `${viewport.name}: the panel of the last chip is out of view.`);
-        await shot(page, out, viewport, "3b_last_chip_panel");
-        await page.mouse.move(0, 0);
-        await page.keyboard.press("Escape");
-        await panel.waitFor({ state: "detached", timeout: TIMEOUT });
-    }
-    const role = page.locator(".o_pan_sl_role").first();
-    if (await role.count()) {
-        await role.click();
-        const panel = page.locator(".o_pan_sl_role_panel");
-        await panel.waitFor({ timeout: TIMEOUT });
-        const labels = await panel.locator(".o_pan_sl_panel_label").allTextContents();
-        check(labels.join("|") === "People|To train on|ADKAR", `${viewport.name}: role panel sections ${labels.join("|")}`);
-        await shot(page, out, viewport, "4_role_panel");
-        await panel.locator(".o_pan_sl_close").click();
-    }
-}
-
-async function checkUnplaced(page, out, viewport, data) {
-    const count = data.tasks.filter((task) => !task.role_id || !task.phase_id).length;
-    const link = page.locator(".o_pan_sl_unplaced");
-    check((await link.count()) === (count ? 1 : 0), `${viewport.name}: unplaced link shown wrongly (${count} tasks).`);
-    if (!count) {
-        return;
-    }
-    const text = (await link.textContent()).replace(/\s+/g, " ").trim();
-    check(text === `${count} ${count === 1 ? "task" : "tasks"} without a place`, `${viewport.name}: unplaced link "${text}"`);
-    await link.click();
-    await page.locator(".o_pan_sl_flow_unplaced").waitFor({ timeout: TIMEOUT });
-    const listed = await page.locator(".o_pan_sl_flows .o_pan_sl_open_task").count();
-    check(listed === count, `${viewport.name}: ${listed} tasks without a place listed, expected ${count}.`);
-    await page.locator(".o_pan_sl_flows").scrollIntoViewIfNeeded();
-    await shot(page, out, viewport, "5_unplaced");
-    await link.click();
-}
-
-async function checkFade(page, viewport) {
-    const area = page.locator(".o_pan_sl_grid_area");
-    if (!(await area.count())) {
-        return;
-    }
-    await area.evaluate((el) => el.scrollTo({ left: 0 }));
-    await page.waitForTimeout(200);
-    const { scrolls, fade } = await area.evaluate((el) => ({
-        scrolls: el.scrollWidth > el.clientWidth + 1,
-        fade: el.parentElement.classList.contains("o_pan_sl_fade_right"),
-    }));
-    check(scrolls === fade, `${viewport.name}: the grid ${scrolls ? "scrolls" : "does not scroll"} sideways, the fade is ${fade ? "on" : "off"}.`);
-    if (scrolls) {
-        // Scrolled to the end, the role column still sticks inside the grid area, under the overview.
-        await area.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
-        await page.waitForTimeout(200);
-        const inside = await area.evaluate((el) => {
-            const box = el.getBoundingClientRect();
-            const role = el.querySelector(".o_pan_sl_role").getBoundingClientRect();
-            const overview = document.querySelector(".o_pan_sl_overview").getBoundingClientRect();
-            return role.left >= box.left - 1 && role.left < box.left + 40 && (role.top >= overview.bottom - 1 || role.bottom <= overview.top);
-        });
-        check(inside, `${viewport.name}: the role column leaves the grid area when it scrolls sideways.`);
-        await area.evaluate((el) => el.scrollTo({ left: 0 }));
-    }
-}
-
-async function checkTraining(page, out, viewport, data) {
-    const internal = data.roles.filter((role) => !role.is_external).map((role) => role.id);
-    const tasks = data.tasks.filter((task) => internal.includes(task.role_id));
-    const trained = tasks.filter((task) => task.rung >= 4).length;
-    const button = page.locator(".o_pan_sl_answer_training");
-    const label = (await button.locator(".o_pan_sl_answer_value").textContent()).trim();
-    check(label === `${trained} of ${tasks.length} tasks trained`, `${viewport.name}: training answer "${label}"`);
-    await button.click();
-    await page.locator(".o_list_view .o_data_row").first().waitFor({ timeout: TIMEOUT });
-    // Phones fold the search bar behind an icon, as everywhere in Odoo.
-    const facets = await page.locator(".o_searchview_facet").allTextContents();
-    check(viewport.name === "phone" || facets.some((facet) => facet.includes("Still to train")), `${viewport.name}: no "Still to train" filter: ${facets.join("|")}`);
-    await shot(page, out, viewport, "6_still_to_train");
+    // Close (X) zooms out to the flow; the breadcrumb to the flows; - to the project.
+    await panel.locator(".o_pan_sl_close").click();
+    await atZoom(page, viewport, 3);
+    await page.locator(".o_pan_sl_crumb", { hasText: "Flows" }).click();
+    await atZoom(page, viewport, 2);
+    await page.locator(".o_pan_sl_zoom_out").click();
+    await atZoom(page, viewport, 1);
 }
 
 async function runViewport(browser, db, out, viewport, problems) {
@@ -402,21 +308,21 @@ async function runViewport(browser, db, out, viewport, problems) {
         check(projects.length, "No project has a map: load the template into a project first.");
         const all = await Promise.all(projects.map((project) => rpc(page, "project.project", "get_blueprint_map_data", [[project.id]])));
         const data = all.reduce((best, item) => (item.tasks.length > best.tasks.length ? item : best));
+        // Start at z0: forget the zoom of an earlier run in this tab.
+        await page.evaluate(() => sessionStorage.clear());
         await openMap(page, data.project);
         // A fresh database greets with an OdooBot chat window over the page.
         await page.addStyleTag({ content: ".o-mail-ChatWindow, .o-mail-ChatHub { display: none !important; }" });
         if (viewport.dark) {
             await useDarkTokens(page);
-        }
-        await shot(page, out, viewport, "1_map");
-        await checkLayout(page, viewport, data);
-        if (!viewport.dark) {
-            await checkOverview(page, out, viewport, data);
-            await checkFlows(page, out, viewport, data);
-            await checkPanels(page, out, viewport, data);
-            await checkUnplaced(page, out, viewport, data);
-            await checkFade(page, viewport);
-            await checkTraining(page, out, viewport, data);
+            await page.locator(".o_pan_sl_zoom_in").click();
+            await atZoom(page, viewport, 1);
+            await page.locator(".o_pan_sl_zoom_in").click();
+            await atZoom(page, viewport, 2);
+            await checkLayout(page, viewport, "z2");
+            await shot(page, out, viewport, "z2_flows");
+        } else {
+            await checkLevels(page, out, viewport, data);
         }
         console.log(`${viewport.name}: ok`);
     } catch (error) {
