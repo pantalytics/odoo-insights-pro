@@ -9,34 +9,34 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button name="action_blueprint_load_template" type="object" string="Load template"
-                        groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                        groups="project.group_project_manager"/>
                 <button name="action_blueprint_import" type="object" string="Import"
-                        groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                        groups="project.group_project_manager"/>
                 <button name="action_blueprint_export" type="object" string="Export"
-                        groups="pan_self_learning_blueprint.group_blueprint_manager"/>
+                        groups="project.group_project_manager"/>
             </xpath>
             <xpath expr="//notebook" position="inside">
-                <page name="pan_map" string="Map" groups="pan_self_learning_blueprint.group_blueprint_user">
+                <page name="pan_map" string="Map" groups="project.group_project_user">
                     <group>
                         <group>
-                            <field name="pan_from_systems" placeholder="BEMET/PDC-Win, Excel" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
-                            <field name="pan_from_systems" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
-                            <field name="pan_to_systems" placeholder="Odoo 19, UNS" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
-                            <field name="pan_to_systems" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
-                            <field name="pan_keywords" placeholder="machines, sheet metal, projects" groups="pan_self_learning_blueprint.group_blueprint_manager"/>
-                            <field name="pan_keywords" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                            <field name="pan_from_systems" placeholder="BEMET/PDC-Win, Excel" groups="project.group_project_manager"/>
+                            <field name="pan_from_systems" readonly="1" groups="!project.group_project_manager"/>
+                            <field name="pan_to_systems" placeholder="Odoo 19, UNS" groups="project.group_project_manager"/>
+                            <field name="pan_to_systems" readonly="1" groups="!project.group_project_manager"/>
+                            <field name="pan_keywords" placeholder="machines, sheet metal, projects" groups="project.group_project_manager"/>
+                            <field name="pan_keywords" readonly="1" groups="!project.group_project_manager"/>
                         </group>
                     </group>
                     <label for="pan_brief"/>
-                    <field name="pan_brief" groups="pan_self_learning_blueprint.group_blueprint_manager"
+                    <field name="pan_brief" groups="project.group_project_manager"
                            placeholder="What the company does, its people, what it sells and how, customers, suppliers."/>
-                    <field name="pan_brief" readonly="1" groups="!pan_self_learning_blueprint.group_blueprint_manager"/>
+                    <field name="pan_brief" readonly="1" groups="!project.group_project_manager"/>
                 </page>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button class="oe_stat_button" type="object" name="action_open_blueprint_map"
                         icon="fa-map-o" string="Map"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
             </xpath>
         </field>
     </record>
@@ -49,12 +49,12 @@
         <field name="inherit_id" ref="project.view_project_kanban"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='card_menu_view']" position="inside">
-                <div role="menuitem" groups="pan_self_learning_blueprint.group_blueprint_user">
+                <div role="menuitem" groups="project.group_project_user">
                     <a name="action_open_blueprint_map" type="object">Map</a>
                 </div>
             </xpath>
             <xpath expr="//div[hasclass('o_project_kanban_boxes')]" position="inside">
-                <t groups="pan_self_learning_blueprint.group_blueprint_user">
+                <t groups="project.group_project_user">
                     <field name="pan_role_ids" invisible="1"/>
                     <a t-if="record.pan_role_ids.raw_value.length" name="action_open_blueprint_map" type="object"
                        class="o_project_kanban_box o_pan_sl_kanban_map me-1" role="button" title="Open the map">

@@ -22,7 +22,7 @@ class PanSlAdkarScore(models.Model):
     company map shows per role only a band (low, medium, high) for the weakest
     element, based on the latest round of each person holding that role.
 
-    Scores are personal: record rules let a Blueprint user read only the
+    Scores are personal: record rules let a Project user read only the
     scores on their own contact, managers read all of them, and the note is
     manager-only.
     """
@@ -93,7 +93,7 @@ class PanSlAdkarScore(models.Model):
     )
     note = fields.Text(
         string="Note",
-        groups="pan_self_learning_blueprint.group_blueprint_manager",
+        groups="project.group_project_manager",
         help="Context for the score, for example the main blocker the person mentioned.",
     )
     role_ids = fields.Many2many(
@@ -140,7 +140,7 @@ class ResPartner(models.Model):
         "partner_id",
         "role_id",
         string="Blueprint roles",
-        groups="pan_self_learning_blueprint.group_blueprint_user",
+        groups="project.group_project_user",
         help="Blueprint roles this person holds (the other side of the people on each role).",
     )
 
@@ -154,13 +154,13 @@ class ResPartner(models.Model):
         return super().write(vals)
 
     def _pan_check_role_write(self, vals_list):
-        """Who holds a role is the Blueprint administrator's, as on the role
+        """Who holds a role is the Project administrator's, as on the role
         itself (#27). Writing the contact side would otherwise only need the
         right to edit contacts."""
         if self.env.su or not any("pan_role_ids" in vals for vals in vals_list):
             return
-        if not self.env.user.has_group("pan_self_learning_blueprint.group_blueprint_manager"):
-            raise AccessError(_("Only a Blueprint administrator can change who holds a role."))
+        if not self.env.user.has_group("project.group_project_manager"):
+            raise AccessError(_("Only a Project administrator can change who holds a role."))
 
 
 class PanSlRole(models.Model):
@@ -183,7 +183,7 @@ class PanSlRole(models.Model):
         round, then latest date). The band describes the weakest of the five
         element averages. ``False`` when fewer than
         ``ADKAR_MIN_PEOPLE_FOR_BAND`` of the role's people have a score.
-        Scores are read with sudo, because a Blueprint user may only read their
+        Scores are read with sudo, because a Project user may only read their
         own; only the band word leaves this method, never a number.
         """
         partners = self.partner_ids

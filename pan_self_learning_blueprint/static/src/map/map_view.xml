@@ -11,7 +11,7 @@
                     <t t-component="searchBarToggler.component" t-props="searchBarToggler.props"/>
                 </t>
                 <t t-if="!state.allowed">
-                    <p class="o_pan_sl_empty text-muted m-3 p-4 text-center">The map needs Blueprint access. Ask your administrator.</p>
+                    <p class="o_pan_sl_empty text-muted m-3 p-4 text-center">The map needs access to Projects. Ask your administrator.</p>
                 </t>
                 <t t-elif="!projectId">
                     <p class="o_pan_sl_empty text-muted m-3 p-4 text-center">Open the map from a project.</p>

@@ -47,33 +47,33 @@
                 <field name="pan_role_id"/>
                 <field name="pan_phase_id"/>
                 <field name="pan_rung" string="Progress step"/>
-                <separator groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                <separator groups="project.group_project_user"/>
                 <filter string="Activity" name="pan_activity"
                         domain="[('child_ids', '=', False), ('pan_role_id', '!=', False), ('pan_phase_id', '!=', False)]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="No place on the map" name="pan_unplaced"
                         domain="[('child_ids', '=', False), '|', ('pan_role_id', '=', False), ('pan_phase_id', '=', False)]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Still to train" name="pan_still_to_train"
                         domain="[('child_ids', '=', False), ('state', '!=', '1_canceled'), ('pan_role_id', '!=', False), ('pan_role_id.is_external', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2', '3'])]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Not decided" name="pan_not_decided"
                         domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', '=', '0')]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Still to do" name="pan_not_tested"
                         domain="[('child_ids', '=', False), '|', ('pan_rung', '=', False), ('pan_rung', 'in', ['0', '1', '2'])]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Not live" name="pan_not_live"
                         domain="[('pan_rung', '!=', '5')]"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
             </xpath>
             <filter name="stage" position="after">
                 <filter string="Role" name="pan_groupby_role" context="{'group_by': 'pan_role_id'}"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Phase" name="pan_groupby_phase" context="{'group_by': 'pan_phase_id'}"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
                 <filter string="Progress step" name="pan_groupby_rung" context="{'group_by': 'pan_rung'}"
-                        groups="pan_self_learning_blueprint.group_blueprint_user"/>
+                        groups="project.group_project_user"/>
             </filter>
         </field>
     </record>
@@ -85,7 +85,7 @@
         <field name="inherit_id" ref="project.view_task_kanban"/>
         <field name="arch" type="xml">
             <xpath expr="//footer/div/field[@name='priority']" position="before">
-                <t groups="pan_self_learning_blueprint.group_blueprint_user">
+                <t groups="project.group_project_user">
                     <field name="pan_is_map_flow" invisible="1"/>
                     <field name="pan_flow_progress" invisible="1"/>
                     <span t-if="record.pan_is_map_flow.raw_value" class="o_pan_sl_kanban_tested badge rounded-pill text-bg-light text-nowrap flex-shrink-0 me-1">Tested <t t-esc="record.pan_flow_progress.raw_value"/>%</span>

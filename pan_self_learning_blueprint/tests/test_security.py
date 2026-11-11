@@ -1,11 +1,11 @@
-"""Access per group, checked as real (non-super) users with ``with_user()``.
+"""Access per Project group, checked as real (non-super) users with ``with_user()``.
 
-Users read phases and roles, open a project's map and set role, phase and
+The map uses the Project app's own roles: Project users read phases and roles, open a project's map and set role, phase and
 stage (so progress) on tasks; managers edit phases and roles and load, import and export
 blueprints. ADKAR scores are personal: a user reads only the scores on their
-own contact, a manager reads all, the note is manager-only, and the map shows
-a role band only over at least three people. Project users without Blueprint
-access see no Blueprint fields on tasks.
+own contact, a Project administrator reads all, the note is administrator-only,
+and the map shows a role band only over at least three people. Portal users see
+no map fields on tasks.
 """
 
 from lxml import etree
@@ -17,8 +17,8 @@ from odoo.tools import mute_logger
 
 from .common import BlueprintCase
 
-USER_GROUP = "pan_self_learning_blueprint.group_blueprint_user"
-MANAGER_GROUP = "pan_self_learning_blueprint.group_blueprint_manager"
+USER_GROUP = "project.group_project_user"
+MANAGER_GROUP = "project.group_project_manager"
 TASK_FIELDS = ("pan_role_id", "pan_phase_id", "pan_rung", "pan_flow_progress")
 
 
@@ -27,16 +27,16 @@ class TestSecurity(BlueprintCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.bp_user = new_test_user(cls.env, login="pan_sl_sec_user", name="Blueprint user", groups=USER_GROUP)
+        cls.bp_user = new_test_user(cls.env, login="pan_sl_sec_user", name="Project user", groups=USER_GROUP)
         cls.bp_manager = new_test_user(
-            cls.env, login="pan_sl_sec_manager", name="Blueprint manager", groups=MANAGER_GROUP
+            cls.env, login="pan_sl_sec_manager", name="Project administrator", groups=MANAGER_GROUP
         )
         cls.bp_colleague = new_test_user(
-            cls.env, login="pan_sl_sec_colleague", name="Blueprint colleague", groups=USER_GROUP
+            cls.env, login="pan_sl_sec_colleague", name="Project colleague", groups=USER_GROUP
         )
-        cls.bp_third = new_test_user(cls.env, login="pan_sl_sec_third", name="Blueprint third", groups=USER_GROUP)
-        cls.project_only = new_test_user(
-            cls.env, login="pan_sl_sec_project_only", name="Project only", groups="project.group_project_user"
+        cls.bp_third = new_test_user(cls.env, login="pan_sl_sec_third", name="Project third", groups=USER_GROUP)
+        cls.portal = new_test_user(
+            cls.env, login="pan_sl_sec_portal", name="Portal customer", groups="base.group_portal"
         )
         cls.Score = cls.env["pan.sl.adkar.score"]
 
@@ -76,7 +76,7 @@ class TestSecurity(BlueprintCase):
                 {"name": "Smuggled in", "pan_role_ids": [Command.link(self.role_sales.id)]}
             )
         self.assertFalse(self.role_sales.partner_ids)
-        partner.with_user(self.bp_user).write({"name": "Blueprint user renamed"})
+        partner.with_user(self.bp_user).write({"name": "Project user renamed"})
         person = self.env["res.partner"].create({"name": "Warehouse worker without login"})
         person.with_user(self.bp_manager).write({"pan_role_ids": [Command.link(self.role_sales.id)]})
         self.assertEqual(self.role_sales.partner_ids, person)
@@ -135,19 +135,9 @@ class TestSecurity(BlueprintCase):
         for name in TASK_FIELDS:
             with self.subTest(field=name):
                 self.assertEqual(self.Task._fields[name].groups, USER_GROUP)
-        self.assertFalse(set(TASK_FIELDS) & set(self.Task.with_user(self.project_only).fields_get()))
+        self.assertFalse(set(TASK_FIELDS) & set(self.Task.with_user(self.portal).fields_get()))
 
-    def test_task_views_hide_blueprint_without_group(self):
-        """A project user outside Blueprint opens task views and a placed task without errors."""
-        Task = self.Task.with_user(self.project_only)
-        views = Task.get_views([(False, "form"), (False, "list"), (False, "search")])
-        for view_type, view in views["views"].items():
-            with self.subTest(view=view_type):
-                arch = etree.fromstring(view["arch"])
-                self.assertFalse(arch.xpath("//*[starts-with(@name, 'pan_')]"), f"The {view_type} view shows map fields.")
-        arch = etree.fromstring(views["views"]["form"]["arch"])
-        fields = {node.get("name") for node in arch.iter("field")} & set(self.Task._fields)
-        self.assertEqual(self.task_a.with_user(self.project_only).web_read({name: {} for name in fields})[0]["id"], self.task_a.id)
+    def test_role_and_phase_sit_next_to_the_tags(self):
         views = self.Task.with_user(self.bp_user).get_views([(False, "form")])
         arch = etree.fromstring(views["views"]["form"]["arch"])
         self.assertFalse(arch.xpath("//page[@name='pan_map_page']"), "No Map page any more (2.1).")

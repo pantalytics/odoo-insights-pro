@@ -368,7 +368,7 @@ class TestMapData(BlueprintCase):
         self.assertEqual(self.flow.stage_id, backlog)
 
     def test_flow_rollup_needs_no_write_access_on_the_flow(self):
-        user = new_test_user(self.env, login="pan_sl_rollup_user", groups="pan_self_learning_blueprint.group_blueprint_user")
+        user = new_test_user(self.env, login="pan_sl_rollup_user", groups="project.group_project_user")
         self.project.privacy_visibility = "followers"
         self.project.message_subscribe(partner_ids=user.partner_id.ids)
         self.task_b.with_user(user).stage_id = self.stages["5"]
