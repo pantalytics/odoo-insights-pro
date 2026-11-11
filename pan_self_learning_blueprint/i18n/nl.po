@@ -1554,8 +1554,6 @@ msgid "%s milestones"
 msgstr "%s mijlpalen"
 
 #. module: pan_self_learning_blueprint
-#. odoo-javascript
-#: code:addons/pan_self_learning_blueprint/static/src/map/map_view.js:0
 #: model:ir.model.fields,field_description:pan_self_learning_blueprint.field_project_task__pan_app_ids
 msgid "Odoo apps"
 msgstr "Odoo-apps"
