@@ -17,8 +17,8 @@
         <field name="act_window_id" ref="project.act_project_project_2_project_task_all"/>
     </record>
 
-    <!-- Projects > Map: opens the one mapped project in the Map view, or a plain
-         list of mapped projects. Also takes old map URLs (params project_id). -->
+    <!-- Projects > Map: a plain list of the projects with the map on. Also takes
+         old map URLs (params project_id), which open that project's Map view. -->
     <record id="action_blueprint_map" model="ir.actions.client">
         <field name="name">Map</field>
         <field name="tag">pan_sl_blueprint_map</field>

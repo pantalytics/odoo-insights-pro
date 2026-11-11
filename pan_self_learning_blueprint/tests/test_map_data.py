@@ -409,14 +409,20 @@ class TestMapData(BlueprintCase):
         self.assertIn("o_pan_sl_wrap", list_arch.xpath("//field[@name='pan_role_people']")[0].get("class"))
 
     def test_map_projects(self):
-        """Projects > Map: the projects with at least one role, by name."""
+        """Projects > Map: the projects with the map on, by name."""
         self.env["project.project"].create({"name": "No map here"})
+        switched_off = self.env["project.project"].create({"name": "Map switched off"})
+        self.Role.create({"name": "R off", "code": "t_r_off", "project_id": switched_off.id})
+        switched_off.pan_map_enabled = False
+        self.env["project.project"].create({"name": "Map without roles", "pan_map_enabled": True})
         other = self.env["project.project"].create({"name": "A first map"})
         self.Role.create({"name": "R", "code": "t_r", "project_id": other.id})
         found = self.env["project.project"].get_blueprint_map_projects()
         names = [row["name"] for row in found]
         self.assertIn({"id": self.project.id, "name": self.project.name}, found)
         self.assertNotIn("No map here", names)
+        self.assertNotIn("Map switched off", names)
+        self.assertIn("Map without roles", names)
         self.assertLess(names.index("A first map"), names.index(self.project.name))
 
     def _count_queries(self):

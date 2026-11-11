@@ -29,6 +29,17 @@ class ProjectProject(models.Model):
 
     _inherit = "project.project"
 
+    # The switch for the map (project form, Settings). On by itself when the
+    # project gets its first role, so a template load or an import turns it on;
+    # after that only the switch decides.
+    pan_map_enabled = fields.Boolean(
+        string="Map",
+        compute="_compute_pan_map_enabled",
+        store=True,
+        readonly=False,
+        compute_sudo=True,
+        help="Show this project as a company map: Map next to Kanban and List, on its card and in Projects > Map.",
+    )
     pan_role_ids = fields.One2many(
         "pan.sl.role",
         "project_id",
@@ -61,6 +72,11 @@ class ProjectProject(models.Model):
         help="The systems the company moves to, e.g. Odoo 19, UNS.",
     )
 
+    @api.depends("pan_role_ids")
+    def _compute_pan_map_enabled(self):
+        for project in self:
+            project.pan_map_enabled = project.pan_map_enabled or bool(project.pan_role_ids)
+
     def _pan_has_stage_ladder(self):
         """True when no two stages of the project share a progress step, as
         with the six template stages. Only then may a flow's stage follow its
@@ -72,8 +88,8 @@ class ProjectProject(models.Model):
 
     @api.model
     def get_blueprint_map_projects(self):
-        """The projects with a map (at least one role) the user can read, by name."""
-        projects = self.search([("pan_role_ids", "!=", False)], order="name, id")
+        """The projects with the map switched on that the user can read, by name."""
+        projects = self.search([("pan_map_enabled", "=", True)], order="name, id")
         return [{"id": project.id, "name": project.name} for project in projects]
 
     def action_open_blueprint_map(self):
@@ -93,7 +109,7 @@ class ProjectProject(models.Model):
         """The Map view sits in the view switcher of a project with a map, for
         Project users; other projects and users do not see it."""
         action = super().action_view_tasks()
-        if not (self.env.user.has_group(USER_GROUP) and self.sudo().pan_role_ids):
+        if not (self.env.user.has_group(USER_GROUP) and self.pan_map_enabled):
             action["views"] = [view for view in action["views"] if view[1] != MAP_VIEW_TYPE]
         return action
 

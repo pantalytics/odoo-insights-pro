@@ -26,7 +26,7 @@ class TestMenus(TransactionCase):
         return self.env.ref(f"pan_self_learning_blueprint.{name}")
 
     def test_map_menu_in_the_projects_app(self):
-        """One place to start: Projects > Map (it opens the Map view of the one mapped project, or a list)."""
+        """One place to start: Projects > Map (a list of the projects with the map on)."""
         menu = self._menu("menu_blueprint_map")
         self.assertEqual((menu.name, menu.parent_id), ("Map", self.env.ref("project.menu_main_pm")))
         action = menu.action
@@ -72,6 +72,8 @@ class TestMenus(TransactionCase):
 
         self.assertIn("pan_blueprint", modes(mapped, self.bp_user))
         self.assertNotIn("pan_blueprint", modes(plain, self.bp_user))
+        mapped.pan_map_enabled = False
+        self.assertNotIn("pan_blueprint", modes(mapped, self.bp_user), "the switch decides, not the roles")
         info = self.env["ir.ui.view"].get_view_info()["pan_blueprint"]
         self.assertEqual((info["display_name"], info["icon"]), ("Map", "fa fa-map-o"))
         arch = self.env["project.task"].with_user(self.bp_user).get_views([(False, "pan_blueprint")])["views"]["pan_blueprint"]["arch"]
@@ -99,6 +101,29 @@ class TestMenus(TransactionCase):
         arch = self.env["project.project"].with_user(self.bp_user).get_views([(False, "kanban")])["views"]["kanban"]["arch"]
         root = etree.fromstring(arch)
         self.assertTrue(root.xpath("//div[contains(@class, 'o_project_kanban_boxes')]//a[@name='action_open_blueprint_map']"))
+
+    def test_map_switch(self):
+        """A project gets its map with the Map switch (Settings); the first role
+        turns it on, after that only the switch decides. The form shows the
+        switch to administrators and the Map button only with the switch on."""
+        project = self.env["project.project"].create({"name": "Switch project"})
+        self.assertFalse(project.pan_map_enabled)
+        role = self.env["pan.sl.role"].create({"name": "Switch role", "code": "t_switch", "project_id": project.id})
+        self.assertTrue(project.pan_map_enabled, "the first role turns the map on")
+        project.pan_map_enabled = False
+        role.name = "Switch role renamed"
+        self.assertFalse(project.pan_map_enabled, "switched off stays off")
+        self.assertNotIn(project.id, [row["id"] for row in self.env["project.project"].get_blueprint_map_projects()])
+
+        def form(user):
+            return etree.fromstring(
+                self.env["project.project"].with_user(user).get_views([(False, "form")])["views"]["form"]["arch"]
+            )
+
+        self.assertTrue(form(self.bp_manager).xpath("//setting[@id='pan_map_setting']//field[@name='pan_map_enabled']"))
+        self.assertFalse(form(self.bp_user).xpath("//setting[@id='pan_map_setting']"))
+        button = form(self.bp_user).xpath("//button[@name='action_open_blueprint_map']")[0]
+        self.assertEqual(button.get("invisible"), "not pan_map_enabled")
 
     def test_stage_carries_progress(self):
         arch = self.env["project.task.type"].get_views([(False, "form")])["views"]["form"]["arch"]

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- One place to start: Projects > Map. With one mapped project it opens
-         that map; with more, the map shows a plain list of them. -->
+    <!-- One place to start: Projects > Map, a plain list of the projects
+         with the map on (the switch under a project's Settings). -->
     <menuitem
         id="menu_blueprint_map"
         name="Map"

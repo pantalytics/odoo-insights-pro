@@ -130,9 +130,12 @@ task; the company map is another view on the tasks of one project
 
 ### Use
 
-- **Projects, Map** opens the map (with several mapped projects, pick one
-  first). A project's form and kanban card have a **Map** button too. Tasks
-  without a role or a phase are not on the grid; their flow lists them.
+- A project gets its map with the **Map** switch under the project's
+  **Settings** (administrators). It turns on by itself when the project gets
+  its first role, for instance from Load template or Import.
+- **Projects, Map** lists the projects with the map on; pick one. The form and
+  kanban card of such a project have a **Map** button too. Tasks without a
+  role or a phase are not on the grid; their flow lists them.
 - On the project form (administrators): **Load template** fills the project
   from the bundled template and gives it the six progress stages (again: only
   what is empty), **Import** reads a blueprint file, **Export** downloads
@@ -153,7 +156,7 @@ Over MCP, XML-RPC or JSON-RPC, as a Project user unless noted:
 - **Read the picture**: `project.project.get_blueprint_map_data()` on one
   project returns phases, roles (with people and open training), flows (worst
   first, with deadline) and every task (contract in `docs/data-model.md`).
-  `project.project.get_blueprint_map_projects()` lists the mapped projects.
+  `project.project.get_blueprint_map_projects()` lists the projects with the map on (`pan_map_enabled`).
 - **Move progress**: write `stage_id` (a stage whose `pan_rung` is the step),
   `pan_role_id` and `pan_phase_id` on `project.task`.
 - **Blueprint** (administrators): `pan.sl.blueprint.export_blueprint(project_id)`
