@@ -17,7 +17,9 @@ once at least three of its people have a score. The latest scores differ per rol
 nothing new: demo people are found again by their reference.
 """
 import os
+from datetime import timedelta
 
+from odoo import fields
 from odoo.fields import Command
 
 SEED_GUARD_VARIABLE = "BLUEPRINT_SEED_OK"
@@ -77,8 +79,22 @@ tasks = env["project.task"].search(
     [("project_id", "=", project.id), ("child_ids", "=", False), ("pan_rung", "=", "0"), ("allocated_hours", "=", 0)],
     order="id",
 )
+# Progress follows the stage (2.1): pick the project's stage with the wanted step.
+stage_by_rung = {stage.pan_rung: stage for stage in project.type_ids}
 for index, task in enumerate(tasks):
     rung = str(max(0, 5 - (task.pan_phase_id.sequence // 10) + (index % 2)) % 6)
-    task.write({"pan_rung": rung, "allocated_hours": 2 + index % 5})
+    vals = {"allocated_hours": 2 + index % 5}
+    if rung in stage_by_rung:
+        vals["stage_id"] = stage_by_rung[rung].id
+    task.write(vals)
+# Flows get a deadline (every third one already passed) and tasks an owner,
+# so "Late" and owner names show on the demo map.
+today = fields.Date.context_today(env.user)
+flows = env["project.task"].search(
+    [("project_id", "=", project.id), ("child_ids", "!=", False), ("date_deadline", "=", False)], order="sequence, id"
+)
+for index, flow in enumerate(flows):
+    flow.date_deadline = today + timedelta(days=-5 if index % 3 == 0 else 14 + index)
+env["project.task"].search([("project_id", "=", project.id), ("user_ids", "=", False)]).user_ids = env.user
 env.cr.commit()
 print("seeded", env["project.task"].search_count([("project_id", "=", project.id)]), "tasks")
